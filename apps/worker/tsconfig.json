@@ -1,0 +1,15 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "lib": ["ES2022"],
+    "types": ["@cloudflare/workers-types"],
+    "noUncheckedIndexedAccess": true,
+    "noImplicitOverride": true,
+    "paths": {
+      "@ww/shared": ["../../shared/src/index.ts"],
+      "@ww/shared/*": ["../../shared/src/*"]
+    },
+    "baseUrl": "."
+  },
+  "include": ["src/**/*.ts", "../../shared/src/**/*.ts"]
+}

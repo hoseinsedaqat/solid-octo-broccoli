@@ -1,0 +1,41 @@
+{
+  "name": "world-war",
+  "version": "1.0.0",
+  "private": true,
+  "description": "World War — Telegram multiplayer strategy game (Cloudflare Workers + D1 + Hono + React, 100% free tier)",
+  "workspaces": [
+    "shared",
+    "apps/worker",
+    "apps/frontend"
+  ],
+  "scripts": {
+    "dev": "npm run dev -w @ww/worker",
+    "dev:web": "npm run dev -w @ww/frontend",
+    "build": "npm run build -w @ww/frontend",
+    "typecheck": "npm run typecheck --workspaces --if-present",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "db:generate-seed": "node scripts/gen-seed.mjs",
+    "db:migrate:local": "wrangler d1 migrations apply DB --local --config apps/worker/wrangler.jsonc",
+    "db:seed:local": "wrangler d1 execute DB --local --file=apps/worker/seeds/seed.sql --config apps/worker/wrangler.jsonc",
+    "db:migrate:remote": "wrangler d1 migrations apply DB --remote --config apps/worker/wrangler.jsonc",
+    "db:seed:remote": "wrangler d1 execute DB --remote --file=apps/worker/seeds/seed.sql --config apps/worker/wrangler.jsonc",
+    "db:studio": "wrangler d1 execute DB --local --command \"SELECT id, name, treasury FROM nations LIMIT 10\" --config apps/worker/wrangler.jsonc",
+    "deploy": "npm run build && wrangler deploy --config apps/worker/wrangler.jsonc",
+    "check:access": "node scripts/check-access.mjs",
+    "telegram:stub": "node scripts/telegram-stub.mjs",
+    "smoke": "node scripts/smoke-local.mjs",
+    "setup:bot": "node scripts/setup-bot.mjs",
+    "build:worker": "npm run build -w @ww/worker",
+    "typecheck:shared": "npm run typecheck -w @ww/shared"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^4.20250620.0",
+    "typescript": "^5.7.3",
+    "vitest": "^2.1.9",
+    "wrangler": "^3.114.0"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  }
+}
