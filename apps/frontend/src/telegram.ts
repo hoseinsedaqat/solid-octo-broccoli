@@ -11,6 +11,7 @@ interface TgWebAppLike {
   colorScheme?: string;
   startParam?: string;
   isDataRecovered?: boolean;
+  launchSource?: string;
   ready?: () => void;
   expand?: () => void;
   setShow?: (v: boolean) => void;
@@ -28,10 +29,15 @@ function webApp(): TgWebAppLike | undefined {
   return (globalThis as { Telegram?: { WebApp?: TgWebAppLike } }).Telegram?.WebApp;
 }
 
-/** launch parameters the client puts in the WebView URL — readable even before/without the bridge */
+/**
+ * Telegram hands the app its launch parameters in the URL, split across BOTH separators: everything
+ * after the first `?` or `#` is one flat query (`#tgWebAppData=…&tgWebAppPlatform=…`). Reading it
+ * directly is what keeps the app usable even when the bridge never answers.
+ */
 function searchParam(name: string): string {
   try {
-    return new URLSearchParams(globalThis.location?.search ?? '').get(name) ?? '';
+    const flat = String(globalThis.location?.href ?? '').replace(/^[^?#]*[?#]/, '').replace(/[?#]/g, '&');
+    return new URLSearchParams(flat).get(name) ?? '';
   } catch {
     return '';
   }
@@ -50,6 +56,10 @@ export const tg = {
   get platform(): string {
     return webApp()?.platform ?? searchParam('tgWebAppPlatform') ?? '';
   },
+  /** where the launch data came from — shown on the login screen so a failure is diagnosable */
+  get launchSource(): string {
+    return String(webApp()?.launchSource ?? '') || (searchParam('tgWebAppData') ? 'url' : 'none');
+  },
   /** `?startapp=` / tgWebAppStartParam — the bot uses it for deep links like /start admin */
   get startParam(): string {
     const fromInitData = webApp()?.initDataUnsafe?.start_param;
@@ -65,7 +75,12 @@ export const tg = {
    * of the self-hosted bridge is that data can still be on its way when the app boots.
    */
   get isTelegram(): boolean {
-    return Boolean(webApp()?.initData) || Boolean(searchParam('tgWebAppPlatform')) || Boolean(searchParam('startapp'));
+    return (
+      Boolean(webApp()?.initData) ||
+      Boolean(searchParam('tgWebAppPlatform')) ||
+      Boolean(searchParam('tgWebAppData')) ||
+      Boolean(searchParam('startapp'))
+    );
   },
   /**
    * initData sometimes lands a tick after boot (older clients answer the bridge request

@@ -125,6 +125,11 @@ export function Login() {
       <p className="mt-4 text-center text-[11px] text-slate-500">
         زمان سرور: {fa(Math.floor(Date.now() / 1000))} — اگر initData منقضی شده باشد، مینی‌اپ را ببندید و دوباره از ربات باز کنید.
       </p>
+
+      {/* diagnostics: which channel delivered (or failed to deliver) the launch data */}
+      <p className="mt-2 text-center text-[10px] text-slate-600" dir="ltr">
+        bridge: {tg.launchSource} · platform: {tg.platform || '—'} · initData: {tg.initData ? 'ok' : 'empty'}
+      </p>
     </div>
   );
 }
