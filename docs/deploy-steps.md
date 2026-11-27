@@ -128,68 +128,73 @@ node -e "console.log(require('crypto').randomBytes(16).toString('hex'))"
 
 ## فاز ۹ — وصل‌کردن وب‌هوک تلگرام
 
-### به زبان ساده (این ۵ خط را بخوان، بعد کار را شروع کن)
-تلگرام پیام‌های کاربر را پیش خود نگه می‌دارد و **هیچ‌چیز** به بازی تو نمی‌دهد، مگر آدرس بدهی. «وب‌هوک» یعنی همین: یک ثبت‌کردنِ آدرس، فقط یک بار، برای همیشه.
-- سمت تلگرام: «هر پیام این ربات را POST کن به `https://world-war.<sub>.workers.dev/api/telegram/webhook`» (پس توکن لازم است تا تلگرام بداند برای **کدام** ربات).
-- سمت بازی: هر درخواستی که به آن آدرس می‌آید باید هدر `x-telegram-bot-api-secret-token` برابر `TELEGRAM_WEBHOOK_SECRET` داشته باشد، وگرنه ۴۰۳ می‌گیرد (تا غریبه‌ها نتوانند جعلی بفرستند). پس این دو مقدار باید **عیناً** یکی باشند.
-- آدرس `…/api/telegram/webhook` از قبل در Worker ساخته شده؛ کاری که تو می‌کنی فقط **معرفی آن آدرس به تلگرام** است. نصب/پورت/فایروال لازم نیست.
+### اول: توکن ربات را از BotFather بردار (۳۰ ثانیه)
+1. در تلگرام برو سرِ **@BotFather** → بفرست `/mybots`
+2. روی نام رباتت بزن → دکمه **API Token**
+3. BotFather توکن را می‌دهد (یک رشته مثل `7123456789:AAH4qSAMPLEtokenDoNotUse_x1y2z3` — عدد، بعد دو‌نقطه، بعد حروف/زیرخط) → روش بزن/کپی کن.
 
-**اول وضعیت فعلی را ببین** (این خط فقط می‌خواند، چیزی عوض نمی‌کند):
-```
-https://api.telegram.org/bot<<توکن>>/getWebhookInfo
-```
-- `"url":"https://world-war.<sub>.workers.dev/api/telegram/webhook"` → **از قبل وصل است**، فاز ۹ تمام است؛ برو فاز ۱۰.
-- `"url":""` → هنوز ست نکرده‌ای؛ ادامه بده.
-- `"url":"http://127.0.0.1:9999/…"` یا آدرس localhost → وب‌هوکِ حالت توسعه‌ی محلی روی ربات مانده؛ باید با مراحل پایین روی آدرس ابری ست شود.
+> توکن **رمز ربات توست**. آن را در چت/اسکرین‌شات/گیت قرار نده. اگر جایی لو رفت، در BotFather `/revoke` بزن و توکن تازه بگیر و فاز ۸ (secret) + فاز ۹ (webhook) را دوباره بزن.
 
-### روش ۱ — بدون ترمینال (ساده‌ترین؛ همین را انجام بده)
-سه خط زیر را یکی‌یکی در **نوار آدرس مرورگر** (Chrome/Firefox) جای‌گذاری کن؛ `<<…>>` را با مقدار خودت عوض کن:
+### به زبان ساده
+وب‌هوک یعنی: به تلگرام بگو «هر پیام این ربات را برای این آدرس بفرست». آدرس مقصد از قبل در Worker ساخته شده (`https://world-war.hoseinsedaqat.workers.dev/api/telegram/webhook`)؛ فقط باید معرفی‌اش کنی. یک بار برای همیشه.
+بازی هم هر درخواست را با `TELEGRAM_WEBHOOK_SECRET` (فاز ۸) بررسی می‌کند، پس همان رشته باید عیناً اینجا هم استفاده شود وگرنه جواب ۴۰۳ می‌گیری.
+
+### روش ۱ — مرورگر (پیشنهادی). توکن را **کپی/پیست** کن، تایپ نکن
+در **نوار آدرس مرورگر** (نه در گوگل)، به این شکل آدرس را بساز — یعنی فقط بخش وسط را با پیست کردن پر کن:
 
 ```
-1) بررسی توکن:
-https://api.telegram.org/bot<<توکن>>/getMe
-
-2) ست‌کردن وب‌هوک:
-https://api.telegram.org/bot<<توکن>>/setWebhook?url=https://world-war.hoseinsedaqat.workers.dev/api/telegram/webhook&secret_token=<<همان-secret-فاز-۸>>&drop_pending_updates=true
-
-3) تأیید:
-https://api.telegram.org/bot<<توکن>>/getWebhookInfo
+https://api.telegram.org/bot   +   [توکنِ پیست‌شده]   +   /getMe
 ```
 
-- جواب ۱ باید `{"ok":true,...,"username":"@…"}` باشد ← توکن درست است.
-- جواب ۲ باید `{"ok":true,"result":"Webhook was set"}` باشد
-- در ۳ باید این را ببینی (مقدار `secret_token` هرگز نمایش داده نمی‌شود، طبیعی است):
-  ```json
-  {"ok":true,"result":{"url":"https://world-war.hoseinsedaqat.workers.dev/api/telegram/webhook","pending_update_count":0,"last_error_message":""}}
-  ```
-  اگر `pending_update_count` بالا رفت یا `last_error_message` آمد، یعنی آدرس غلط/Worker پایین است.
+دقیقاً یکی از این سه خط را امتحان کن (خط نمونه با توکن جعلی است؛ `bot7123456789:AAH4qSAMPLEtokenDoNotUse_x1y2z3` را با `bot` + توکن خودت عوض کن):
 
-> نکته: مرورگر `&` را خودش درست می‌فرستد؛ فقط فاصله نگذار و `<<…>>` را کامل پاک کن.
+```
+https://api.telegram.org/bot7123456789:AAH4qSAMPLEtokenDoNotUse_x1y2z3/getMe
+```
+خروجی درست: `{"ok":true,"result":{"id":7123456789,"is_bot":true,"username":"نام_رباتت"}}`
 
-### روش ۱-ب — همان کار با ترمینال (اگر مرورگر خطای شبکه داد)
-در **PowerShell** حتماً `curl.exe` و حتماً کوتیشن (وگرنه `&` را دستور جدید می‌فهمد):
+اگر `{"ok":false,"error_code":404,"description":"Not Found"}` دیدی → تلگرام توکنِ داخل آدرس را نشناخته. چهار علتِ ممکن: ① جای‌گذار («توکن») هنوز پاک نشده ② فاصله یا خط جدید در انتهای توکن پیست شده ③ `bot` دوبار نوشته شده (`/bot/bot…`) ④ توکن ناقص/عوضی کپی شده (باید اولش عدد باشد و وسطش یک `:`).
+
+حالا همین آدرس را با `setWebhook` ادامه بده (یک خط، بدون فاصله):
+
+```
+https://api.telegram.org/bot7123456789:AAH4qSAMPLEtokenDoNotUse_x1y2z3/setWebhook?url=https://world-war.hoseinsedaqat.workers.dev/api/telegram/webhook&secret_token=9f2c7a1b44e6d0a8c3f5b7e9d1c3a5f7&drop_pending_updates=true
+```
+
+خروجی درست: `{"ok":true,"result":"Webhook was set"}`
+
+تأیید نهایی:
+
+```
+https://api.telegram.org/bot7123456789:AAH4qSAMPLEtokenDoNotUse_x1y2z3/getWebhookInfo
+```
+
+```json
+{"ok":true,"result":{"url":"https://world-war.hoseinsedaqat.workers.dev/api/telegram/webhook","pending_update_count":0}}
+```
+- `"url":""` → ست نشده (خط setWebhook را دوباره و کامل بزن)
+- `"url":"http://127.0.0.1:9999/…"` → وب‌هوکِ توسعه‌ی محلی روی ربات مانده؛ همان خط بالا آن را با آدرس ابری بازنویسی می‌کند
+- `last_error_message` پر بود → آدرس غلط یا Worker پایین است (`/api/health` را چک کن)
+
+### روش ۱-ب — اگر مرورگر گفت «این سایت باز نمی‌شود» (فیلترشکن)
+`api.telegram.org` در بعضی شبکه‌ها فیلتر است (در حالی که `workers.dev` باز است). PowerShell را باز کن و همین دو خط را بزن — `curl.exe` و کوتیشن لازم است وگرنه `&` را دستور جدید می‌فهمد:
+
 ```powershell
-curl.exe "https://api.telegram.org/bot<<توکن>>/getWebhookInfo"
-curl.exe -X POST "https://api.telegram.org/bot<<توکن>>/setWebhook" -d "url=https://world-war.hoseinsedaqat.workers.dev/api/telegram/webhook" -d "secret_token=<<همان-secret>>" -d "drop_pending_updates=true"
+curl.exe "https://api.telegram.org/bot7123456789:AAH4qSAMPLEtokenDoNotUse_x1y2z3/getMe"
+curl.exe -X POST "https://api.telegram.org/bot7123456789:AAH4qSAMPLEtokenDoNotUse_x1y2z3/setWebhook" -d "url=https://world-war.hoseinsedaqat.workers.dev/api/telegram/webhook" -d "secret_token=9f2c7a1b44e6d0a8c3f5b7e9d1c3a5f7" -d "drop_pending_updates=true"
 ```
-در **CMD** هم همین دو خط با `curl` (بدون `.exe`) کار می‌کند. `-d` یعنی فرمِ POST، پس `&` داخل آدرس لازم نیست و گیج‌کننده نمی‌شود.
+یا VPN را روی حالت Global بگذار و روش ۱ را تکرار کن. بعد از ست‌شدن، فیلترشکن لازم نیست.
 
-### چرا مرورگر به `api.telegram.org` خطای شبکه می‌دهد؟
-اگر `ERR_CONNECTION_RESET` / «این سایت باز نمی‌شود» گرفتی ولی `/api/health` سالم بود، فیلتر/Fake-IPvpn است: `_` را در حالت Global بگذار یا پروکسی روی مرورگر باز کن و دوباره همان URL را بزن. اگر هیچ‌جوره نشد، فاز ۹ را روی یک اینترنت بدون فیلتر (یا اینترنت موبایل دیگر) انجام بده — **یک بار** لازم است، بعدش بسته.
-
-### روش ۲ — با اسکریپت خودمان (`scripts/setup-bot.mjs`)
-این شکل **در CMD، PowerShell و Git Bash هر سه** کار می‌کند (قبلاً فقط لینوکسی بود؛ با پرچم‌های جدید اضافه شد):
-
+### روش ۲ — با اسکریپت خودمان
 ```bash
-node scripts/setup-bot.mjs --token=<<توکن>> --base=https://world-war.hoseinsedaqat.workers.dev --secret=<<همان-secret-فاز-۸>>
+node scripts/setup-bot.mjs --token=7123456789:AAH4qSAMPLEtokenDoNotUse_x1y2z3 --base=https://world-war.hoseinsedaqat.workers.dev --secret=9f2c7a1b44e6d0a8c3f5b7e9d1c3a5f7
 ```
-
 خروجی مورد انتظار:
 ```
 ✓ ربات: @نام_ربات (id 7123456789)
 ✓ وب‌هوک ست شد: https://world-war.hoseinsedaqat.workers.dev/api/telegram/webhook
 ```
-پرچم‌های اضافی: `--delete` (قطع وب‌هوک) و `--poll` (حالت توسعه با getUpdates). اگر `PUBLIC_BASE_URL`/`BOT_TOKEN` را به‌صورت متغیر محیطی ست کرده باشی، اسکریپت همان‌ها را هم می‌خواند.
+پرچم‌های دیگر: `--delete` (قطع وب‌هوک)، `--poll` (حالت توسعه با getUpdates). `BOT_TOKEN` / `PUBLIC_BASE_URL` / `TELEGRAM_WEBHOOK_SECRET` به‌صورت متغیر محیطی هم پذیرفته می‌شود، ولی در CMD/PowerShell همان `VAR=value command` کار نمی‌کند — **از پرچم‌ها استفاده کن**.
 
 ## فاز ۱۰ — تست نهایی (چهار قدم، هر کدام ۱۰ ثانیه)
 
@@ -240,6 +245,10 @@ npx wrangler d1 migrations apply DB --remote --config apps/worker/wrangler.jsonc
 | علامت | علت | درمان |
 |---|---|---|
 | `deploy` خطای `database_id` | فاز ۵ انجام نشده | دو خط wrangler.jsonc را دوباره چک کن |
+| `/getMe` جواب `404 Not Found` | توکن داخل آدرس نامعتبر یا ناقص | توکن را از BotFather (`/mybots` → API Token) دوباره کپی کن؛ فقط پیست، نه تایپ |
+| `/setWebhook` گفت `Bad Request: url is required` | `&` قبل از `url=` خورده شد (معمولاً در CMD/PowerShell) | یا یک‌خطی در مرورگر، یا `curl.exe … -d "url=…"` |
+| `Not Found` روی **همه** متدها | مسیر آدرس غلط (مثلاً `/bot/getMe`) | شکل درست: `https://api.telegram.org/bot<توکن>/<متد>` |
+| ربات ساکت است ولی `getWebhookInfo` آدرس را نشان می‌دهد | `secret_token` با `TELEGRAM_WEBHOOK_SECRET` فرق دارد | همان secret فاز ۸ را دوباره put کن و setWebhook را با همان مقدار بزن |
 | health اوکی ولی `/start` بی‌جواب | وب‌هوک/secret | `getWebhookInfo` را باز کن؛ `last_error_message` چه می‌گوید؛ secret‌های فاز ۸ و ۹ باید **یکی** باشند |
 | `403 ورود فقط از طریق…` در Admin | ربات از `ADMIN_TELEGRAM_IDS` بیرون است | عدد درست از @userinfobot |
 | مینی‌اپ «در حال ورود» می‌ماند | توکن مرورگر/iframe | رفرش کن (فیکس در repo است؛ اگر خودت بیلد قدیمی deploy کردی، فاز ۶ را دوباره بزن) |
