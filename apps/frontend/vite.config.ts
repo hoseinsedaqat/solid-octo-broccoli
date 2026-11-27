@@ -7,13 +7,9 @@ const API_TARGET = process.env.WW_API_TARGET ?? 'http://127.0.0.1:8787';
 
 export default defineConfig({
   plugins: [react()],
-  resolve: {
-    alias: {
-      // shared source (constants + zod schemas) is bundled straight from the workspace,
-      // so the UI can never drift from the categories/statuses the Worker uses
-      '@ww/shared': new URL('../../shared/src/index.ts', import.meta.url).pathname,
-    },
-  },
+  // no alias needed for @ww/shared: npm workspaces symlink it into node_modules and its
+  // package.json exports ./src/index.ts directly — which also avoids URL→path bugs on Windows
+  // (new URL(...).pathname yields "/E:/Data%20Analysis/..." there and breaks vite build).
   server: {
     host: '0.0.0.0',
     port: 5173,
