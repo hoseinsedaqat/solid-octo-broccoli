@@ -121,7 +121,7 @@ node scripts/setup-bot.mjs
 | «ورود» در تلگرام 403 | `APP_ENV=development` در production | پاکش کنید (dev-login فقط محلی) |
 | کران اجرا نمی‌شود | cron فقط با deploy واقعی | dashboard → worker → Events/Cron لاگ را ببینید؛ دستی: پنل کران |
 
-هوورا رضا خان
+
 
 ---
 
@@ -163,4 +163,4 @@ https://api.telegram.org/bot<TOKEN>/setWebhook?url=https://world-war.<sub>.worke
 
 > عیب‌یابی سریع: `/api/health` خطا داد → لاگ‌ها را در Workers → world-war → **Logs** ببینید. ربات پیام داد ولی مینی‌اپ باز نشد → `PUBLIC_BASE_URL` و `WEBAPP_URL` را چک کنید. هیچ راندمانی از کران → D1 console: `SELECT * FROM job_checkpoints;`
 
-هوورا رضا خان
+

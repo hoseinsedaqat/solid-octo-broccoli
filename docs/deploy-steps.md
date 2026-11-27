@@ -128,34 +128,69 @@ node -e "console.log(require('crypto').randomBytes(16).toString('hex'))"
 
 ## فاز ۹ — وصل‌کردن وب‌هوک تلگرام
 
-**روشِ الف — اسکریپت خودمان (پیشنهادی):**
-```bash
-BOT_TOKEN=<<توکن>> \
-TELEGRAM_WEBHOOK_SECRET=<<همان secret فاز ۸>> \
-PUBLIC_BASE_URL=https://world-war.hoseinsedaqat.workers.dev \
-node scripts/setup-bot.mjs
+**هدف یک‌خطی:** به تلگرام بگوییم «هر پیامی کاربر به ربات داد، همان لحظه برای من بفرست به این آدرس: `…/api/telegram/webhook`». تا این وصل نشود، ربات هیچ‌جوابی نمی‌دهد (نه `/start`، نه دکمه‌ها). همان یک کار است، بس.
+
+⚠️ دو چیز لازم داری: **توکن ربات** (فاز ۱) و **همان رشته‌ای که در فاز ۸ به‌عنوان `TELEGRAM_WEBHOOK_SECRET` گذاشتی** — باید عیناً یکی باشند، وگرنه Worker پیام‌ها را ۴۰۳ می‌کند.
+
+### روش ۱ — بدون ترمینال (ساده‌ترین؛ همین را انجام بده)
+سه خط زیر را یکی‌یکی در **نوار آدرس مرورگر** (Chrome/Firefox) جای‌گذاری کن؛ `<<…>>` را با مقدار خودت عوض کن:
+
 ```
+1) بررسی توکن:
+https://api.telegram.org/bot<<توکن>>/getMe
+
+2) ست‌کردن وب‌هوک:
+https://api.telegram.org/bot<<توکن>>/setWebhook?url=https://world-war.hoseinsedaqat.workers.dev/api/telegram/webhook&secret_token=<<همان-secret-فاز-۸>>&drop_pending_updates=true
+
+3) تأیید:
+https://api.telegram.org/bot<<توکن>>/getWebhookInfo
+```
+
+- جواب ۱ باید `{"ok":true,...,"username":"@…"}` باشد ← توکن درست است.
+- جواب ۲ باید `{"ok":true,"result":"Webhook was set"}` باشد
+- در ۳ باید این را ببینی (مقدار `secret_token` هرگز نمایش داده نمی‌شود، طبیعی است):
+  ```json
+  {"ok":true,"result":{"url":"https://world-war.hoseinsedaqat.workers.dev/api/telegram/webhook","pending_update_count":0,"last_error_message":""}}
+  ```
+  اگر `pending_update_count` بالا رفت یا `last_error_message` آمد، یعنی آدرس غلط/Worker پایین است.
+
+> نکته: مرورگر `&` را خودش درست می‌فرستد؛ فقط فاصله نگذار و `<<…>>` را کامل پاک کن.
+
+### روش ۲ — با اسکریپت خودمان (`scripts/setup-bot.mjs`)
+این شکل **در CMD، PowerShell و Git Bash هر سه** کار می‌کند (قبلاً فقط لینوکسی بود؛ با پرچم‌های جدید اضافه شد):
+
+```bash
+node scripts/setup-bot.mjs --token=<<توکن>> --base=https://world-war.hoseinsedaqat.workers.dev --secret=<<همان-secret-فاز-۸>>
+```
+
 خروجی مورد انتظار:
 ```
-✓ ربات: @MyWorldWarBot (id 7123456789)
+✓ ربات: @نام_ربات (id 7123456789)
 ✓ وب‌هوک ست شد: https://world-war.hoseinsedaqat.workers.dev/api/telegram/webhook
 ```
+پرچم‌های اضافی: `--delete` (قطع وب‌هوک) و `--poll` (حالت توسعه با getUpdates). اگر `PUBLIC_BASE_URL`/`BOT_TOKEN` را به‌صورت متغیر محیطی ست کرده باشی، اسکریپت همان‌ها را هم می‌خواند.
 
-**روشِ ب — بدون ترمینال:** همین آدرس را در نوار مرورگر بزن:
-```
-https://api.telegram.org/bot<<توکن>>/setWebhook?url=https://world-war.hoseinsedaqat.workers.dev/api/telegram/webhook&secret_token=<<secret>>
-```
-جواب `{"ok":true,...}` یعنی وصل.
+## فاز ۱۰ — تست نهایی (چهار قدم، هر کدام ۱۰ ثانیه)
 
-## فاز ۱۰ — تست نهایی
-
-```bash
-curl https://world-war.hoseinsedaqat.workers.dev/api/health
-# {"ok":true,"service":"world-war",...,"telegramBotConfigured":true,"webhookSecretConfigured":true}
+**۱) سلامت سرور:** این آدرس را در مرورگر باز کن:
 ```
-در تلگرام:
-1. `/start` → «نام کشور» ← تایپ کن (مثلاً «پرشیا») → رئیس کشور → پرچم → **کشور ساخته شد؛ خزانه ۱٬۰۰۰٬۰۰۰ سکه** 
-2. منوی پایین تلگرام (⋮ کنار کادر متن) → دکمه سبز «ورود به بازی» → **مینی‌اپ** بالا می‌آید.
+https://world-war.hoseinsedaqat.workers.dev/api/health
+```
+باید JSON سبزبازانه‌ای ببینی:
+```json
+{"ok":true,"service":"world-war","telegramBotConfigured":true,"webhookSecretConfigured":true}
+```
+- `telegramBotConfigured:false` → `BOT_TOKEN` ست نشده (برگرد فاز ۸).
+- `webhookSecretConfigured:false` → `TELEGRAM_WEBHOOK_SECRET` نیست؛ آن را put کن و **وب‌هوک را دوباره با همان مقدار ست کن**.
+- اصلاً باز نشد/`error 1101` → `npx wrangler tail --config apps/worker/wrangler.jsonc` را بزن و خطا را بخوان.
+
+**۲) ربات در تلگرام:** به رباتت پیام بده `/start` → اسم کشور تایپ کن (مثلاً «پرشیا») → رئیس کشور را انتخاب کن → پرچم → پیام «کشور ساخته شد؛ خزانه ۱٬۰۰۰٬۰۰۰ سکه». اگر ` /start ` هیچ جوابی نداد: ۹۹٪ وب‌هوک است → روش ۱ قدم ۳ را دوباره چک کن.
+
+**۳) دکمه‌های منوی پایین:** کنار کادر متن تلگرام «⋮» → «Play with bot» → منوی ۶ دکمه‌ای. روی هر کدام بزنی باید جواب بیاید (مثلاً «🛒 فروشگاه تجهیزات»). این مسیرِ `npm run dev` نیست، مستقیم روی Worker است.
+
+**۴) مینی‌اپ:** از همان منو دکمه سبز **«ورود به بازی»** → صفحه‌ی بازی (نقشه/خزانه/دسته‌بندی‌ها) بالا بیاید. اگر فقط چرخ‌گردان می‌بینی: یک‌بار `Ctrl+Shift+R` (ریفرش سخت) و بعد اگر درست نشد بگو کد HTTP را در تب Network می‌بینی.
+
+**اگر قبلاً `/start` زده بودی و چیزی نیامد:** بعد از ست‌کردن وب‌هوک، دوباره `/start` بفرست — تلگرام پیام‌های قبل از وب‌هوک را دوباره ارسال نمی‌کند (`drop_pending_updates:true` آن‌ها را پاک کرد، عمدی).
 
 ## فاز ۱۱ — پنل مدیریت
 
@@ -189,4 +224,4 @@ npx wrangler d1 migrations apply DB --remote --config apps/worker/wrangler.jsonc
 | مینی‌اپ «در حال ورود» می‌ماند | توکن مرورگر/iframe | رفرش کن (فیکس در repo است؛ اگر خودت بیلد قدیمی deploy کردی، فاز ۶ را دوباره بزن) |
 | دکمه «ورود به بازی» نیست | BotFather تنظیم نشده | `/menu_button` ← Show Web App → URL همان `https://world-war.<sub>.workers.dev` |
 
-هوورا رضا خان 
+
