@@ -46,6 +46,8 @@ node scripts/smoke-local.mjs                  # ۳۷ چک سرتاسری؛ با�
 
 اولین `/start admin` از شناسه داخل `ADMIN_TELEGRAM_IDS` → **مدیر اصلی** ساخته می‌شود (قابل مسدود/تنزل نیست تا پنل قفل نشود).
 
+📄 هر متغیر از کجا می‌آید (BotFather، D1 database_id، نمونه‌های پرشده برای Dashboard): **[`docs/env-guide.md`](docs/env-guide.md)**.
+
 ## ۴. دیپلوی روی Cloudflare
 
 ```bash

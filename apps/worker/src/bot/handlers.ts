@@ -20,7 +20,7 @@ import { listIncoming, decideRequest, listRelations } from '../services/diplomac
 import { createStatement, listMyStatements } from '../services/statementService';
 import { feed as newsFeed, listRankings } from '../services/newsService';
 import { configureTelegramApiBase, TelegramApi, escapeHtml, coins, type TgCallbackQuery, type TgMessage, type TgUpdate, type InlineKeyboardButton, type KeyboardRow } from './telegram';
-import { backButton, flagKeyboard, formatNumber, formatNumber as fmt, mainMenu, pager, percent, REPLY_MENU, REPLY_TO_LABEL, statLine, yesNoRows } from './ui';
+import { backButton, CATEGORY_BACK_TEXT, CATEGORY_ENTRY_TEXT, CATEGORY_KEYPAD, CATEGORY_TO_KEY, flagKeyboard, formatNumber, formatNumber as fmt, mainMenu, moreMenu, pager, percent, REPLY_MENU, REPLY_TO_LABEL, statLine, yesNoRows } from './ui';
 
 export interface BotCtx {
   db: Db;
@@ -117,9 +117,25 @@ async function handleUserMessage(ctx: BotCtx, message: TgMessage, updateId: numb
     return { handled: 'statement_preview' };
   }
 
+  // the 18 category buttons of the purchase keypad (installed by «مدیریت کشور»)
+  const catKey = CATEGORY_TO_KEY[text];
+  if (catKey) {
+    await sendShopCategoryCard(ctx, message.chat.id, identity.userId, catKey);
+    return { handled: `reply:shop:${catKey}` };
+  }
+  if (text === CATEGORY_BACK_TEXT) {
+    await ctx.tg.sendMessage(message.chat.id, await welcomeText(ctx, identity.userId), { inline: mainMenu(ctx.webAppUrl) });
+    await sendMainMenu(ctx, message.chat.id);
+    return { handled: 'reply:back_to_menu' };
+  }
+
   const mapped = REPLY_TO_LABEL[text];
   if (mapped) {
     await renderPage(ctx, message.chat.id, identity.userId, mapped === 'menu' ? ('dashboard' as PlayerPage) : mapped, message.message_id);
+    if (mapped === 'country') {
+      // the classic flow: country management installs the category keypad at the bottom
+      await ctx.tg.sendMessage(message.chat.id, CATEGORY_ENTRY_TEXT, { reply: CATEGORY_KEYPAD });
+    }
     return { handled: `reply:${mapped}` };
   }
   await ctx.tg.sendMessage(message.chat.id, 'دستور ناشناخته. از منوی پایین یا /menu استفاده کنید.');
@@ -346,7 +362,14 @@ async function handleCallback(ctx: BotCtx, cb: TgCallbackQuery, updateId: number
         await answer();
         return { handled: 'noop' };
       case 'm':
+        if (rest[0] === 'more') {
+          await ctx.tg.editMessageText(chatId, messageId, '🧭 <b>سایر بخش‌ها</b>\n\nهر ۱۲ بخش بازی، همان‌طور که در مینی‌اپ هم در دسترس‌اند:', moreMenu(ctx.webAppUrl));
+          await answer();
+          return { handled: 'menu:more' };
+        }
         await ctx.tg.editMessageText(chatId, messageId, await welcomeText(ctx, identity.userId), mainMenu(ctx.webAppUrl));
+        // coming back from the category keypad → put the regular player keypad back
+        await ctx.tg.sendMessage(chatId, '⌨️ صفحه‌کلید بازیکن بازگردانده شد.', { reply: REPLY_MENU });
         await answer();
         return { handled: 'menu' };
       case 'h':
@@ -372,6 +395,7 @@ async function handleCallback(ctx: BotCtx, cb: TgCallbackQuery, updateId: number
       }
       case 'nav':
         await renderPageCallback(ctx, chatId, messageId, identity.userId, rest[0] as PlayerPage);
+        if (rest[0] === 'country') await ctx.tg.sendMessage(chatId, CATEGORY_ENTRY_TEXT, { reply: CATEGORY_KEYPAD });
         await answer();
         return { handled: `nav:${rest[0]}` };
       case 'cat':
@@ -952,6 +976,18 @@ async function renderStatementsBody(ctx: BotCtx, nation: NationRow) {
 async function renderShopCategory(ctx: BotCtx, chatId: number, messageId: number, userId: number, categoryKey: string, offset: number) {
   const nation = await currentNation(ctx, userId);
   if (!nation) throw ApiError.forbidden('کشوری یافت نشد.');
+  const body = await shopCategoryBody(ctx, nation, categoryKey, offset);
+  await ctx.tg.editMessageText(chatId, messageId, body.text, body.rows);
+}
+
+async function sendShopCategoryCard(ctx: BotCtx, chatId: number, userId: number, categoryKey: string) {
+  const nation = await currentNation(ctx, userId);
+  if (!nation) throw ApiError.forbidden('کشوری یافت نشد.');
+  const body = await shopCategoryBody(ctx, nation, categoryKey, 0);
+  await ctx.tg.sendMessage(chatId, body.text, { inline: body.rows });
+}
+
+async function shopCategoryBody(ctx: BotCtx, nation: NationRow, categoryKey: string, offset: number) {
   const { items } = await listCategoryItems(ctx.db, nation, categoryKey, ctx.settings);
   const page = items.slice(offset, offset + 10);
   const rows: KeyboardRow<InlineKeyboardButton>[] = page.map((item) => [
@@ -962,18 +998,14 @@ async function renderShopCategory(ctx: BotCtx, chatId: number, messageId: number
   ]);
   rows.push(...pager(`cat:${categoryKey}`, offset, items.length, 10));
   rows.push([{ text: '🔙 دسته‌بندی‌ها', callback_data: 'nav:marketplace' }, { text: '🏠 منو', callback_data: 'm' }]);
-  await ctx.tg.editMessageText(
-    chatId,
-    messageId,
-    [
-      `🛒 <b>${items.length} تجهیز در این دسته</b>`,
-      '',
-      statLine('خزانه', coins(nation.treasury)),
-      'تعداد خریداری‌شده در پرانتز نمایش داده می‌شود.',
-      ...page.map((i) => `• ${i.nameFa} (موجودی فعلی: ${formatNumber(i.ownedQuantity)})`),
-    ].join('\n'),
-    rows,
-  );
+  const text = [
+    `🛒 <b>${items.length} تجهیز در این دسته</b>`,
+    '',
+    statLine('خزانه', coins(nation.treasury)),
+    'تعداد خریداری‌شده در پرانتز نمایش داده می‌شود.',
+    ...page.map((i) => `• ${i.nameFa} (موجودی فعلی: ${formatNumber(i.ownedQuantity)})`),
+  ].join('\n');
+  return { text, rows };
 }
 
 async function renderShopItem(ctx: BotCtx, chatId: number, messageId: number, userId: number, templateId: number, _offset: number) {

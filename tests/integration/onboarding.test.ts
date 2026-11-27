@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { DEFAULT_BRANDING, STARTER_ECONOMY, EQUIPMENT_CATEGORIES, STARTER_PACK } from '@ww/shared';
+import { DEFAULT_BRANDING, EQUIPMENT_CATEGORIES, STARTER_ECONOMY, STARTER_PACK } from '@ww/shared';
 import { all, createWorld, first, onboardViaBot, botText, botCallback, type World } from '../helpers/harness';
 
 let world: World;
@@ -36,6 +36,44 @@ describe('bot onboarding (the real /start flow, offline)', () => {
     }
     const inline = markups.flatMap((m) => (m.inline_keyboard ?? []).flat());
     expect(inline.some((b) => Boolean(b.web_app) || Boolean(b.url))).toBe(true); // Mini App launcher
+  });
+
+  it('country management installs the 18-category keypad; category taps open the in-bot shop card', async () => {
+    await onboardViaBot(world, 900_030, 'دشت کیپد', 'سارا', 2);
+    world.sent.length = 0;
+    await botText(world, 900_030, '🛡️ مدیریت کشور');
+    const markups = world.sent
+      .filter((s) => s.method === 'sendMessage')
+      .map((s) => (s.payload.reply_markup ?? {}) as { keyboard?: { text: string }[][]; inline_keyboard?: { text: string }[][] });
+    // the country page itself, and the keypad entry message with all 18 purchase buttons
+    const keypad = markups.find((m) => (m.keyboard ?? []).flat().some((b) => b.text === 'خرید تانک'));
+    expect(keypad).toBeTruthy();
+    const keys = (keypad!.keyboard ?? []).flat().map((b) => b.text);
+    expect(keys).toHaveLength(EQUIPMENT_CATEGORIES.length + 1); // 18 categories + بازگشت
+    expect(keys).toContain('⬅️ بازگشت به منوی اصلی');
+    expect(sentTexts().some((t) => t.includes('خب، حالا چه کاری برای انجام بدم'))).toBe(true);
+
+    world.sent.length = 0;
+    await botText(world, 900_030, 'خرید تانک');
+    const card = world.sent.find((s) => s.method === 'sendMessage');
+    const inline = ((card?.payload.reply_markup ?? {}) as { inline_keyboard?: { text: string }[][] }).inline_keyboard ?? [];
+    expect(inline.flat().some((b) => /Abrams|Leopard/.test(String(b.text)))).toBe(true);
+
+    // back to the main menu restores the regular player keypad
+    world.sent.length = 0;
+    await botText(world, 900_030, '⬅️ بازگشت به منوی اصلی');
+    const back = world.sent
+      .filter((s) => s.method === 'sendMessage')
+      .map((s) => (s.payload.reply_markup ?? {}) as { keyboard?: { text: string }[][] });
+    expect(back.some((m) => (m.keyboard ?? []).flat().some((b) => String(b.text).includes('دارایی')))).toBe(true);
+
+    // «سایر بخش‌ها» exposes the remaining pages of the design document
+    world.sent.length = 0;
+    await botCallback(world, 900_030, 'm:more');
+    const more = world.sent
+      .filter((s) => s.method === 'editMessageText')
+      .map((s) => (s.payload.reply_markup ?? {}) as { inline_keyboard?: { text: string; callback_data?: string }[][] });
+    expect(more.some((m) => (m.inline_keyboard ?? []).flat().some((b) => b.callback_data === 'nav:diplomacy'))).toBe(true);
   });
 
   it('walks name -> leader -> flag and grants the exact starter package', async () => {

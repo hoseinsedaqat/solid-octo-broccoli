@@ -13,7 +13,8 @@ import { tg } from '../telegram';
 export function Login() {
   const { loginWithInitData, loginDev, error } = useAuth();
   const [busy, setBusy] = useState(false);
-  const [devId, setDevId] = useState('');
+  // pre-filled with the id from the sample .dev.vars — one tap in and you are primary admin
+  const [devId, setDevId] = useState('111111111');
   const inTelegram = tg.isTelegram;
 
   return (

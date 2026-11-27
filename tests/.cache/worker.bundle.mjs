@@ -16194,6 +16194,17 @@ var REPLY_TO_LABEL = {
   "\u2699\uFE0F \u062A\u0646\u0638\u06CC\u0645\u0627\u062A": "settings"
 };
 function mainMenu(webAppUrl) {
+  const rows = [];
+  if (webAppUrl) rows.push([{ text: "\u{1F916} \u0648\u0631\u0648\u062F \u0628\u0647 \u0628\u0627\u0632\u06CC \u06A9\u0633\u0628\u200C\u062F\u0631\u0622\u0645\u062F \u{1F916}", web_app: { url: webAppUrl } }]);
+  rows.push(
+    [{ text: "\u{1F4B0} \u062F\u0627\u0631\u0627\u06CC\u06CC", callback_data: "nav:economy" }, { text: "\u{1F6E1}\uFE0F \u0645\u062F\u06CC\u0631\u06CC\u062A \u06A9\u0634\u0648\u0631", callback_data: "nav:country" }],
+    [{ text: "\u{1F6D2} \u062E\u0631\u06CC\u062F \u062A\u062C\u0647\u06CC\u0632\u0627\u062A", callback_data: "nav:marketplace" }, { text: "\u2694\uFE0F \u062D\u0645\u0644\u0647", callback_data: "nav:war" }],
+    [{ text: "\u{1F6E1}\uFE0F \u062F\u0641\u0627\u0639", callback_data: "nav:defense" }],
+    [{ text: "\u2139\uFE0F \u0627\u0637\u0644\u0627\u0639\u0627\u062A \u0628\u06CC\u0634\u062A\u0631 \u0648 \u062A\u0646\u0638\u06CC\u0645\u0627\u062A", callback_data: "h" }, { text: "\u{1F9ED} \u0633\u0627\u06CC\u0631 \u0628\u062E\u0634\u200C\u0647\u0627", callback_data: "m:more" }]
+  );
+  return rows;
+}
+function moreMenu(webAppUrl) {
   const buttons = PLAYER_PAGES.filter((p) => p !== "dashboard").map((p) => ({
     text: `${PLAYER_PAGE_META[p].emoji} ${PLAYER_PAGE_META[p].labelFa}`,
     callback_data: `nav:${p}`
@@ -16201,9 +16212,21 @@ function mainMenu(webAppUrl) {
   const rows = [];
   for (let i = 0; i < buttons.length; i += 2) rows.push(buttons.slice(i, i + 2));
   if (webAppUrl) rows.unshift([{ text: "\u{1F5A5}\uFE0F \u0628\u0627\u0632 \u06A9\u0631\u062F\u0646 \u0628\u0627\u0632\u06CC (Mini App)", web_app: { url: webAppUrl } }]);
-  rows.push([{ text: "\u2139\uFE0F \u0631\u0627\u0647\u0646\u0645\u0627", callback_data: "h" }, { text: "\u{1F504} \u0645\u0646\u0648\u06CC \u0627\u0635\u0644\u06CC", callback_data: "m" }]);
+  rows.push([{ text: "\u2B05\uFE0F \u0628\u0627\u0632\u06AF\u0634\u062A \u0628\u0647 \u0645\u0646\u0648\u06CC \u0627\u0635\u0644\u06CC", callback_data: "m" }]);
   return rows;
 }
+var CATEGORY_TO_KEY = Object.fromEntries(
+  EQUIPMENT_CATEGORIES.map((c) => [c.shopLabelFa, c.key])
+);
+var CATEGORY_BACK_TEXT = "\u2B05\uFE0F \u0628\u0627\u0632\u06AF\u0634\u062A \u0628\u0647 \u0645\u0646\u0648\u06CC \u0627\u0635\u0644\u06CC";
+var CATEGORY_ENTRY_TEXT = "\u062E\u0628\u060C \u062D\u0627\u0644\u0627 \u0686\u0647 \u06A9\u0627\u0631\u06CC \u0628\u0631\u0627\u06CC \u0627\u0646\u062C\u0627\u0645 \u0628\u062F\u0645\u061F \u{1F447} \u0627\u0632 \u0645\u0646\u0648\u06CC \u067E\u0627\u06CC\u06CC\u0646 \u0627\u0646\u062A\u062E\u0627\u0628 \u06A9\u0646";
+var CATEGORY_KEYPAD = (() => {
+  const buttons = EQUIPMENT_CATEGORIES.map((c) => ({ text: c.shopLabelFa }));
+  const rows = [];
+  for (let i = 0; i < buttons.length; i += 2) rows.push(buttons.slice(i, i + 2));
+  rows.push([{ text: CATEGORY_BACK_TEXT }]);
+  return rows;
+})();
 function backButton(label = "\u2B05\uFE0F \u0628\u0627\u0632\u06AF\u0634\u062A \u0628\u0647 \u0645\u0646\u0648\u06CC \u0627\u0635\u0644\u06CC") {
   return [[{ text: label, callback_data: "m" }]];
 }
@@ -16319,9 +16342,22 @@ async function handleUserMessage(ctx, message, updateId) {
     await ctx.tg.sendMessage(message.chat.id, preview, { inline: yesNoRows("sp") });
     return { handled: "statement_preview" };
   }
+  const catKey = CATEGORY_TO_KEY[text];
+  if (catKey) {
+    await sendShopCategoryCard(ctx, message.chat.id, identity.userId, catKey);
+    return { handled: `reply:shop:${catKey}` };
+  }
+  if (text === CATEGORY_BACK_TEXT) {
+    await ctx.tg.sendMessage(message.chat.id, await welcomeText(ctx, identity.userId), { inline: mainMenu(ctx.webAppUrl) });
+    await sendMainMenu(ctx, message.chat.id);
+    return { handled: "reply:back_to_menu" };
+  }
   const mapped = REPLY_TO_LABEL[text];
   if (mapped) {
     await renderPage(ctx, message.chat.id, identity.userId, mapped === "menu" ? "dashboard" : mapped, message.message_id);
+    if (mapped === "country") {
+      await ctx.tg.sendMessage(message.chat.id, CATEGORY_ENTRY_TEXT, { reply: CATEGORY_KEYPAD });
+    }
     return { handled: `reply:${mapped}` };
   }
   await ctx.tg.sendMessage(message.chat.id, "\u062F\u0633\u062A\u0648\u0631 \u0646\u0627\u0634\u0646\u0627\u062E\u062A\u0647. \u0627\u0632 \u0645\u0646\u0648\u06CC \u067E\u0627\u06CC\u06CC\u0646 \u06CC\u0627 /menu \u0627\u0633\u062A\u0641\u0627\u062F\u0647 \u06A9\u0646\u06CC\u062F.");
@@ -16526,7 +16562,13 @@ async function handleCallback(ctx, cb, updateId) {
         await answer();
         return { handled: "noop" };
       case "m":
+        if (rest[0] === "more") {
+          await ctx.tg.editMessageText(chatId, messageId, "\u{1F9ED} <b>\u0633\u0627\u06CC\u0631 \u0628\u062E\u0634\u200C\u0647\u0627</b>\n\n\u0647\u0631 \u06F1\u06F2 \u0628\u062E\u0634 \u0628\u0627\u0632\u06CC\u060C \u0647\u0645\u0627\u0646\u200C\u0637\u0648\u0631 \u06A9\u0647 \u062F\u0631 \u0645\u06CC\u0646\u06CC\u200C\u0627\u067E \u0647\u0645 \u062F\u0631 \u062F\u0633\u062A\u0631\u0633\u200C\u0627\u0646\u062F:", moreMenu(ctx.webAppUrl));
+          await answer();
+          return { handled: "menu:more" };
+        }
         await ctx.tg.editMessageText(chatId, messageId, await welcomeText(ctx, identity.userId), mainMenu(ctx.webAppUrl));
+        await ctx.tg.sendMessage(chatId, "\u2328\uFE0F \u0635\u0641\u062D\u0647\u200C\u06A9\u0644\u06CC\u062F \u0628\u0627\u0632\u06CC\u06A9\u0646 \u0628\u0627\u0632\u06AF\u0631\u062F\u0627\u0646\u062F\u0647 \u0634\u062F.", { reply: REPLY_MENU });
         await answer();
         return { handled: "menu" };
       case "h":
@@ -16552,6 +16594,7 @@ async function handleCallback(ctx, cb, updateId) {
       }
       case "nav":
         await renderPageCallback(ctx, chatId, messageId, identity.userId, rest[0]);
+        if (rest[0] === "country") await ctx.tg.sendMessage(chatId, CATEGORY_ENTRY_TEXT, { reply: CATEGORY_KEYPAD });
         await answer();
         return { handled: `nav:${rest[0]}` };
       case "cat":
@@ -17121,6 +17164,16 @@ async function renderStatementsBody(ctx, nation) {
 async function renderShopCategory(ctx, chatId, messageId, userId, categoryKey, offset) {
   const nation = await currentNation(ctx, userId);
   if (!nation) throw ApiError.forbidden("\u06A9\u0634\u0648\u0631\u06CC \u06CC\u0627\u0641\u062A \u0646\u0634\u062F.");
+  const body = await shopCategoryBody(ctx, nation, categoryKey, offset);
+  await ctx.tg.editMessageText(chatId, messageId, body.text, body.rows);
+}
+async function sendShopCategoryCard(ctx, chatId, userId, categoryKey) {
+  const nation = await currentNation(ctx, userId);
+  if (!nation) throw ApiError.forbidden("\u06A9\u0634\u0648\u0631\u06CC \u06CC\u0627\u0641\u062A \u0646\u0634\u062F.");
+  const body = await shopCategoryBody(ctx, nation, categoryKey, 0);
+  await ctx.tg.sendMessage(chatId, body.text, { inline: body.rows });
+}
+async function shopCategoryBody(ctx, nation, categoryKey, offset) {
   const { items } = await listCategoryItems(ctx.db, nation, categoryKey, ctx.settings);
   const page = items.slice(offset, offset + 10);
   const rows = page.map((item) => [
@@ -17131,18 +17184,14 @@ async function renderShopCategory(ctx, chatId, messageId, userId, categoryKey, o
   ]);
   rows.push(...pager(`cat:${categoryKey}`, offset, items.length, 10));
   rows.push([{ text: "\u{1F519} \u062F\u0633\u062A\u0647\u200C\u0628\u0646\u062F\u06CC\u200C\u0647\u0627", callback_data: "nav:marketplace" }, { text: "\u{1F3E0} \u0645\u0646\u0648", callback_data: "m" }]);
-  await ctx.tg.editMessageText(
-    chatId,
-    messageId,
-    [
-      `\u{1F6D2} <b>${items.length} \u062A\u062C\u0647\u06CC\u0632 \u062F\u0631 \u0627\u06CC\u0646 \u062F\u0633\u062A\u0647</b>`,
-      "",
-      statLine("\u062E\u0632\u0627\u0646\u0647", coins(nation.treasury)),
-      "\u062A\u0639\u062F\u0627\u062F \u062E\u0631\u06CC\u062F\u0627\u0631\u06CC\u200C\u0634\u062F\u0647 \u062F\u0631 \u067E\u0631\u0627\u0646\u062A\u0632 \u0646\u0645\u0627\u06CC\u0634 \u062F\u0627\u062F\u0647 \u0645\u06CC\u200C\u0634\u0648\u062F.",
-      ...page.map((i) => `\u2022 ${i.nameFa} (\u0645\u0648\u062C\u0648\u062F\u06CC \u0641\u0639\u0644\u06CC: ${formatNumber(i.ownedQuantity)})`)
-    ].join("\n"),
-    rows
-  );
+  const text = [
+    `\u{1F6D2} <b>${items.length} \u062A\u062C\u0647\u06CC\u0632 \u062F\u0631 \u0627\u06CC\u0646 \u062F\u0633\u062A\u0647</b>`,
+    "",
+    statLine("\u062E\u0632\u0627\u0646\u0647", coins(nation.treasury)),
+    "\u062A\u0639\u062F\u0627\u062F \u062E\u0631\u06CC\u062F\u0627\u0631\u06CC\u200C\u0634\u062F\u0647 \u062F\u0631 \u067E\u0631\u0627\u0646\u062A\u0632 \u0646\u0645\u0627\u06CC\u0634 \u062F\u0627\u062F\u0647 \u0645\u06CC\u200C\u0634\u0648\u062F.",
+    ...page.map((i) => `\u2022 ${i.nameFa} (\u0645\u0648\u062C\u0648\u062F\u06CC \u0641\u0639\u0644\u06CC: ${formatNumber(i.ownedQuantity)})`)
+  ].join("\n");
+  return { text, rows };
 }
 async function renderShopItem(ctx, chatId, messageId, userId, templateId, _offset) {
   const nation = await currentNation(ctx, userId);

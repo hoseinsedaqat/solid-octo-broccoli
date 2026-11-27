@@ -33,11 +33,13 @@ const ADMIN_NAV: { path: string; label: string; emoji: string }[] = [
 ];
 
 export function Shell({ children }: { children: ReactNode }) {
-  const { me, isAdmin, refresh, logout } = useAuth();
+  const { me, status, isAdmin, refresh, logout } = useAuth();
   const { path, navigate } = useRouter();
   const [menuOpen, setMenuOpen] = useState(false);
 
-  if (!me) return <Loading label="در حال ورود…" />;
+  // only a genuine in-flight check may block the screen; an anonymous visitor must reach <Login/>
+  if (status === 'loading') return <Loading label="در حال ورود…" />;
+  if (!me) return <div className="mx-auto flex min-h-full w-full max-w-3xl flex-col px-3 pt-6">{children}</div>;
 
   const nav = isAdmin && path.startsWith('/app/admin') ? ADMIN_NAV : PLAYER_NAV;
   const nations = me.nationIds ?? [];
