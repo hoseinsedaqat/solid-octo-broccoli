@@ -122,3 +122,45 @@ node scripts/setup-bot.mjs
 | کران اجرا نمی‌شود | cron فقط با deploy واقعی | dashboard → worker → Events/Cron لاگ را ببینید؛ دستی: پنل کران |
 
 هوورا رضا خان
+
+---
+
+## ۶)  نسخه‌ی «بدون ترمینال» — همه‌چیز از داشبورد Cloudflare
+
+تنها چیزی که لازم نیست نصب کنید: Node، git، wrangler. کل مسیر با مرورگر:
+
+1) **داک D1:** dash.cloudflare.com ← *Storage & Databases* ← *D1* ← **Create a database** → نام `world-war-db`.
+   در صفحه‌ی دیتابیس، `Database ID` را کپی کنید.
+
+2) **یک‌بار چسباندن ID (بدون ادیتور!):** بروید github.com/hoseinsedaqat/solid-octo-broccoli ← فایل `apps/worker/wrangler.jsonc` ← آیکون ✏️ (Edit) ← `{{D1_DATABASE_ID}}` را با ID کپی‌شده عوض کنید ← *Commit directly* (روی همین شاخه‌ی بازی). تمام — این تنها «ویرایش فایل» کل مسیر است.
+
+3) **دیپلوی خودکار با هر push:** *Workers & Pages* ← *Create* ← **Import a Git repository** ← ریپو را Connect کنید (اگر خواست، افزونه‌ی GitHub را Allow بزنید):
+   - Production branch: `arena/1d4f92ef-solid-octo-broccoli`
+   - Build command: `npm install && npm run build`
+   - Deploy command: `npx wrangler deploy --config apps/worker/wrangler.jsonc`
+   - Build variables (Settings → Variables در همان فرم): `NODE_VERSION=22`
+   ذخیره و **Deploy** ← آدرس `https://world-war.<sub>.workers.dev` می‌گیرید؛ از این به بعد هر push خودش دیپلوی می‌کند.
+
+4) **جداول + داده اولیه با Paste:** برگردید *D1 → world-war-db → Console*. سه فایل زیر را یکی‌یکی از GitHub باز کنید (دکمه Raw)، کل متن را کپی، در Console پیست، ▶ Run:
+   - `apps/worker/migrations/0001_init.sql`
+   - `apps/worker/migrations/0002_rate_limits.sql`
+   - `apps/worker/seeds/seed.sql`
+   (اگر دیپلوی هنوز تمام نشده بود، عیبی ندارد — SQL‌ها مستقل‌اند.)
+
+5) **رازها و varها:** *Workers → world-war → Settings → Variables and Secrets*:
+   - Variables: `PUBLIC_BASE_URL` و `WEBAPP_URL` = همان آدرس worker با `https://`
+   - Secrets (دکمهٔ Add → Secret): `BOT_TOKEN`، `ADMIN_TELEGRAM_IDS`، `TELEGRAM_WEBHOOK_SECRET`، `APP_SECRET`
+   - `APP_ENV` را **ن-set کنید** تا dev-login در اینترنت بسته بماند.
+   ← *Save and deploy*.
+
+6) **وب‌هوک تلگرام — یک URL در تب مرورگر (بدون curl):** اول در @BotFather با `/newbot` توکن بگیرید، بعد این آدرس را سر هم کنید و در نوار مرورگر بزنید:
+```
+https://api.telegram.org/bot<TOKEN>/setWebhook?url=https://world-war.<sub>.workers.dev/api/telegram/webhook&secret_token=<TELEGRAM_WEBHOOK_SECRET>
+```
+   جواب `{"ok":true,...}` یعنی وصل است. برای چک کردن: `https://api.telegram.org/bot<TOKEN>/getWebhookInfo`
+
+7) **تست نهایی:** مرورگر → `https://world-war.<sub>.workers.dev/api/health` باید `ok:true` بدهد و در تلگرام `/start` خوش‌آمد + کشورسازی را نشان دهد.
+
+> عیب‌یابی سریع: `/api/health` خطا داد → لاگ‌ها را در Workers → world-war → **Logs** ببینید. ربات پیام داد ولی مینی‌اپ باز نشد → `PUBLIC_BASE_URL` و `WEBAPP_URL` را چک کنید. هیچ راندمانی از کران → D1 console: `SELECT * FROM job_checkpoints;`
+
+هوورا رضا خان
