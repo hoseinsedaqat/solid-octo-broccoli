@@ -285,7 +285,7 @@ npx wrangler d1 migrations apply DB --remote --config apps/worker/wrangler.jsonc
 
 | علامت | علت | درمان |
 |---|---|---|
-| مینی‌اپ به‌جای داشبورد، صفحهٔ «ورود توسعه‌دهنده»/خطای APP_ENV نشان می‌دهد | نسخهٔ قدیمیِ `telegram-web-app.js` (دادهٔ ورود از URL خوانده نمی‌شد) | `git pull` → `npm run build` → `npx wrangler deploy` (فیکس در repo است: پل، `tgWebAppInitData` را می‌خواند) |
+| مینی‌اپ به‌جای داشبورد، صفحهٔ «ورود توسعه‌دهنده»/خطای APP_ENV نشان می‌دهد | نسخهٔ قدیمیِ `telegram-web-app.js` (دادهٔ ورود با شکل واقعی تلگرام خوانده نمی‌شد: `#tgWebAppData=` داخل fragment) | `git pull` → `npm run build` → `npx wrangler deploy`. خطِ پایین همان صفحه `bridge: url|navigation|storage|bridge|none` را نشان می‌دهد — اگر `none` بود، تلگرام آدرس را بدون پارامترها باز کرده (مینی‌اپ را ببند و از ربات باز کن) |
 | `deploy` خطای `database_id` | فاز ۵ انجام نشده | دو خط wrangler.jsonc را دوباره چک کن |
 | `/getMe` جواب `404 Not Found` | توکن داخل آدرس نامعتبر یا ناقص | توکن را از BotFather (`/mybots` → API Token) دوباره کپی کن؛ فقط پیست، نه تایپ |
 | `/setWebhook` گفت `Bad Request: url is required` | `&` قبل از `url=` خورده شد (معمولاً در CMD/PowerShell) | یا یک‌خطی در مرورگر، یا `curl.exe … -d "url=…"` |

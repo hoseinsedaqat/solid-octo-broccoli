@@ -85,7 +85,7 @@ Cron (`*/30 * * * *`) و Static Assets در `apps/worker/wrangler.jsonc` تعر�
 
 ## ۸. شبکه فیلتر (ایران) — نکات عمدی طراحی
 
-- `telegram-web-app.js` **self-host** است (`apps/frontend/public/`)؛ ارجاع به CDN تلگرام در `index.html` وجود ندارد و اگر بود، با بلاک شدن telegram.org کل بازی می‌مرد. این فایل کوچک دادهٔ ورود را از پارامترهای خودِ آدرس مینی‌اپ (`tgWebAppInitData`، `tgWebAppPlatform`، `tgWebAppStartParam`، …) می‌خواند و اگر نبود، از پل `web_view_data_request` استفاده می‌کند؛ یعنی ورود بدون هیچ درخواست شبکه‌ای به بیرون انجام می‌شود. تستش در `tests/unit/miniapp-bridge.test.ts` است.
+- `telegram-web-app.js` **self-host** است (`apps/frontend/public/`)؛ ارجاع به CDN تلگرام در `index.html` وجود ندارد و اگر بود، با بلاک شدن telegram.org کل بازی می‌مرد. این فایل کوچک دادهٔ ورود را از خودِ آدرس مینی‌اپ می‌خواند — با همان شکل تلگرام: کلید `tgWebAppData` که در **fragment** می‌آید و `?`/`#` هر دو یک کوئری پیوسته می‌سازند (`/app/player#tgWebAppData=…&tgWebAppPlatform=android`). اگر فرگمنت حذف شده باشد، از `performance.getEntriesByType('navigation')` و در نهایت از کش `sessionStorage` برمی‌گرداند و اگر نبود، از پل `web_view_data_request` استفاده می‌کند؛ یعنی ورود بدون هیچ درخواست شبکه‌ای به بیرون انجام می‌شود. تستش در `tests/unit/miniapp-bridge.test.ts` است.
 - هیچ فایل CSS/JS از googledapis/jsdelivr درخواست نمی‌شود؛ Tailwind در باندل inline است.
 - API و مینی‌اپ یک origin هستند (همان Worker) → بدون preflight، بدون CORS.
 - برای توسعه آفلاین: `scripts/telegram-stub.mjs` هر فراخوانی Bot API را با `TELEGRAM_API_BASE` محلی جواب می‌دهد و در `.wrangler/telegram-stub.jsonl` ضبط می‌کند؛ `scripts/check-access.mjs` گزارش می‌دهد کدام دامنه از نقطه شما باز است.

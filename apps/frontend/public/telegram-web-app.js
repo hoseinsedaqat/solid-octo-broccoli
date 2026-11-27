@@ -90,24 +90,90 @@
 
   /* --------------------------- 1. launch params --------------------------- */
 
+  /*
+   * Telegram appends its launch data to the Mini App URL and — this is the part that is easy to get
+   * wrong — it splits it across BOTH separators: everything after the first "?" or "#" is one flat
+   * query, and initData arrives as `tgWebAppData` (not tgWebAppInitData) inside the *hash*:
+   *
+   *   /app/player#tgWebAppData=user%3D%7B…%7D%26auth_date%3D…%26hash%3D…&tgWebAppPlatform=android
+   *
+   * Clients are free to strip the hash again (our own router does), so the query is additionally
+   * recovered from the navigation entry and from sessionStorage — the same three sources, in the
+   * same order, the official SDK uses.
+   */
+  var STORAGE_KEY = 'ww.launchParamsQuery';
+
+  function extractQuery(href) {
+    return String(href || '').replace(/^[^?#]*[?#]/, '').replace(/[?#]/g, '&');
+  }
+
+  function looksLikeLaunchQuery(q) {
+    return /(^|&)(tgWebAppData|tgWebAppInitData|tgWebAppPlatform|initData|tq)=/.test(String(q || ''));
+  }
+
+  function storageGet(key) {
+    try {
+      return globalThis.sessionStorage ? globalThis.sessionStorage.getItem(key) : '';
+    } catch (e) {
+      return ''; // blocked storage (private mode / some webviews) — the other sources still work
+    }
+  }
+
+  function storageSet(key, value) {
+    try {
+      if (globalThis.sessionStorage) globalThis.sessionStorage.setItem(key, value);
+    } catch (e) {}
+  }
+
+  function navigationHref() {
+    try {
+      var entries = win.performance && win.performance.getEntriesByType && win.performance.getEntriesByType('navigation');
+      return entries && entries[0] ? entries[0].name : '';
+    } catch (e) {
+      return '';
+    }
+  }
+
+  var LAUNCH_SOURCES = [
+    ['url', function () { return extractQuery(win.location && win.location.href); }],
+    ['navigation', function () { return extractQuery(navigationHref()); }],
+    ['storage', function () { return storageGet(STORAGE_KEY); }],
+  ];
+
+  /** the query plus where it came from — the login screen shows this when nothing works */
+  var LAUNCH = { query: '', source: 'none' };
+
+  function findLaunchQuery() {
+    for (var i = 0; i < LAUNCH_SOURCES.length; i++) {
+      var q = '';
+      try {
+        q = LAUNCH_SOURCES[i][1]();
+      } catch (e) {}
+      if (q && looksLikeLaunchQuery(q)) {
+        storageSet(STORAGE_KEY, q); // survive the reload after the hash got dropped
+        LAUNCH = { query: q, source: LAUNCH_SOURCES[i][0] };
+        return q;
+      }
+    }
+    return '';
+  }
+
   function readLaunchParams() {
     var out = { initData: '', version: '', platform: '', colorScheme: '', themeParams: {}, startParam: '' };
-    var search = new URLSearchParams(String(win.location && win.location.search ? win.location.search : '').replace(/^\?/, ''));
+    var search = new URLSearchParams(findLaunchQuery());
 
-    // a native client may also have injected the string before any script ran
-    var injected = (win.Telegram && (win.Telegram.WebAppInitData || (win.Telegram.WebView && win.Telegram.WebView.initDataRaw))) || '';
-    out.initData = search.get('tgWebAppInitData') || search.get('initData') || search.get('tq') || String(injected || '');
+    out.initData = search.get('tgWebAppData') || search.get('tgWebAppInitData') || search.get('initData') || '';
     out.version = search.get('tgWebAppVersion') || '';
     out.platform = search.get('tgWebAppPlatform') || '';
     out.colorScheme = search.get('tgWebAppColorScheme') || '';
     out.themeParams = parseJsonMaybe(search.get('tgWebAppThemeParams'));
     out.startParam = search.get('tgWebAppStartParam') || search.get('startapp') || '';
 
-    // legacy/preview form used by in-app debug links: #tq={"initDataRaw":"…","initParams":{…}}
+    // debug/preview links hand the whole bundle over as one encoded object: #tq={...}
     if (!out.initData) {
-      var hash = String(win.location && win.location.hash ? win.location.hash : '').replace(/^#/, '');
-      if (hash.indexOf('tq=') === 0) {
-        var payload = parseJsonMaybe(hash.slice(3));
+      var rawTq = search.get('tq');
+      if (rawTq) {
+        var payload = parseJsonMaybe(rawTq);
         out.initData = payload.initDataRaw || payload.initData || '';
         var p = payload.initParams || {};
         out.version = out.version || p.version || '';
@@ -115,11 +181,17 @@
         out.colorScheme = out.colorScheme || p.color_scheme || '';
         out.themeParams = p.theme_params || out.themeParams;
         out.startParam = out.startParam || p.start_param || '';
-      } else if (hash.indexOf('initData=') === 0 || hash.indexOf('tgWebAppInitData=') === 0) {
-        var hp = new URLSearchParams(hash);
-        out.initData = hp.get('tgWebAppInitData') || hp.get('initData') || '';
       }
     }
+
+    // a native client may also have injected the string before any script ran
+    var injected = (win.Telegram && (win.Telegram.WebAppInitData || (win.Telegram.WebView && win.Telegram.WebView.initDataRaw))) || '';
+    if (!out.initData && injected) {
+      out.initData = String(injected);
+      LAUNCH.source = 'native';
+    }
+    // 'url' only counts when data actually came with it, so a later bridge answer can say where it came from
+    out.source = out.initData ? LAUNCH.source : 'none';
     return out;
   }
 
@@ -145,10 +217,12 @@
 
   /** speaks both dialects: the iframe protocol ({event}) and the mobile one ({method,_action}) */
   function postEvent(event, data) {
-    postToParent({ event: event, data: data || {} });
+    var payload = data || {};
+    // the iframe channel speaks {event,data} (legacy) and {eventType,eventData} (v2 SDK)
+    postToParent({ event: event, data: payload, eventType: event, eventData: payload });
     actionCounter += 1;
-    postToNative({ _action: actionCounter, data: { method: event, data: data || {} } });
-    postToNative({ method: event, data: data || {} });
+    postToNative({ _action: actionCounter, data: { method: event, data: payload, params: payload } });
+    postToNative({ method: event, data: payload, params: payload });
   }
 
   function applyData(data) {
@@ -166,7 +240,10 @@
     if (data.colorScheme || data.color_scheme) WEBAPP.colorScheme = data.colorScheme || data.color_scheme;
     if (data.themeParams || data.theme_params) WEBAPP.themeParams = parseJsonMaybe(data.themeParams || data.theme_params);
     if (data.startParam || data.start_param) WEBAPP.startParam = String(data.startParam || data.start_param);
-    if (changed) emit('init');
+    if (changed) {
+      if (!WEBAPP.launchSource || WEBAPP.launchSource === 'none') WEBAPP.launchSource = 'bridge';
+      emit('init');
+    }
     return changed;
   }
 
@@ -174,29 +251,44 @@
   win.Telegram.WebAppReceive = function (payload) {
     var msg = typeof payload === 'string' ? parseJsonMaybe(payload) : payload || {};
     msg = msg || {};
-    if (msg.event === 'web_view_data' || msg.event === 'web_view_data_changed' || msg.method === 'web_view_data') {
+    if (msg.eventData && !msg.data) msg = { data: msg.eventData, event: msg.eventType };
+    if (
+      msg.event === 'web_view_data' ||
+      msg.event === 'web_view_data_changed' ||
+      msg.method === 'web_view_data' ||
+      msg.eventType === 'web_view_data'
+    ) {
       applyData(msg.data || msg.params || msg);
-    } else if (msg.event === 'back_button_click') {
+    } else if (msg.event === 'back_button_click' || msg.eventType === 'back_button_click') {
       emit('backButtonClicked');
-    } else if (msg.event === 'settings_button_clicked') {
+    } else if (msg.event === 'settings_button_clicked' || msg.eventType === 'settings_button_clicked') {
       emit('settingsButtonClicked');
-    } else if (msg.event === 'main_button_clicked' || msg.event === 'web_app_main_button_click') {
+    } else if (msg.event === 'main_button_clicked' || msg.event === 'web_app_main_button_click' || msg.eventType === 'main_button_clicked') {
       emit('mainButtonClicked');
     } else if (msg.initData || msg.initDataRaw) {
       applyData(msg);
     }
   };
 
-  win.addEventListener('message', function (e) {
-    var msg = e && e.data;
+  function named(msg, names) {
+    var got = String(msg.event || msg.eventType || msg.method || '');
+    for (var i = 0; i < names.length; i++) if (got === names[i]) return true;
+    return false;
+  }
+
+  function onMessage(msg) {
     if (!msg || typeof msg !== 'object') return;
-    if (msg.event === 'web_view_data' || msg.event === 'web_view_data_changed' || msg.method === 'web_view_data') {
-      applyData(msg.data || msg.params || {});
-    } else if (msg.event === 'back_button_click') {
+    if (named(msg, ['web_view_data', 'web_view_data_changed', 'set_inline_mode', 'theme_changed'])) {
+      applyData(msg.data || msg.params || msg.eventData || {});
+    } else if (named(msg, ['back_button_click'])) {
       emit('backButtonClicked');
-    } else if (msg.event === 'web_app_main_button_click' || msg.event === 'main_button_clicked') {
+    } else if (named(msg, ['web_app_main_button_click', 'main_button_clicked'])) {
       emit('mainButtonClicked');
     }
+  }
+
+  win.addEventListener('message', function (e) {
+    onMessage(e && e.data);
   });
 
   /* ------------------------------ 3. the API ------------------------------ */
@@ -210,6 +302,8 @@
   WEBAPP.colorScheme = params.colorScheme || 'dark';
   WEBAPP.themeParams = params.themeParams || {};
   WEBAPP.startParam = params.startParam || '';
+  /** 'url' | 'navigation' | 'storage' | 'native' | 'bridge' | 'none' — diagnostics only */
+  WEBAPP.launchSource = params.source || 'none';
   WEBAPP.isExpanded = false;
   WEBAPP.isActive = true;
   WEBAPP.isDataRecovered = false;
