@@ -1,0 +1,65 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: dark;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  background: radial-gradient(1200px 600px at 50% -10%, #16203a 0%, #070a12 60%);
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* the Telegram header overlaps the app on mobile */
+#root {
+  padding-top: env(safe-area-inset-top);
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
+@layer components {
+  .ww-card {
+    @apply rounded-2xl border border-white/10 bg-ink-800/80 shadow-card backdrop-blur;
+  }
+  .ww-btn {
+    @apply inline-flex items-center justify-center gap-1 rounded-xl border border-white/10 bg-ink-700 px-3 py-2 text-sm font-semibold text-slate-100 transition active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-40;
+  }
+  .ww-btn-primary {
+    @apply border-gold/40 bg-gold/15 text-gold-soft hover:bg-gold/25;
+  }
+  .ww-btn-danger {
+    @apply border-danger/40 bg-danger/10 text-danger hover:bg-danger/20;
+  }
+  .ww-btn-ghost {
+    @apply border-transparent bg-transparent text-slate-300 hover:bg-white/5;
+  }
+  .ww-input {
+    @apply w-full rounded-xl border border-white/10 bg-ink-700 px-3 py-2 text-sm text-slate-100 outline-none placeholder:text-slate-500 focus:border-gold/50;
+  }
+  .ww-label {
+    @apply mb-1 block text-xs text-slate-400;
+  }
+  .ww-tab {
+    @apply whitespace-nowrap rounded-lg px-3 py-1.5 text-xs font-semibold text-slate-300;
+  }
+  .ww-tab-active {
+    @apply bg-gold/20 text-gold-soft;
+  }
+}
+
+/* thin scrollbars inside the mini app */
+*::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+*::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.15);
+  border-radius: 999px;
+}

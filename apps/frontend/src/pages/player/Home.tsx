@@ -1,0 +1,200 @@
+import { useApi, useAuth } from '../../auth';
+import { useCountdown, useRouter } from '../../router';
+import { Badge, Card, Empty, ErrorBox, Grid, Loading, Row, Stat, fa, faDateTime, faDuration, faMoney } from '../../ui';
+import { ECONOMY_NOTE, categoryLabel } from './meta';
+
+/**
+ * Dashboard = the one page that must never be empty.
+ * Everything on it is read from the API; nothing is cached in the browser except the render itself.
+ */
+export function PlayerHome() {
+  const { me } = useAuth();
+  const { navigate } = useRouter();
+  const view = me?.view;
+  const eco = useApi<{ economy: Record<string, number>; history: { day: string; treasury: number; income: number }[] }>('/player/economy');
+  const news = useApi<{ items: any[] }>('/social/news?limit=5');
+  const wars = useApi<{ wars: any[] }>('/war/wars');
+  const reqs = useApi<{ incoming: any[] }>('/diplomacy/requests');
+
+  const econ = { ...(view?.economy ?? {}), ...(eco.data?.economy ?? {}) } as Record<string, number>;
+  const nextIn = useCountdown(econ.nextIncomeIn);
+  const nation = view?.nation;
+  const activeWars = (wars.data?.wars ?? []).filter((w: any) => ['active', 'proposed', 'peace_requested'].includes(String(w.status)));
+
+  if (!view || !nation) return <Empty text="برای شروع، کشور خود را از ربات بسازید." />;
+
+  return (
+    <div className="space-y-3">
+      <Card>
+        <div className="flex items-start justify-between gap-2">
+          <div className="min-w-0">
+            <div className="flex items-center gap-2">
+              <span className="text-3xl">{nation.flag}</span>
+              <h1 className="truncate text-lg font-extrabold">{nation.name}</h1>
+            </div>
+            <p className="mt-1 text-xs text-slate-400">
+              رهبر {nation.leaderName} · از {faDateTime(nation.createdAt)}
+            </p>
+          </div>
+          <div className="shrink-0 text-left">
+            <div className="text-[11px] text-slate-400">رتبه جهانی</div>
+            <div className="text-2xl font-black text-gold-soft">{fa(nation.worldRank)}</div>
+          </div>
+        </div>
+
+        <Grid cols={4}>
+          <Stat label="خزانه" value={faMoney(econ.treasury ?? nation.treasury)} />
+          <Stat label="خالص هر دوره" value={faMoney(econ.netIncome ?? nation.incomePerCycle)} tone="ok" />
+          <Stat label="قدرت نظامی" value={fa(nation.militaryPower)} />
+          <Stat label="سرباز" value={fa(nation.troopsCount)} />
+        </Grid>
+
+        <div className="mt-3 flex items-center justify-between rounded-xl border border-gold/20 bg-gold/5 px-3 py-2">
+          <span className="text-xs text-slate-300">درآمد بعدی</span>
+          <span className="text-sm font-bold text-gold-soft">
+            {econ.cycleSeconds ? <span className="ml-1 text-[11px] font-normal text-slate-400">هر {faDuration(econ.cycleSeconds)}</span> : null}
+            {faDuration(nextIn)}
+          </span>
+        </div>
+      </Card>
+
+      {activeWars.length > 0 || (reqs.data?.incoming ?? []).length > 0 ? (
+        <Card title="نیاز به اقدام" emoji="🔔">
+          <div className="space-y-2">
+            {(reqs.data?.incoming ?? []).slice(0, 3).map((r: any) => (
+              <Row key={`req-${r.id}`} onClick={() => navigate('/app/friends')}>
+                <span className="text-xs">
+                  {r.from_flag} {r.from_name} درخواست {r.kind === 'friendship' ? 'دوستی' : r.kind === 'alliance' ? 'اتحاد' : r.kind === 'peace' ? 'صلح' : 'مذاکره'} داده است
+                </span>
+                <Badge tone="warn">پاسخ</Badge>
+              </Row>
+            ))}
+            {activeWars.slice(0, 3).map((w: any) => (
+              <Row key={`war-${w.id}`} onClick={() => navigate(`/app/war/${w.id}`)}>
+                <span className="text-xs">
+                  ⚔️ جنگ با {w.opponentName ?? 'حریف'} — راند {fa(Number(w.roundNo ?? 0))}
+                </span>
+                <Badge tone={w.status === 'active' ? 'bad' : 'warn'}>{w.statusLabelFa ?? (w.status === 'active' ? 'در جریان' : 'در انتظار')}</Badge>
+              </Row>
+            ))}
+          </div>
+        </Card>
+      ) : null}
+
+      {eco.data?.history?.length ? (
+        <Card title="روند خزانه" emoji="📈" right={<button className="ww-btn ww-btn-ghost text-xs" onClick={() => navigate('/app/player/economy')}>جزئیات</button>}>
+          <MiniTreasury history={eco.data.history} />
+        </Card>
+      ) : null}
+
+      <Grid>
+        <Stat label="کارخانه" value={faMoney(econ.factoryIncome)} hint={`معادل ${fa(categoryShare(econ.factoryIncome, econ.grossIncome))}٪ درآمد`} />
+        <Stat label="معدن" value={faMoney(econ.mineIncome)} hint={`معادل ${fa(categoryShare(econ.mineIncome, econ.grossIncome))}٪ درآمد`} />
+        <Stat label="هزینه نگهداری" value={faMoney(econ.maintenanceCost)} tone="warn" />
+        <Stat label="مالیات" value={faMoney(econ.taxCost)} tone="warn" />
+      </Grid>
+
+      <Card title="دارایی‌های کلیدی" emoji="🎖️">
+        <Grid cols={4}>
+          <Stat label="تجهیزات" value={fa(nation.equipmentCount)} />
+          <Stat label="متحدان" value={fa(nation.alliesCount)} tone="ok" />
+          <Stat label="دشمنان" value={fa(nation.enemiesCount)} tone="bad" />
+          <Stat label="بردها" value={fa(nation.winsCount)} />
+        </Grid>
+        <div className="mt-2 flex flex-wrap gap-1 text-[11px] text-slate-400">
+          {['tanks', 'fighters', 'missiles', 'radars', 'soldiers'].map((k) => (
+            <span key={k} className="rounded-full bg-white/5 px-2 py-1">
+              {categoryLabel(k)}
+            </span>
+          ))}
+        </div>
+      </Card>
+
+      <Card title="دسترسی سریع" emoji="🎮">
+        <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+          {[
+            { p: '/app/shop', t: '🛒 فروشگاه' },
+            { p: '/app/military', t: '🎖️ ارتش' },
+            { p: '/app/wars', t: '⚔️ اتاق جنگ' },
+            { p: '/app/ranking', t: '🏆 رتبه‌ها' },
+            { p: '/app/friends', t: '🕊️ دیپلماسی' },
+            { p: '/app/statements', t: '📣 بیانیه' },
+            { p: '/app/defense', t: '🛰️ پدافند' },
+            { p: '/app/profile', t: '👤 کشور من' },
+          ].map((b) => (
+            <button key={b.p} className="ww-btn justify-center py-3" onClick={() => navigate(b.p)}>
+              {b.t}
+            </button>
+          ))}
+        </div>
+      </Card>
+
+      <Card title="اخبار جهان" emoji="🌐" right={<button className="ww-btn ww-btn-ghost text-xs" onClick={() => navigate('/app/log')}>همه اخبار</button>}>
+        {news.loading ? <Loading /> : null}
+        {news.error ? <ErrorBox message={news.error} onRetry={news.reload} /> : null}
+        <div className="space-y-2">
+          {(news.data?.items ?? []).map((n: any) => (
+            <Row key={n.id}>
+              <span className="min-w-0 text-xs leading-6">
+                <Badge tone={n.kind === 'war' ? 'bad' : n.kind === 'announcement' ? 'warn' : 'info'}>{kindFa(n.kind)}</Badge>
+                <span className="mr-2">{n.title}</span>
+              </span>
+              <span className="shrink-0 text-[11px] text-slate-500">{faDateTime(n.createdAt)}</span>
+            </Row>
+          ))}
+          {!news.loading && (news.data?.items ?? []).length === 0 ? <Empty text="هنوز خبری منتشر نشده است." /> : null}
+        </div>
+      </Card>
+
+      <p className="px-1 text-[11px] leading-6 text-slate-500">🧾 {ECONOMY_NOTE}</p>
+    </div>
+  );
+}
+
+function kindFa(kind: string) {
+  return (
+    { war: 'جنگ', peace: 'صلح', alliance: 'پیمان', statement: 'بیانیه', announcement: 'اطلاعیه', economy: 'اقتصاد', system: 'سیستم' } as Record<string, string>
+  )[kind] ?? kind;
+}
+
+function categoryShare(part: number | undefined, total: number | undefined): number {
+  if (!part || !total) return 0;
+  return Math.round((part / total) * 100);
+}
+
+function MiniTreasury({ history }: { history: { day: string; treasury: number }[] }) {
+  // a dependency-free sparkline: the heavy chart library is only loaded on the economy page
+  const rows = history.slice(-14);
+  const values = rows.map((h) => Number(h.treasury) || 0);
+  const max = Math.max(1, ...values);
+  const min = Math.min(...values, 0);
+  const w = 300;
+  const h = 64;
+  const pts = values
+    .map((v, i) => {
+      const x = rows.length > 1 ? (i / (rows.length - 1)) * w : w / 2;
+      const y = h - ((v - min) / Math.max(1, max - min)) * (h - 6) - 3;
+      return `${x.toFixed(1)},${y.toFixed(1)}`;
+    })
+    .join(' ');
+  return (
+    <div>
+      <div dir="ltr" className="w-full">
+        <svg viewBox={`0 0 ${w} ${h}`} preserveAspectRatio="none" className="h-16 w-full">
+          <defs>
+            <linearGradient id="spark" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor="#e4b642" stopOpacity="0.45" />
+              <stop offset="100%" stopColor="#e4b642" stopOpacity="0" />
+            </linearGradient>
+          </defs>
+          {pts ? <polygon points={`0,${h} ${pts} ${w},${h}`} fill="url(#spark)" /> : null}
+          <polyline points={pts} fill="none" stroke="#e4b642" strokeWidth="1.8" strokeLinejoin="round" />
+        </svg>
+      </div>
+      <div className="mt-1 flex justify-between text-[10px] text-slate-500">
+        <span>{rows[0]?.day?.slice(5)} · {faMoney(values[0])}</span>
+        <span>{rows[rows.length - 1]?.day?.slice(5)} · {faMoney(values[values.length - 1])}</span>
+      </div>
+    </div>
+  );
+}
