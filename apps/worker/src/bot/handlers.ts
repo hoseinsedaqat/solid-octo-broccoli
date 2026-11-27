@@ -5,7 +5,7 @@ import { nowSeconds } from '../core/format';
 import type { Env } from '../types';
 import { ApiError } from '../core/errors';
 import { loadSettings, type SettingsBundle } from '../core/settings';
-import { upsertTelegramUser } from '../services/authService';
+import { parseAdminIds, upsertTelegramUser } from '../services/authService';
 import {
   buildNationView,
   buildDefenseView,
@@ -169,6 +169,29 @@ async function handleCommand(ctx: BotCtx, message: TgMessage, updateId: number):
       await ctx.tg.sendMessage(message.chat.id, await welcomeText(ctx, identity.userId), { inline: mainMenu(ctx.webAppUrl) });
       return { handled: 'start' };
     }
+    case '/id':
+    case '/myid': {
+      // the one thing every admin setup needs: your own numeric Telegram id, from a trusted source
+      const listed = parseAdminIds(ctx.env).has(from.id);
+      const roleFa = identity.role === 'super_admin' ? 'سوپر ادمین' : identity.role === 'admin' ? 'مدیر' : 'بازیکن';
+      await ctx.tg.sendMessage(
+        message.chat.id,
+        [
+          `🪪 <b>آی‌دی تلگرام شما:</b> <code>${from.id}</code>`,
+          '',
+          `نقش در بازی: <b>${roleFa}</b>`,
+          `نام کاربری: ${from.username ? `@${escapeHtml(from.username)}` : '—'}`,
+          `کشورهای فعال: <b>${nations.length}</b>`,
+          `در ADMIN_TELEGRAM_IDS: <b>${listed ? 'هستید ✅' : 'نیستید ✖️'}</b>`,
+          '',
+          listed
+            ? 'برای باز کردن پنل: /start admin'
+            : 'برای مدیر شدن: این عدد را به ADMIN_TELEGRAM_IDS اضافه کنید (wrangler secret put) و بعد یک /start بفرستید تا نقش‌تان ارتقا پیدا کند.',
+        ].join('\n'),
+        { inline: backButton('🏠 منوی اصلی') },
+      );
+      return { handled: 'id' };
+    }
     case '/help':
       await ctx.tg.sendMessage(message.chat.id, helpText(), { inline: backButton('🏠 منوی اصلی') });
       return { handled: 'help' };
@@ -214,6 +237,7 @@ export function helpText(): string {
     'ℹ️ <b>دستورات ربات World War</b>',
     '',
     '/start — شروع بازی یا منوی اصلی',
+    '/id — آی‌دی تلگرام و نقش شما',
     '/menu — منوی اصلی',
     '/country — مدیریت کشور',
     '/economy — دارایی و اقتصاد',
