@@ -13,6 +13,7 @@ import { tg } from '../telegram';
 export function Login() {
   const { loginWithInitData, loginDev, error } = useAuth();
   const [busy, setBusy] = useState(false);
+  const [localErr, setLocalErr] = useState<string | null>(null);
   // pre-filled with the id from the sample .dev.vars — one tap in and you are primary admin
   const [devId, setDevId] = useState('111111111');
   const inTelegram = tg.isTelegram;
@@ -38,10 +39,11 @@ export function Login() {
               loading={busy}
               onClick={async () => {
                 setBusy(true);
+                setLocalErr(null);
                 try {
                   await loginWithInitData(tg.initData);
-                } catch {
-                  /* error text is shown below */
+                } catch (e) {
+                  setLocalErr((e as Error)?.message ?? 'ورود با تلگرام انجام نشد');
                 } finally {
                   setBusy(false);
                 }
@@ -63,12 +65,16 @@ export function Login() {
               loading={busy}
               onClick={async () => {
                 const id = Number(devId.replace(/[^\d]/g, ''));
-                if (!id) return;
+                if (!id) {
+                  setLocalErr('اول آی‌دی عددی تلگرام را وارد کنید (مثلاً همین 111111111).');
+                  return;
+                }
                 setBusy(true);
+                setLocalErr(null);
                 try {
                   await loginDev(id);
-                } catch {
-                  /* shown below */
+                } catch (e) {
+                  setLocalErr((e as Error)?.message ?? 'ورود ناموفق بود — سرور dev-login را در حالت development باز بگذارد.');
                 } finally {
                   setBusy(false);
                 }
@@ -79,7 +85,7 @@ export function Login() {
           </>
         )}
 
-        {error ? <p className="mt-3 rounded-xl border border-danger/40 bg-danger/10 p-2 text-xs text-danger">{error}</p> : null}
+        {localErr || error ? <p className="mt-3 rounded-xl border border-danger/40 bg-danger/10 p-2 text-xs text-danger">{localErr ?? error}</p> : null}
       </div>
 
       <p className="mt-4 text-center text-[11px] text-slate-500">

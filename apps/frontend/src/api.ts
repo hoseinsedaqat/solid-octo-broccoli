@@ -28,20 +28,45 @@ export class ApiError extends Error {
 
 const TOKEN_KEY = 'ww.token';
 
-export function getToken(): string | null {
+/**
+ * A Telegram Mini App (and the iframe-based previews some people test through) can run with
+ * storage access blocked — sessionStorage then THROWS on every read/write. Without an
+ * in-memory copy, a successful dev-login POST would lose its token immediately and the app
+ * would sit on the login screen looking "dead". The memory variable is authoritative;
+ * sessionStorage only mirrors it so a manual reload can keep the session.
+ */
+let memoryToken: string | null = null;
+
+function safeStorage(): Storage | null {
   try {
-    return sessionStorage.getItem(TOKEN_KEY);
+    const store = globalThis.sessionStorage;
+    const probe = '__ww_probe';
+    store.setItem(probe, '1');
+    store.removeItem(probe);
+    return store;
+  } catch {
+    return null; // blocked / private mode / storageless iframe
+  }
+}
+
+export function getToken(): string | null {
+  if (memoryToken) return memoryToken;
+  try {
+    return safeStorage()?.getItem(TOKEN_KEY) ?? null;
   } catch {
     return null;
   }
 }
 
 export function setToken(token: string | null): void {
+  memoryToken = token;
   try {
-    if (token) sessionStorage.setItem(TOKEN_KEY, token);
-    else sessionStorage.removeItem(TOKEN_KEY);
+    const store = safeStorage();
+    if (!store) return;
+    if (token) store.setItem(TOKEN_KEY, token);
+    else store.removeItem(TOKEN_KEY);
   } catch {
-    /* private mode: the session simply will not persist */
+    /* the mirror is best-effort only */
   }
 }
 
