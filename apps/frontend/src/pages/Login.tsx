@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useAuth } from '../auth';
+import { useApi, useAuth } from '../auth';
 import { Btn, Field, Input, fa } from '../ui';
 import { tg } from '../telegram';
 
@@ -17,6 +17,9 @@ export function Login() {
   // pre-filled with the id from the sample .dev.vars — one tap in and you are primary admin
   const [devId, setDevId] = useState('111111111');
   const inTelegram = tg.isTelegram;
+  // dev-login is a development shortcut; showing it in production only produces a confusing 403
+  const { data: cfg } = useApi<{ devLoginEnabled?: boolean; gameName?: string }>('/config');
+  const devAllowed = cfg?.devLoginEnabled === true;
 
   return (
     <div className="mx-auto flex min-h-full max-w-md flex-col justify-center px-4 py-10">
@@ -52,10 +55,10 @@ export function Login() {
               تلاش دوباره برای ورود
             </Btn>
           </>
-        ) : (
+        ) : devAllowed ? (
           <>
             <p className="mb-3 text-sm leading-6 text-slate-300">
-              این صفحه فقط برای توسعه محلی است: در تلگرام، ورود با initData به‌صورت خودکار انجام می‌شود.
+              حالت توسعه: ورود با initData انجام نشد، می‌توانید با آی‌دی عددی وارد شوید.
             </p>
             <Field label="آی‌دی عددی تلگرام (dev-login)">
               <Input value={devId} onChange={(e) => setDevId(e.target.value)} inputMode="numeric" placeholder="مثلاً ۱۲۳۴۵۶۷۸۹" />
@@ -81,6 +84,37 @@ export function Login() {
               }}
             >
               ورود توسعه‌دهنده
+            </Btn>
+          </>
+        ) : (
+          <>
+            <p className="text-sm leading-6 text-slate-300">
+              ورود به بازی فقط از داخل ربات تلگرام انجام می‌شود: ربات را باز کنید، <b>/start</b> بزنید و دکمهٔ سبز
+              «ورود به بازی» را بزنید. اگر مینی‌اپ را از تلگرام باز کرده‌اید و این پیام را می‌بینید، یک بار آن را ببندید
+              و دوباره باز کنید (تلگرام گاهی لینک قدیمی را نگه می‌دارد).
+            </p>
+            <Btn
+              className="mt-4 w-full ww-btn-primary"
+              loading={busy}
+              onClick={async () => {
+                setBusy(true);
+                setLocalErr(null);
+                const initData = await tg.initDataWhenReady(2500);
+                if (!initData) {
+                  setLocalErr('دادهٔ ورود تلگرام به این صفحه نرسید. مینی‌اپ را از داخل ربات باز کنید.');
+                  setBusy(false);
+                  return;
+                }
+                try {
+                  await loginWithInitData(initData);
+                } catch (e) {
+                  setLocalErr((e as Error)?.message ?? 'ورود با تلگرام انجام نشد');
+                } finally {
+                  setBusy(false);
+                }
+              }}
+            >
+              تلاش دوباره برای اتصال به تلگرام
             </Btn>
           </>
         )}

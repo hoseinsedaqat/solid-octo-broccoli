@@ -84,9 +84,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         await loadMe();
         return;
       }
-      if (tg.initData) {
+      // inside Telegram the launch data can arrive a tick after the scripts ran — wait for it
+      // instead of showing a login screen nobody asked for (that is what this whole flow is for)
+      const initData = await tg.initDataWhenReady();
+      if (initData) {
         try {
-          await exchange(tg.initData);
+          await exchange(initData);
         } catch {
           /* the login screen explains the error */
         }

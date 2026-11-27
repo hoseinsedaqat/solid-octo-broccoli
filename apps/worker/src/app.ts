@@ -8,7 +8,7 @@ import { checkWebhookSecret } from './core/telegram-auth';
 import { loadSettings } from './core/settings';
 import { record } from './services/quotaService';
 import { createContext, errorHandler } from './api/middleware';
-import { mountAuth } from './api/routes/auth';
+import { DEV_LOGIN_ENVS, mountAuth } from './api/routes/auth';
 import { mountPlayer } from './api/routes/player';
 import { mountShop } from './api/routes/shop';
 import { mountDiplomacy } from './api/routes/diplomacy';
@@ -61,6 +61,8 @@ export function createApp(): Hono<HonoEnv> {
       cycleSeconds: settings.economy.incomeCycleSeconds,
       webAppPath: ROUTES.playerRoot,
       adminPath: ROUTES.adminRoot,
+      /** the UI must not offer the dev-login shortcut when the server refuses it anyway */
+      devLoginEnabled: DEV_LOGIN_ENVS.has(c.env.APP_ENV ?? 'production'),
     });
   });
 

@@ -6,9 +6,11 @@
 
 interface TgWebAppLike {
   initData?: string;
-  initDataUnsafe?: { user?: { id?: number; username?: string; first_name?: string; language_code?: string } };
+  initDataUnsafe?: { user?: { id?: number; username?: string; first_name?: string; language_code?: string }; start_param?: string | { text?: string } };
   platform?: string;
   colorScheme?: string;
+  startParam?: string;
+  isDataRecovered?: boolean;
   ready?: () => void;
   expand?: () => void;
   setShow?: (v: boolean) => void;
@@ -26,6 +28,15 @@ function webApp(): TgWebAppLike | undefined {
   return (globalThis as { Telegram?: { WebApp?: TgWebAppLike } }).Telegram?.WebApp;
 }
 
+/** launch parameters the client puts in the WebView URL — readable even before/without the bridge */
+function searchParam(name: string): string {
+  try {
+    return new URLSearchParams(globalThis.location?.search ?? '').get(name) ?? '';
+  } catch {
+    return '';
+  }
+}
+
 export const tg = {
   get raw(): TgWebAppLike | undefined {
     return webApp();
@@ -36,8 +47,46 @@ export const tg = {
   get user() {
     return webApp()?.initDataUnsafe?.user ?? undefined;
   },
+  get platform(): string {
+    return webApp()?.platform ?? searchParam('tgWebAppPlatform') ?? '';
+  },
+  /** `?startapp=` / tgWebAppStartParam — the bot uses it for deep links like /start admin */
+  get startParam(): string {
+    const fromInitData = webApp()?.initDataUnsafe?.start_param;
+    return (
+      String(webApp()?.startParam ?? '') ||
+      (typeof fromInitData === 'string' ? fromInitData : String(fromInitData?.text ?? '')) ||
+      searchParam('tgWebAppStartParam') ||
+      searchParam('startapp')
+    );
+  },
+  /**
+   * "are we running inside Telegram?" — must not depend on initData, because the whole point
+   * of the self-hosted bridge is that data can still be on its way when the app boots.
+   */
   get isTelegram(): boolean {
-    return Boolean(webApp()?.initData);
+    return Boolean(webApp()?.initData) || Boolean(searchParam('tgWebAppPlatform')) || Boolean(searchParam('startapp'));
+  },
+  /**
+   * initData sometimes lands a tick after boot (older clients answer the bridge request
+   * asynchronously). Resolves with '' when we are outside Telegram or nothing arrives in time.
+   */
+  initDataWhenReady(timeoutMs = 1500): Promise<string> {
+    const immediate = webApp()?.initData ?? '';
+    if (immediate) return Promise.resolve(immediate);
+    if (!tg.isTelegram) return Promise.resolve('');
+    return new Promise((resolve) => {
+      let settled = false;
+      const finish = () => {
+        if (settled) return;
+        settled = true;
+        globalThis.removeEventListener?.('ww:telegram-init', finish);
+        clearTimeout(timer);
+        resolve(webApp()?.initData ?? '');
+      };
+      const timer = setTimeout(finish, timeoutMs);
+      globalThis.addEventListener?.('ww:telegram-init', finish);
+    });
   },
   /** must be called once, as early as possible */
   boot(): void {

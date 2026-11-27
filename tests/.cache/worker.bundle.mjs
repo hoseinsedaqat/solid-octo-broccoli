@@ -17320,7 +17320,9 @@ function createApp() {
       features: settings.features,
       cycleSeconds: settings.economy.incomeCycleSeconds,
       webAppPath: ROUTES.playerRoot,
-      adminPath: ROUTES.adminRoot
+      adminPath: ROUTES.adminRoot,
+      /** the UI must not offer the dev-login shortcut when the server refuses it anyway */
+      devLoginEnabled: DEV_LOGIN_ENVS.has(c.env.APP_ENV ?? "production")
     });
   });
   app2.post(ROUTES.webhook, async (c) => {

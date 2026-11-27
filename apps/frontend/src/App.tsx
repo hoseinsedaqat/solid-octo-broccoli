@@ -1,5 +1,7 @@
 import { Suspense, lazy, useEffect, type ComponentType, type LazyExoticComponent } from 'react';
+import { ROUTES } from '@ww/shared';
 import { AuthProvider, useAuth } from './auth';
+import { tg } from './telegram';
 import { RouterProvider, useRouter } from './router';
 import { Loading, ToastProvider } from './ui';
 import { Shell } from './components/Shell';
@@ -82,7 +84,15 @@ function Routes() {
   // deep links from the bot (#/app/player) and from the admin menu (#/app/admin) both work; '/' picks a home
   useEffect(() => {
     if (status !== 'ready' || !me) return;
-    if (path === '/' || path === '/app') navigate(isAdmin ? '/app/admin' : '/app/player', { replace: true });
+    if (path === '/' || path === '/app') {
+      navigate(isAdmin ? ROUTES.adminRoot : ROUTES.playerRoot, { replace: true });
+      return;
+    }
+    // ?startapp=admin (the BotFather menu button / a deep link) must land an admin in the console,
+    // not on the player home they were already looking at
+    if (isAdmin && path === ROUTES.playerRoot && tg.startParam === 'admin') {
+      navigate(ROUTES.adminRoot, { replace: true });
+    }
   }, [status, me, path, isAdmin, navigate]);
 
   if (status === 'loading') return <Loading label="در حال برقراری ارتباط با سرور…" />;
