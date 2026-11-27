@@ -1,29 +1,41 @@
 /*
- * Minimal, self-hosted Telegram Mini Apps bridge (a subset of the official SDK).
+ * Self-hosted Telegram Mini Apps bridge — a small, dependency-free subset of the official SDK.
  *
- * Why: the official SDK is normally loaded from https://telegram.org/js/telegram-web-app.js.
- * On filtered networks that host can be unreachable, and without the SDK an app cannot read
- * `initData` at all -> the whole game would be unusable. Telegram passes everything the app
- * needs in the URL of the WebView itself, so a tiny local parser is enough:
+ * Why this file exists: the official SDK lives at https://telegram.org/js/telegram-web-app.js and on
+ * filtered networks that host can be unreachable. Without it an app cannot read `initData`, so login
+ * silently fails and the whole game is unusable. Telegram hands every Mini App its launch data in
+ * TWO places, and this file understands both:
  *
- *   <mini app url>#tq=<url-encoded JSON: { initParams: {...}, initDataRaw: "..." }>
+ *   1. query string of the WebView URL (all current clients):
+ *        ?tgWebAppInitData=…&tgWebAppVersion=7.0&tgWebAppPlatform=android
+ *        &tgWebAppColorScheme=dark&tgWebAppThemeParams={…}&tgWebAppStartParam=admin
+ *   2. the postMessage / window.external bridge (older clients, and the only channel for
+ *        `web_app_data`, haptics, BackButton clicks, …):
+ *        request  → {method:'web_view_data_request', data:{url, location}}
+ *        answer   → {event:'web_view_data', data:{initData, …}}   (or Telegram.WebAppReceive on mobile)
  *
- * This file implements only what World War uses: initData (+parsed user), ready(), expand(),
- * color/theme handoff, BackButton, HapticFeedback and MainButton. If telegram.org IS reachable
- * you may load the official SDK instead - it overwrites window.Telegram.WebApp with the full API
- * and everything below simply becomes unused.
- *
- * Nothing here performs any network request.
+ * If the official SDK is loaded by other means it wins: this file never overwrites an existing
+ * window.Telegram.WebApp, it only fills in what is missing. Nothing here performs a network request.
  */
 (function () {
   'use strict';
-  if (window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.initData) return;
+
+  var win = window;
+  win.Telegram = win.Telegram || {};
+  // a real SDK that already produced initData wins — we only fill gaps in that case
+  if (win.Telegram.WebApp && win.Telegram.WebApp.initData) return;
+  var WEBAPP = win.Telegram.WebApp && typeof win.Telegram.WebApp === 'object' ? win.Telegram.WebApp : {};
+  var listeners = {};
+  var actionCounter = 0;
+
+  /* ------------------------------ helpers ------------------------------ */
 
   function decodeRaw(value) {
+    if (value == null) return '';
     try {
-      return decodeURIComponent(value.replace(/\+/g, ' '));
+      return decodeURIComponent(String(value).replace(/\+/g, ' '));
     } catch (e) {
-      return value;
+      return String(value);
     }
   }
 
@@ -50,142 +62,273 @@
     return out;
   }
 
-  function readFromHash() {
-    var hash = String(location.hash || '').replace(/^#/, '');
-    var result = { initDataRaw: '', initParams: {} };
-    if (!hash) return result;
-    if (hash.indexOf('tq=') === 0) {
+  function parseJsonMaybe(value) {
+    if (!value) return {};
+    if (typeof value === 'object') return value;
+    // bridge payloads arrive as plain JSON; only URL-encoded forms need decoding first
+    try {
+      return JSON.parse(String(value));
+    } catch (e) {}
+    try {
+      return JSON.parse(decodeRaw(value));
+    } catch (e) {
+      return {};
+    }
+  }
+
+  function emit(name) {
+    var list = (listeners[name] || []).slice();
+    for (var i = 0; i < list.length; i++) {
       try {
-        var payload = JSON.parse(decodeRaw(hash.slice(3)));
-        result.initDataRaw = payload.initDataRaw || payload.initData || '';
-        result.initParams = payload.initParams || {};
-        return result;
-      } catch (e) {
-        /* fall through to the plain key=value form */
+        list[i]();
+      } catch (e) {}
+    }
+    try {
+      win.dispatchEvent(new Event('ww:telegram-' + name));
+    } catch (e) {}
+  }
+
+  /* --------------------------- 1. launch params --------------------------- */
+
+  function readLaunchParams() {
+    var out = { initData: '', version: '', platform: '', colorScheme: '', themeParams: {}, startParam: '' };
+    var search = new URLSearchParams(String(win.location && win.location.search ? win.location.search : '').replace(/^\?/, ''));
+
+    // a native client may also have injected the string before any script ran
+    var injected = (win.Telegram && (win.Telegram.WebAppInitData || (win.Telegram.WebView && win.Telegram.WebView.initDataRaw))) || '';
+    out.initData = search.get('tgWebAppInitData') || search.get('initData') || search.get('tq') || String(injected || '');
+    out.version = search.get('tgWebAppVersion') || '';
+    out.platform = search.get('tgWebAppPlatform') || '';
+    out.colorScheme = search.get('tgWebAppColorScheme') || '';
+    out.themeParams = parseJsonMaybe(search.get('tgWebAppThemeParams'));
+    out.startParam = search.get('tgWebAppStartParam') || search.get('startapp') || '';
+
+    // legacy/preview form used by in-app debug links: #tq={"initDataRaw":"…","initParams":{…}}
+    if (!out.initData) {
+      var hash = String(win.location && win.location.hash ? win.location.hash : '').replace(/^#/, '');
+      if (hash.indexOf('tq=') === 0) {
+        var payload = parseJsonMaybe(hash.slice(3));
+        out.initData = payload.initDataRaw || payload.initData || '';
+        var p = payload.initParams || {};
+        out.version = out.version || p.version || '';
+        out.platform = out.platform || p.platform || '';
+        out.colorScheme = out.colorScheme || p.color_scheme || '';
+        out.themeParams = p.theme_params || out.themeParams;
+        out.startParam = out.startParam || p.start_param || '';
+      } else if (hash.indexOf('initData=') === 0 || hash.indexOf('tgWebAppInitData=') === 0) {
+        var hp = new URLSearchParams(hash);
+        out.initData = hp.get('tgWebAppInitData') || hp.get('initData') || '';
       }
     }
-    var params = {};
-    hash.split('&').forEach(function (pair) {
-      var i = pair.indexOf('=');
-      if (i > 0) params[pair.slice(0, i)] = decodeRaw(pair.slice(i + 1));
+    return out;
+  }
+
+  /* ------------------------------ 2. bridge ------------------------------ */
+
+  function postToParent(payload) {
+    try {
+      if (win.parent && win.parent !== win) win.parent.postMessage(payload, '*');
+    } catch (e) {}
+  }
+
+  function postToNative(payload) {
+    var raw = JSON.stringify(payload);
+    try {
+      if (win.external && typeof win.external.invoke === 'function') win.external.invoke(raw);
+    } catch (e) {}
+    // iOS uses the WebKit script-message handler instead of window.external
+    try {
+      var handler = win.webkit && win.webkit.messageHandlers && win.webkit.messageHandlers.telegram;
+      if (handler && typeof handler.postMessage === 'function') handler.postMessage(raw);
+    } catch (e) {}
+  }
+
+  /** speaks both dialects: the iframe protocol ({event}) and the mobile one ({method,_action}) */
+  function postEvent(event, data) {
+    postToParent({ event: event, data: data || {} });
+    actionCounter += 1;
+    postToNative({ _action: actionCounter, data: { method: event, data: data || {} } });
+    postToNative({ method: event, data: data || {} });
+  }
+
+  function applyData(data) {
+    if (!data) return false;
+    var changed = false;
+    var raw = data.initData || data.initDataRaw || data.tgWebAppInitData || '';
+    if (raw && raw !== WEBAPP.initData) {
+      WEBAPP.initData = raw;
+      WEBAPP.initDataUnsafe = parseInitData(raw);
+      WEBAPP.isDataRecovered = true;
+      changed = true;
+    }
+    if (data.version) WEBAPP.version = data.version;
+    if (data.platform) WEBAPP.platform = data.platform;
+    if (data.colorScheme || data.color_scheme) WEBAPP.colorScheme = data.colorScheme || data.color_scheme;
+    if (data.themeParams || data.theme_params) WEBAPP.themeParams = parseJsonMaybe(data.themeParams || data.theme_params);
+    if (data.startParam || data.start_param) WEBAPP.startParam = String(data.startParam || data.start_param);
+    if (changed) emit('init');
+    return changed;
+  }
+
+  // the native side calls this global directly on iOS/Android
+  win.Telegram.WebAppReceive = function (payload) {
+    var msg = typeof payload === 'string' ? parseJsonMaybe(payload) : payload || {};
+    msg = msg || {};
+    if (msg.event === 'web_view_data' || msg.event === 'web_view_data_changed' || msg.method === 'web_view_data') {
+      applyData(msg.data || msg.params || msg);
+    } else if (msg.event === 'back_button_click') {
+      emit('backButtonClicked');
+    } else if (msg.event === 'settings_button_clicked') {
+      emit('settingsButtonClicked');
+    } else if (msg.event === 'main_button_clicked' || msg.event === 'web_app_main_button_click') {
+      emit('mainButtonClicked');
+    } else if (msg.initData || msg.initDataRaw) {
+      applyData(msg);
+    }
+  };
+
+  win.addEventListener('message', function (e) {
+    var msg = e && e.data;
+    if (!msg || typeof msg !== 'object') return;
+    if (msg.event === 'web_view_data' || msg.event === 'web_view_data_changed' || msg.method === 'web_view_data') {
+      applyData(msg.data || msg.params || {});
+    } else if (msg.event === 'back_button_click') {
+      emit('backButtonClicked');
+    } else if (msg.event === 'web_app_main_button_click' || msg.event === 'main_button_clicked') {
+      emit('mainButtonClicked');
+    }
+  });
+
+  /* ------------------------------ 3. the API ------------------------------ */
+
+  var params = readLaunchParams();
+
+  WEBAPP.initData = params.initData;
+  WEBAPP.initDataUnsafe = parseInitData(params.initData);
+  WEBAPP.platform = params.platform || 'web';
+  WEBAPP.version = params.version || '7.0';
+  WEBAPP.colorScheme = params.colorScheme || 'dark';
+  WEBAPP.themeParams = params.themeParams || {};
+  WEBAPP.startParam = params.startParam || '';
+  WEBAPP.isExpanded = false;
+  WEBAPP.isActive = true;
+  WEBAPP.isDataRecovered = false;
+  WEBAPP.ready = function () {};
+  WEBAPP.expand = function () {
+    WEBAPP.isExpanded = true;
+    postEvent('web_app_expand', {});
+  };
+  WEBAPP.collapse = function () {
+    WEBAPP.isExpanded = false;
+  };
+  WEBAPP.close = function () {
+    postEvent('close_web_app', {});
+  };
+  WEBAPP.disableVerticalSwipes = function () {};
+  WEBAPP.setBackgroundColor = function (color) {
+    postEvent('web_app_set_background_color', { color: color });
+  };
+  WEBAPP.setHeaderColor = function (color) {
+    postEvent('web_app_set_header_color', { color: color });
+  };
+  WEBAPP.setColorScheme = function (scheme) {
+    WEBAPP.colorScheme = scheme;
+    postEvent('web_app_set_color_scheme', { color_scheme: scheme });
+  };
+  WEBAPP.openLink = function (url) {
+    postEvent('open_link', { url: url });
+    try {
+      win.open(url, '_blank');
+    } catch (e) {}
+  };
+  WEBAPP.sendData = function (data) {
+    postEvent('web_app_data', { data: String(data == null ? '' : data) });
+  };
+  WEBAPP.postEvent = postEvent;
+  WEBAPP.on = function (name, fn) {
+    (listeners[name] = listeners[name] || []).push(fn);
+  };
+  WEBAPP.off = function (name, fn) {
+    listeners[name] = (listeners[name] || []).filter(function (f) {
+      return f !== fn;
     });
-    result.initDataRaw = params.initData || params.tq || '';
-    result.initParams = params;
-    return result;
-  }
-
-  function readFromSearch() {
-    var q = new URLSearchParams(location.search);
-    return { initDataRaw: q.get('initData') || q.get('tq') || '', initParams: {} };
-  }
-
-  var source = readFromHash();
-  if (!source.initDataRaw) source = readFromSearch();
-
-  var initData = parseInitData(source.initDataRaw);
-  var theme = (source.initParams && source.initParams.theme_params) || {};
-
-  function noop() {}
-  function makeEventTarget() {
-    var listeners = {};
-    return {
-      on: function (name, fn) {
-        (listeners[name] = listeners[name] || []).push(fn);
-      },
-      off: function (name, fn) {
-        listeners[name] = (listeners[name] || []).filter(function (f) {
-          return f !== fn;
-        });
-      },
-      emit: function (name) {
-        (listeners[name] || []).forEach(function (f) {
-          try {
-            f();
-          } catch (e) {}
-        });
-      },
-    };
-  }
-
-  var WebApp = {
-    initData: source.initDataRaw,
-    initDataUnsafe: initData,
-    platform: (source.initParams && source.initParams.platform) || 'web',
-    colorScheme: (source.initParams && source.initParams.color_scheme) || 'dark',
-    themeParams: theme,
-    version: (source.initParams && source.initParams.version) || '7.0',
-    isExpanded: false,
+  };
+  WEBAPP.MainButton = {
+    text: '',
     isActive: true,
-    ready: noop,
-    expand: function () {
-      WebApp.isExpanded = true;
+    isVisible: false,
+    show: function () {
+      WEBAPP.MainButton.isVisible = true;
+      postEvent('web_app_setup_main_button', { is_visible: true, is_active: WEBAPP.MainButton.isActive, text: WEBAPP.MainButton.text });
     },
-    collapse: noop,
-    disableVerticalSwipes: noop,
-    setBackgroundColor: noop,
-    setHeaderColor: noop,
-    setColorScheme: noop,
-    enableClosingConfirmation: noop,
-    disableConfirmation: noop,
-    showPopup: function (params, cb) {
-      var ok = window.confirm(String((params && params.message) || ''));
-      if (cb) cb(ok ? (params.buttons && params.buttons[0] && params.buttons[0].id) || 'default' : '');
+    hide: function () {
+      WEBAPP.MainButton.isVisible = false;
+      postEvent('web_app_setup_main_button', { is_visible: false });
     },
-    showAlert: function (message, cb) {
-      window.alert(String(message));
-      if (cb) cb();
+    setText: function (t) {
+      WEBAPP.MainButton.text = t;
+      postEvent('web_app_setup_main_button', { text: t });
     },
-    showConfirm: function (message, cb) {
-      if (cb) cb(window.confirm(String(message)));
+    enable: function () {
+      WEBAPP.MainButton.isActive = true;
     },
-    sendData: function (data) {
-      try {
-        // the bot webhook listens for WebAppData messages
-        if (window.Telegram && typeof window.Telegram.WebApp.postMessage === 'function') {
-          window.Telegram.WebApp.postMessage({ data: data });
-        }
-      } catch (e) {}
+    disable: function () {
+      WEBAPP.MainButton.isActive = false;
     },
-    postEvent: function (event, params) {
-      try {
-        if (window.parent && window.parent !== window) window.parent.postMessage({ event: event, params: params || {} }, '*');
-      } catch (e) {}
+    onClick: function (fn) {
+      WEBAPP.on('mainButtonClicked', fn);
     },
-    MainButton: {
-      text: '',
-      isVisible: false,
-      show: function () {
-        WebApp.MainButton.isVisible = true;
-      },
-      hide: function () {
-        WebApp.MainButton.isVisible = false;
-      },
-      setText: function (t) {
-        WebApp.MainButton.text = t;
-      },
-      onClick: noop,
-      offClick: noop,
+    offClick: function (fn) {
+      WEBAPP.off('mainButtonClicked', fn);
     },
-    HapticFeedback: {
-      impactOccurred: noop,
-      notificationOccurred: noop,
-      selectionChanged: noop,
+  };
+  WEBAPP.HapticFeedback = {
+    impactOccurred: function (style) {
+      postEvent('web_app_trigger_haptic_feedback', { type: 'impact', impact_style: String(style || 'light') });
+    },
+    notificationOccurred: function (kind) {
+      postEvent('web_app_trigger_haptic_feedback', { type: 'notification', notification_type: String(kind || 'error') });
+    },
+    selectionChanged: function () {
+      postEvent('web_app_trigger_haptic_feedback', { type: 'selection', impact_style: 'light' });
     },
   };
 
-  ['BackButton', 'SettingsButton', 'CloudStorage', 'Webview']
-    .concat(['SafeArea', 'ContentSafeArea'])
-    .forEach(function (name) {
-      WebApp[name] = { show: noop, hide: noop, isVisible: false, on: noop, off: noop };
+  ['BackButton', 'SettingsButton', 'CloudStorage', 'Webview', 'SafeArea', 'ContentSafeArea', 'SecondaryButton'].forEach(function (name) {
+    WEBAPP[name] = {
+      show: function () {
+        postEvent('web_app_setup_back_button', { is_visible: true });
+      },
+      hide: function () {
+        postEvent('web_app_setup_back_button', { is_visible: false });
+      },
+      isVisible: false,
+      on: function (fn) {
+        WEBAPP.on(name === 'BackButton' ? 'backButtonClicked' : 'settingsButtonClicked', fn);
+      },
+      off: function (fn) {
+        WEBAPP.off(name === 'BackButton' ? 'backButtonClicked' : 'settingsButtonClicked', fn);
+      },
+      onClick: function (fn) {
+        WEBAPP.on(name === 'BackButton' ? 'backButtonClicked' : 'settingsButtonClicked', fn);
+      },
+      offClick: function () {},
+      setData: function () {
+        return Promise.resolve({ ok: true });
+      },
+      getData: function () {
+        return Promise.resolve({ result: {} });
+      },
+    };
+  });
+
+  win.Telegram.WebApp = WEBAPP;
+
+  // ask the client for the launch data if the URL did not carry it
+  if (!WEBAPP.initData) {
+    postEvent('web_view_data_request', {
+      url: String(win.location && win.location.href ? win.location.href : ''),
+      location: String(win.location && win.location.search ? win.location.search : ''),
     });
-
-  var events = makeEventTarget();
-  WebApp.on = events.on;
-  WebApp.off = events.off;
-  WebApp._events = events;
-
-  window.Telegram = window.Telegram || {};
-  // never overwrite a real SDK that was loaded first
-  if (!window.Telegram.WebApp) window.Telegram.WebApp = WebApp;
-  else window.Telegram.WebApp.initData = window.Telegram.WebApp.initData || WebApp.initData;
+  }
 })();

@@ -4,16 +4,26 @@
  *
  *   BOT_TOKEN=123:abc PUBLIC_BASE_URL=https://world-war.example.workers.dev \
  *   TELEGRAM_WEBHOOK_SECRET=long-random node scripts/setup-bot.mjs            # set webhook
- *   BOT_TOKEN=... node scripts/setup-bot.mjs --delete                          # remove webhook
- *   BOT_TOKEN=... node scripts/setup-bot.mjs --poll                              # switch to polling fallback
+ *   node scripts/setup-bot.mjs --token=123:abc --delete                         # remove webhook
+ *   node scripts/setup-bot.mjs --token=123:abc --base=https://… --secret=… --poll  # polling fallback
  *
  * TELEGRAM_API_BASE may point at scripts/telegram-stub.mjs to dry-run offline (nothing real is sent).
  */
-const API_BASE = (process.env.TELEGRAM_API_BASE ?? 'https://api.telegram.org').replace(/\/$/, '');
-const TOKEN = process.env.BOT_TOKEN ?? '';
-const BASE = (process.env.PUBLIC_BASE_URL ?? '').replace(/\/$/, '');
-const SECRET = process.env.TELEGRAM_WEBHOOK_SECRET ?? '';
+/**
+ * Windows-friendly: `FOO=bar node script.mjs` is POSIX-only, so every value may also be
+ * passed as a flag — `--token=… --base=… --secret=… --api=…` (flag wins over the variable).
+ */
+function flag(name) {
+  const hit = process.argv.find((a) => a.startsWith(`--${name}=`));
+  return hit ? decodeURIComponent(hit.slice(name.length + 3)) : ''; // '--name='.length === name.length + 3
+}
+
+const API_BASE = (flag('api') || process.env.TELEGRAM_API_BASE || 'https://api.telegram.org').replace(/\/$/, '');
+const TOKEN = flag('token') || process.env.BOT_TOKEN || '';
+const BASE = (flag('base') || process.env.PUBLIC_BASE_URL || '').replace(/\/$/, '');
+const SECRET = flag('secret') || process.env.TELEGRAM_WEBHOOK_SECRET || '';
 const MODE = process.argv.includes('--delete') ? 'delete' : process.argv.includes('--poll') ? 'poll' : 'set';
+const APP_SECRET = flag('app-secret') || process.env.APP_SECRET || 'APP_SECRET';
 
 if (!TOKEN) die('BOT_TOKEN لازم است (از @BotFather).');
 
@@ -46,7 +56,7 @@ if (MODE === 'delete') {
 if (MODE === 'poll') {
   await call('deleteWebhook', { drop_pending_updates: false });
   console.log('✓ وب‌هوک حذف شد؛ برای تحویل آپدیت‌ها در حالت توسعه:');
-  console.log(`  curl -X POST "http://localhost:8787/api/telegram/poll" -H "x-admin-secret: ${process.env.APP_SECRET ?? 'APP_SECRET'}"`);
+  console.log(`  curl -X POST "http://localhost:8787/api/telegram/poll" -H "x-admin-secret: ${APP_SECRET}"`);
   process.exit(0);
 }
 
