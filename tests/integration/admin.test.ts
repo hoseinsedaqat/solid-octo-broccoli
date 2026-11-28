@@ -151,17 +151,30 @@ describe('admin tooling', () => {
     expect(f22.length).toBe(2);
     expect(await all(world.db, `SELECT * FROM v_duplicate_equipment_names`)).toHaveLength(0);
     // once an admin really does create a duplicate name, the warning view reports it
-    const create = await world.api('POST', '/api/admin/shop/equipment', {
+    const createA = await world.api('POST', '/api/admin/shop/equipment', {
       token: adminToken,
-      body: { categoryKey: 'drones', code: 'shahed_copy', nameFa: 'M1 Abrams', unitFa: 'عدد', price: 5000 },
+      body: { categoryKey: 'drones', code: 'qa_dup_name_a', nameFa: 'تجهیز تست تکراری یکتا', unitFa: 'عدد', price: 5000 },
     });
-    expect(create.status).toBe(200);
+    expect(createA.status).toBe(200);
+    const createB = await world.api('POST', '/api/admin/shop/equipment', {
+      token: adminToken,
+      body: { categoryKey: 'drones', code: 'qa_dup_name_b', nameFa: 'تجهیز تست تکراری یکتا', unitFa: 'فروند', price: 6000 },
+    });
+    expect(createB.status).toBe(200);
     const dup = await all<{ name_fa: string; occurrences: number }>(world.db, `SELECT * FROM v_duplicate_equipment_names`);
-    expect(dup.some((d) => d.name_fa === 'M1 Abrams' && Number(d.occurrences) >= 2)).toBe(true);
-    await world.api('POST', `/api/admin/shop/equipment/${Number(create.json.id)}/delete`, { token: adminToken });
+    expect(dup.some((d) => d.name_fa === 'تجهیز تست تکراری یکتا' && Number(d.occurrences) >= 2)).toBe(true);
+    await world.api('POST', `/api/admin/shop/equipment/${Number(createA.json.id)}/delete`, { token: adminToken });
+    await world.api('POST', `/api/admin/shop/equipment/${Number(createB.json.id)}/delete`, { token: adminToken });
+    // همهٔ کاتالوگ قیمت‌گذاری شده؛ اما اگر ادمین آیتمی بدون قیمت بسازد، در ویوی سلامت داده ظاهر می‌شود
+    const create2 = await world.api('POST', '/api/admin/shop/equipment', {
+      token: adminToken,
+      body: { categoryKey: 'drones', code: 'qa_unpriced_admin_check', nameFa: 'پهپاد تست بدون قیمت ادمین', unitFa: 'فروند' },
+    });
+    expect(create2.status).toBe(200);
     const rows = await world.api('GET', '/api/admin/shop/equipment?unpriced=1', { token: adminToken });
     expect(rows.status).toBe(200);
-    expect((rows.json.items ?? []).length).toBeGreaterThan(0);
+    expect((rows.json.items ?? []).some((i: any) => i.code === 'qa_unpriced_admin_check')).toBe(true);
+    await world.api('POST', `/api/admin/shop/equipment/${Number(create2.json.id)}/delete`, { token: adminToken });
   });
 });
 

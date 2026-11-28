@@ -16,6 +16,8 @@ export interface Env {
   TELEGRAM_API_BASE?: string;
   /** hard kill-switch for cron jobs (set to "1" to pause all background work) */
   CRON_DISABLED?: string;
+  /** سرعت تکمیل پروژه‌های ساخت (۰ = آنی؛ فقط برای توسعه/تست) */
+  BUILD_SPEED?: string;
 }
 
 export interface SessionUser {

@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { STARTER_ECONOMY } from '@ww/shared';
-import { botCallback, botText, createWorld, first, onboardViaBot, run, type World } from '../helpers/harness';
+import { all, botCallback, botText, createWorld, first, onboardViaBot, run, type World } from '../helpers/harness';
 
 /** 🏗️ وزارت ساخت‌وساز و 🏆 رتبه‌بندی قدرت‌های جهان — از ربات و API */
 let world: World;
@@ -13,7 +13,7 @@ const sentTexts = () =>
     .map((s) => String(s.payload.text ?? ''));
 
 beforeAll(async () => {
-  world = await createWorld({ adminIds: '777' });
+  world = await createWorld({ adminIds: '777', env: { BUILD_SPEED: '0' } });
   nation = await onboardViaBot(world, 990_001, 'ساختین', 'آرمان');
   token = (await world.api('POST', '/api/auth/dev-login', { body: { telegramId: 990_001 } })).json.token;
 }, 240_000);
@@ -57,9 +57,26 @@ describe('ساخت‌وساز — API', () => {
     expect(Number(built!.c)).toBe(1);
   });
 
-  it('rejects building the same construction twice', async () => {
+  it('upgrades an already-built construction instead of silently rebuilding it', async () => {
+    // پادگان قبلاً در تست بالا ساخته شده → این درخواست «ارتقا به سطح ۲» است
+    const before = Number((await first<{ treasury: number }>(world.db, 'SELECT treasury FROM nations WHERE id = ?', nation))!.treasury);
     const res = await world.api('POST', '/api/player/buildings', { token, body: { buildingKey: 'barracks' } });
-    expect(res.status).toBe(409);
+    expect(res.status).toBe(200);
+    expect(res.json.kind).toBe('upgrade');
+    expect(res.json.level).toBe(2);
+    expect(Number(res.json.cost)).toBe(Math.ceil(10_000 * 0.6 * 1));
+    const row = await first<{ level: number }>(world.db, `SELECT level FROM nation_buildings WHERE nation_id = ? AND building_key = 'barracks'`, nation);
+    expect(Number(row!.level)).toBe(2);
+    const after = Number((await first<{ treasury: number }>(world.db, 'SELECT treasury FROM nations WHERE id = ?', nation))!.treasury);
+    expect(after).toBe(before - Math.ceil(10_000 * 0.6 * 1));
+    // ارتقا هم پاداش سربازان را می‌دهد
+    const rangers = await first<{ quantity: number }>(
+      world.db,
+      `SELECT COALESCE(SUM(i.quantity), 0) AS quantity FROM nation_inventory i JOIN equipment_templates t ON t.id = i.template_id
+        WHERE i.nation_id = ? AND t.code = 'rangers'`,
+      nation,
+    );
+    expect(Number(rangers!.quantity)).toBeGreaterThanOrEqual(2000);
   });
 
   it('fortification shelter raises the defense permanently', async () => {
@@ -118,11 +135,11 @@ describe('ساخت‌وساز و رتبه‌بندی — ربات', () => {
 
     world.sent.length = 0;
     await botCallback(world, 990_001, 'build:go:airbase');
-    // second attempt must not double-grant: the bot reports the failure and keeps state sane
-    const users = world.sent.filter((s) => s.method === 'answerCallbackQuery');
-    expect(users.some((s) => String((s.payload as any).text ?? '').includes('قبلاً'))).toBe(true);
-    const built = await first<{ c: number }>(world.db, `SELECT COUNT(*) AS c FROM nation_buildings WHERE nation_id = ? AND building_key = 'airbase'`, nation);
-    expect(Number(built!.c)).toBe(1);
+    // second attempt is an upgrade of the existing airbase, never a silent duplicate row
+    expect(sentTexts().join('\n')).toContain('ارتقا');
+    const built = await all<{ level: number }>(world.db, `SELECT level FROM nation_buildings WHERE nation_id = ? AND building_key = 'airbase'`, nation);
+    expect(built).toHaveLength(1);
+    expect(Number(built[0]!.level)).toBe(2);
   });
 
   it('«🏆 رتبه‌بندی کشورها» opens the ranking card and honours tab taps', async () => {

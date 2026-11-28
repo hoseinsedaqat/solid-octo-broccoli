@@ -18,6 +18,19 @@ export interface EconomySnapshot {
   perUnitMaintenance: number;
   taxRateOverride?: number | null;
   cycleSecondsOverride?: number | null;
+  /** sum over owned factories of income_per_cycle x level x quantity (0 when none configured) */
+  templateFactoryIncome?: number;
+  /** sum over owned mines of income_per_cycle x quantity (0 when none configured) */
+  templateMineIncome?: number;
+  /** owned factories with NO per-template income (these grow on the flat starter rules) */
+  nullIncomeFactories?: number | null;
+  /** owned mines with NO per-template income (these grow on the flat starter rules) */
+  nullIncomeMines?: number | null;
+  /** upkeep for nation police force, added to maintenance (optional; 0/absent => no upkeep) */
+  policeUpkeep?: number;
+  /** null-income units inside the starter pack (NULL/absent => treat all starter units as flat) */
+  starterFlatFactories?: number | null;
+  starterFlatMines?: number | null;
 }
 
 export interface IncomeResult {
@@ -35,20 +48,41 @@ export function computeCycleIncome(snap: EconomySnapshot, rules: EconomyRules): 
 
   // Starter numbers in the design doc are the TOTAL of the section, so growth is
   // only paid for units owned *beyond* the starter pack.
-  const extraFactories = snap.factoryCount - snap.starterFactoryCount;
-  const extraMines = snap.mineCount - snap.starterMineCount;
+  // Factories/mines seeded with a catalog income_per_cycle are paid from their own
+  // listing instead — they do not also grow on the flat starter rate.
+  const flatFactories = snap.nullIncomeFactories ?? snap.factoryCount;
+  const flatMines = snap.nullIncomeMines ?? snap.mineCount;
+  const starterFlatFactories = snap.starterFlatFactories ?? snap.starterFactoryCount;
+  const starterFlatMines = snap.starterFlatMines ?? snap.starterMineCount;
+  // the design-doc flat income IS the starter pack's output: it scales down when the nation
+  // loses units (any kind) and stays full while the whole pack survives
+  const factoryFraction = snap.starterFactoryCount > 0 ? clamp(snap.factoryCount / snap.starterFactoryCount, 0, 1) : 1;
+  const mineFraction = snap.starterMineCount > 0 ? clamp(snap.mineCount / snap.starterMineCount, 0, 1) : 1;
+  const extraFactories = Math.max(0, flatFactories - starterFlatFactories);
+  const extraMines = Math.max(0, flatMines - starterFlatMines);
+  const templateFactoryIncome = Math.max(0, snap.templateFactoryIncome ?? 0);
+  const templateMineIncome = Math.max(0, snap.templateMineIncome ?? 0);
 
+  const baseFactoryIncome = snap.factoryIncome * factoryFraction;
+  const baseMineIncome = snap.mineIncome * mineFraction;
   const factoryIncomeEffective = Math.max(
     0,
-    Math.round((snap.factoryIncome + rules.factoryIncomePerUnit * extraFactories) * multiplier),
+    Math.round((baseFactoryIncome + rules.factoryIncomePerUnit * extraFactories + templateFactoryIncome) * multiplier),
   );
-  const mineIncomeEffective = Math.max(0, Math.round((snap.mineIncome + rules.mineIncomePerUnit * extraMines) * multiplier));
+  const mineIncomeEffective = Math.max(
+    0,
+    Math.round((baseMineIncome + rules.mineIncomePerUnit * extraMines + templateMineIncome) * multiplier),
+  );
 
   const grossIncome = Math.max(0, factoryIncomeEffective + mineIncomeEffective);
   const taxRate = clamp(snap.taxRateOverride ?? rules.taxRate, 0, 0.95);
   const taxCost = Math.floor(grossIncome * taxRate);
 
-  const maintenanceCost = Math.floor(grossIncome * clamp(rules.maintenanceRate, 0, 0.95)) + Math.max(0, snap.upkeepBase) + Math.max(0, snap.perUnitMaintenance);
+  const maintenanceCost =
+    Math.floor(grossIncome * clamp(rules.maintenanceRate, 0, 0.95)) +
+    Math.max(0, snap.upkeepBase) +
+    Math.max(0, snap.perUnitMaintenance) +
+    Math.max(0, snap.policeUpkeep ?? 0);
 
   const netIncome = grossIncome - taxCost - maintenanceCost;
   const cycleSeconds = Math.max(60, snap.cycleSecondsOverride ?? rules.incomeCycleSeconds);

@@ -66,9 +66,9 @@ describe('input validation (shared between bot, Mini App and API)', () => {
 });
 
 describe('canonical game data', () => {
-  it('has exactly the 18 required categories', () => {
-    expect(EQUIPMENT_CATEGORIES).toHaveLength(18);
-    expect(new Set(EQUIPMENT_CATEGORIES.map((c) => c.key)).size).toBe(18);
+  it('has the 18 canonical categories + the سوخت نظامی بازار', () => {
+    expect(EQUIPMENT_CATEGORIES).toHaveLength(19);
+    expect(new Set(EQUIPMENT_CATEGORIES.map((c) => c.key)).size).toBe(19);
     expect(EQUIPMENT_CATEGORIES.map((c) => c.shopLabelFa)).toContain('خرید تانک');
     expect(EQUIPMENT_CATEGORIES.map((c) => c.shopLabelFa)).toContain('خرید هواپیمای ترابری');
   });
