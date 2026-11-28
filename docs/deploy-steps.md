@@ -99,11 +99,17 @@ npx wrangler deploy --config apps/worker/wrangler.jsonc
 
 ```bash
 npx wrangler d1 migrations apply DB --remote --config apps/worker/wrangler.jsonc
-#   ✅ 0001_init.sql / 0002_rate_limits.sql
+#   ✅ 0001_init.sql … 0010_catalog_operations.sql
 
 npx wrangler d1 execute DB --remote --file=apps/worker/seeds/seed.sql --config apps/worker/wrangler.jsonc
-#   🚣 108 commands executed successfully — (۴۰ آیتم، ۱۸ دسته، بسته اولیه)
+#   🚣 بذر پایه (۴۰ آیتم، ۱۸ دسته، بسته اولیه)
+
+npx wrangler d1 execute DB --remote --file=apps/worker/seeds/catalog.sql --config apps/worker/wrangler.jsonc
+#   🚣 کاتالوگ کامل بازار (۳۹۵ آیتم + سوخت نظامی؛ idempotent — اجرای مجدد امن است)
+#   همین اسکریپت معافیت بستهٔ اولیه را برای کشورهای قدیمی هم پر می‌کند
 ```
+
+یا هر دو دستور آخر را با یک دستور بزن: `npm run db:seed:remote`
 
 ## فاز ۸ — رازها (۴ عدد)
 
