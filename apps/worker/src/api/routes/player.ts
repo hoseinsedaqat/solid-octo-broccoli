@@ -9,6 +9,8 @@ import { buildDefenseView, buildNationView, updateNationProfile, type NationRow 
 import { inventoryView } from '../../services/shopService';
 import { listTransactions, treasuryHistory } from '../../services/financeService';
 import { listNotifications, markRead, unreadCount } from '../../services/notificationService';
+import { DEFENSE_ARRANGEMENT_KEYS, DEFENSE_ARRANGEMENT } from '@ww/shared';
+import { claimDailyPrize, prizeState, publicPrizes } from '../../services/dailyPrizeService';
 import type { HonoEnv } from '../../types';
 
 export const playerRoutes = new Hono<HonoEnv>();
@@ -83,6 +85,54 @@ playerRoutes.get('/defense', async (c) => {
   const db = c.get('db');
   const settings = await settingsFor(c);
   return c.json(await buildDefenseView(db, c.get('nation'), settings));
+});
+
+/** آرایش دفاعی کشور: NULL => everybody defends; array => committed subset */
+playerRoutes.get('/defense-plan', async (c) => {
+  const db = c.get('db');
+  const ns = await db.first<{ defense_plan: string | null }>(
+    sql`SELECT defense_plan FROM nation_settings WHERE nation_id = ${c.get('nation').id}`,
+  );
+  let plan: string[] | null = null;
+  try {
+    const parsed = ns?.defense_plan ? (JSON.parse(ns.defense_plan) as unknown) : null;
+    plan = Array.isArray(parsed) ? parsed.filter((k): k is string => typeof k === 'string') : null;
+  } catch {
+    plan = null;
+  }
+  return c.json({ plan, tiles: DEFENSE_ARRANGEMENT });
+});
+
+playerRoutes.put('/defense-plan', async (c) => {
+  const db = c.get('db');
+  const body = parse(z.object({ categories: z.array(z.string()).max(DEFENSE_ARRANGEMENT.length).nullable() }), await parseJson(c));
+  let value: string | null = null;
+  if (body.categories !== null) {
+    const unique = [...new Set(body.categories)];
+    const invalid = unique.filter((k) => !DEFENSE_ARRANGEMENT_KEYS.includes(k));
+    if (invalid.length) throw ApiError.validation(`دسته نامعتبر: ${invalid.join('، ')}`);
+    value = JSON.stringify(unique);
+  }
+  await db.run(
+    sql`INSERT INTO nation_settings (nation_id, defense_plan, updated_at) VALUES (${c.get('nation').id}, ${value}, ${nowSeconds()})
+        ON CONFLICT (nation_id) DO UPDATE SET defense_plan = excluded.defense_plan, updated_at = excluded.updated_at`,
+  );
+  return c.json({ plan: value === null ? null : JSON.parse(value) });
+});
+
+/** جایزه شانسی روزانه — state (shown list + today's status) */
+playerRoutes.get('/daily-prize', async (c) => {
+  const db = c.get('db');
+  const state = await prizeState(db, c.get('nation').id);
+  return c.json({ ...state, prizes: publicPrizes() });
+});
+
+/** دریافت جایزه شانسی — idempotent per UTC day, atomic with the grant */
+playerRoutes.post('/daily-prize/claim', async (c) => {
+  const db = c.get('db');
+  const settings = await settingsFor(c);
+  const result = await claimDailyPrize(db, c.get('nation'), settings, { botToken: c.env.BOT_TOKEN });
+  return c.json(result);
 });
 
 playerRoutes.get('/notifications', async (c) => {

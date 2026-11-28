@@ -73,7 +73,7 @@ export async function previewForWarTarget(
   } else {
     att = await combatant(db, attacker, settings, 'attacker');
   }
-  const def = await combatant(db, target, settings, 'defender');
+  const def = await defenderCombatant(db, target, settings);
   const p = previewBattle(att, def, settings.battle);
   return {
     targetName: target.name,
@@ -85,6 +85,11 @@ export async function previewForWarTarget(
     maxRounds: settings.battle.maxRounds,
     expectedLossPercent: p.expectedLossPercent,
   };
+}
+
+async function defenderCombatant(db: Db, nation: NationRow, settings: SettingsBundle): Promise<Combatant> {
+  const { defenseCombatantOf } = await import('../services/warService');
+  return defenseCombatantOf(db, nation, settings);
 }
 
 async function combatant(db: Db, nation: NationRow, settings: SettingsBundle, side: 'attacker' | 'defender'): Promise<Combatant> {

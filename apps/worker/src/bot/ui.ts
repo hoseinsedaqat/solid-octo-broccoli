@@ -5,7 +5,7 @@ import { escapeHtml } from './telegram';
 export const REPLY_MENU: KeyboardRow<ReplyKeyboardButton>[] = [
   [{ text: '🛡️ مدیریت کشور' }, { text: '💰 دارایی' }],
   [{ text: '🛒 خرید تجهیزات' }, { text: '⚔️ حمله' }],
-  [{ text: '🛡️ دفاع' }, { text: '🌐 دیپلماسی' }],
+  [{ text: '🛡️ دفاع' }, { text: '🎁 جوایز روزانه' }],
   [{ text: '📜 بیانیه‌ها' }, { text: '📊 آمار و اطلاعات' }],
   [{ text: '🌍 اخبار جهانی' }, { text: '⚙️ تنظیمات' }],
 ];

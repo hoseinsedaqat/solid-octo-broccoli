@@ -126,7 +126,7 @@ export async function execScript(db: D1Database, sql: string): Promise<number> {
 
 export const BOT_TOKEN = '123456:TEST-token-for-harness-only';
 
-export const MIGRATIONS = ['0001_init.sql', '0002_rate_limits.sql', '0003_war_attack_plan.sql', '0004_attack_plan_remaining.sql'].map((f) => ({
+export const MIGRATIONS = ['0001_init.sql', '0002_rate_limits.sql', '0003_war_attack_plan.sql', '0004_attack_plan_remaining.sql', '0005_defense_plan_daily_prizes.sql', '0006_transactions_prize_type.sql'].map((f) => ({
   name: f,
   sql: readFileSync(join(ROOT, 'apps/worker/migrations', f), 'utf8'),
 }));

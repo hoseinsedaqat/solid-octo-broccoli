@@ -13,7 +13,7 @@ function starterUnitCount(category) {
   const list = STARTER_PACK[category];
   return (list ?? []).reduce((sum, item) => sum + item.quantity, 0);
 }
-var EQUIPMENT_CATEGORIES, STARTER_PACK, STARTER_ECONOMY, FACTORY_COUNT_IN_STARTER, MINE_COUNT_IN_STARTER, DERIVED_FACTORY_INCOME_PER_UNIT, DERIVED_MINE_INCOME_PER_UNIT, FLAG_CHOICES, RELATION_STATUSES, RELATION_LABELS_FA, ROLES, TRANSACTION_TYPE_LABELS_FA, WAR_STATUS_LABELS_FA, DIPLOMACY_REQUEST_KINDS, STATEMENT_STATUS_LABELS_FA, RANKING_METRICS, DEFAULT_RANKING_WEIGHTS, DEFAULT_BATTLE_PARAMS, DEFAULT_PROFILE_RULES, DEFAULT_DIPLOMACY_RULES, DEFAULT_ECONOMY_RULES, FEATURE_FLAGS, GAME_SETTING_KEYS, DEFAULT_BRANDING, DEFAULT_QUOTA_GUARD, ROUTES, PLAYER_PAGES, PLAYER_PAGE_META, ADMIN_SECTIONS, MAX_STATEMENT_CHARS, MIN_STATEMENT_CHARS;
+var EQUIPMENT_CATEGORIES, STARTER_PACK, STARTER_ECONOMY, FACTORY_COUNT_IN_STARTER, MINE_COUNT_IN_STARTER, DERIVED_FACTORY_INCOME_PER_UNIT, DERIVED_MINE_INCOME_PER_UNIT, FLAG_CHOICES, RELATION_STATUSES, RELATION_LABELS_FA, ROLES, TRANSACTION_TYPE_LABELS_FA, WAR_STATUS_LABELS_FA, DIPLOMACY_REQUEST_KINDS, STATEMENT_STATUS_LABELS_FA, RANKING_METRICS, DEFAULT_RANKING_WEIGHTS, DEFAULT_BATTLE_PARAMS, DEFAULT_PROFILE_RULES, DEFAULT_DIPLOMACY_RULES, DEFAULT_ECONOMY_RULES, FEATURE_FLAGS, GAME_SETTING_KEYS, DEFAULT_BRANDING, DEFAULT_QUOTA_GUARD, ROUTES, PLAYER_PAGES, PLAYER_PAGE_META, ADMIN_SECTIONS, MAX_STATEMENT_CHARS, MIN_STATEMENT_CHARS, DEFENSE_ARRANGEMENT, DEFENSE_ARRANGEMENT_KEYS, DEFENSE_FORTIFICATION_TOKEN, DAILY_PRIZES;
 var init_constants = __esm({
   "shared/src/constants.ts"() {
     "use strict";
@@ -164,7 +164,8 @@ var init_constants = __esm({
       war_cost: "\u0647\u0632\u06CC\u0646\u0647 \u062C\u0646\u06AF",
       tax: "\u0645\u0627\u0644\u06CC\u0627\u062A",
       maintenance: "\u0647\u0632\u06CC\u0646\u0647 \u0646\u06AF\u0647\u062F\u0627\u0631\u06CC",
-      battle_loss_compensation: "\u062C\u0628\u0631\u0627\u0646 \u062E\u0633\u0627\u0631\u062A"
+      battle_loss_compensation: "\u062C\u0628\u0631\u0627\u0646 \u062E\u0633\u0627\u0631\u062A",
+      prize: "\u062C\u0627\u06CC\u0632\u0647 \u0634\u0627\u0646\u0633\u06CC \u0631\u0648\u0632\u0627\u0646\u0647"
     };
     WAR_STATUS_LABELS_FA = {
       proposed: "\u062F\u0631 \u0627\u0646\u062A\u0638\u0627\u0631 \u067E\u0630\u06CC\u0631\u0634",
@@ -340,6 +341,31 @@ var init_constants = __esm({
     ];
     MAX_STATEMENT_CHARS = 1200;
     MIN_STATEMENT_CHARS = 10;
+    DEFENSE_ARRANGEMENT = [
+      { key: "tanks", labelFa: "\u062A\u0627\u0646\u06A9", emoji: "\u{1F69C}" },
+      { key: "soldiers", labelFa: "\u0633\u0631\u0628\u0627\u0632", emoji: "\u{1FA96}" },
+      { key: "ground_air_defense", labelFa: "\u067E\u062F\u0627\u0641\u0646\u062F \u0632\u0645\u06CC\u0646\u06CC", emoji: "\u{1F6E1}\uFE0F" },
+      { key: "apc", labelFa: "\u0646\u0641\u0631\u0628\u0631", emoji: "\u{1F69B}" },
+      { key: "air_air_defense", labelFa: "\u067E\u062F\u0627\u0641\u0646\u062F \u0647\u0648\u0627\u06CC\u06CC", emoji: "\u{1F6E1}\uFE0F" },
+      { key: "missiles", labelFa: "\u0645\u0648\u0634\u06A9 \u062F\u0641\u0627\u0639\u06CC", emoji: "\u{1F680}" },
+      { key: "helicopters", labelFa: "\u0647\u0644\u06CC\u06A9\u0648\u067E\u062A\u0631", emoji: "\u{1F681}" },
+      { key: "fighters", labelFa: "\u062C\u0646\u06AF\u0646\u062F\u0647", emoji: "\u2708\uFE0F" },
+      { key: "naval_air_defense", labelFa: "\u067E\u062F\u0627\u0641\u0646\u062F \u062F\u0631\u06CC\u0627\u06CC\u06CC", emoji: "\u2693" },
+      { key: "ships", labelFa: "\u0646\u0627\u0648 \u062C\u0646\u06AF\u06CC", emoji: "\u{1F6A2}" },
+      { key: "fortification", labelFa: "\u0627\u0633\u062A\u062D\u06A9\u0627\u0645\u0627\u062A \u062F\u0641\u0627\u0639\u06CC", emoji: "\u{1F3F0}" },
+      { key: "radars", labelFa: "\u0631\u0627\u062F\u0627\u0631", emoji: "\u{1F4E1}" }
+    ];
+    DEFENSE_ARRANGEMENT_KEYS = DEFENSE_ARRANGEMENT.map((d) => d.key);
+    DEFENSE_FORTIFICATION_TOKEN = "fortification";
+    DAILY_PRIZES = [
+      { key: "aster30_10", emoji: "\u{1F6E1}\uFE0F", labelFa: "\u06F1\u06F0 \u067E\u062F\u0627\u0641\u0646\u062F Aster 30", kind: "equipment" },
+      { key: "soldiers_500", emoji: "\u{1FA96}", labelFa: "\u06F5\u06F0\u06F0 \u0633\u0631\u0628\u0627\u0632 \u062A\u06A9\u0627\u0648\u0631", kind: "equipment" },
+      { key: "su57_5", emoji: "\u2708\uFE0F", labelFa: "\u06F5 \u062C\u0646\u06AF\u0646\u062F\u0647 SU-57", kind: "equipment" },
+      { key: "nimitz_1", emoji: "\u{1F6A2}", labelFa: "\u06F1 \u0646\u0627\u0648 \u0647\u0648\u0627\u067E\u06CC\u0645\u0627\u0628\u0631 Nimitz", kind: "equipment" },
+      { key: "df41_2", emoji: "\u{1F680}", labelFa: "\u06F2 \u0645\u0648\u0634\u06A9 DF-41", kind: "equipment" },
+      { key: "coins_5000", emoji: "\u{1F4B0}", labelFa: "\u06F5\u06F0\u06F0\u06F0 \u0633\u06A9\u0647", kind: "coins" },
+      { key: "coins_800", emoji: "\u{1F4B0}", labelFa: "\u06F8\u06F0\u06F0 \u0633\u06A9\u0647", kind: "coins" }
+    ];
   }
 });
 
@@ -5822,6 +5848,7 @@ var init_battle = __esm({
 var warService_exports = {};
 __export(warService_exports, {
   adminStopWar: () => adminStopWar,
+  defenseCombatantOf: () => defenseCombatantOf,
   expireProposal: () => expireProposal,
   finalizeWar: () => finalizeWar,
   getWarDetail: () => getWarDetail,
@@ -5830,6 +5857,7 @@ __export(warService_exports, {
   listExpiredProposals: () => listExpiredProposals,
   listNations: () => listNations,
   listOverdueWars: () => listOverdueWars,
+  loadDefensePlan: () => loadDefensePlan,
   mapWar: () => mapWar,
   normalizeAttackPlan: () => normalizeAttackPlan,
   proposeWar: () => proposeWar,
@@ -5974,6 +6002,67 @@ async function applyCommittedLosses(db, nationId, plan, lossesByCategory, at) {
   if (stmts.length) await db.batch(stmts);
   return remaining2;
 }
+async function loadDefensePlan(db, nationId) {
+  const ns = await db.first(
+    sql`SELECT defense_plan FROM nation_settings WHERE nation_id = ${nationId}`
+  );
+  const raw2 = ns?.defense_plan;
+  if (!raw2) return null;
+  try {
+    const parsed = JSON.parse(raw2);
+    if (!Array.isArray(parsed)) return null;
+    const valid = parsed.filter((k) => typeof k === "string" && DEFENSE_ARRANGEMENT_KEYS.includes(k));
+    return valid;
+  } catch {
+    return null;
+  }
+}
+async function expandDefensePlan(db, nationId, plan) {
+  const catKeys = plan.filter((k) => k !== DEFENSE_FORTIFICATION_TOKEN);
+  if (catKeys.length === 0) return [];
+  const inventory = await loadInventory(db, nationId);
+  const allow = new Set(catKeys);
+  return inventory.filter((i) => allow.has(i.categoryKey) && i.quantity > 0).map((i) => ({ templateId: i.templateId, categoryKey: i.categoryKey, quantity: i.quantity, attackPoints: i.attackPoints, defensePoints: i.defensePoints }));
+}
+async function defenseCombatantOf(db, nation, settings) {
+  const plan = await loadDefensePlan(db, nation.id);
+  if (!plan) return combatantOf(db, nation, settings, "defender");
+  const allies = await db.all(
+    sql`SELECT n.military_power
+          FROM alliance_members am
+          JOIN alliance_members am2 ON am2.alliance_id = am.alliance_id
+          JOIN nations n ON n.id = am2.nation_id
+         WHERE am.nation_id = ${nation.id} AND n.id <> ${nation.id} AND n.status = 'active'
+         LIMIT 10`
+  );
+  const ns = await db.first(
+    sql`SELECT fortification_level, defense_mode FROM nation_settings WHERE nation_id = ${nation.id}`
+  );
+  const fortificationLevel = plan.includes(DEFENSE_FORTIFICATION_TOKEN) ? ns?.fortification_level ?? 0 : 0;
+  const morale = ns?.defense_mode === "fortified" ? 1.1 : 1;
+  const units = await expandDefensePlan(db, nation.id, plan);
+  const categories = {};
+  for (const u of units) categories[u.categoryKey] = (categories[u.categoryKey] ?? 0) + u.quantity;
+  if (units.length === 0) {
+    return { nationId: nation.id, attackPower: 0, defensePower: 0, troopsCount: 0, equipmentCount: 0, treasury: nation.treasury, allianceSupport: 0, fortificationLevel: 0, morale, categories };
+  }
+  const weights = await loadCategoryWeights(db);
+  const power = computePower(units, weights, { manpowerFactor: settings.battle.manpowerFactor, fortificationLevel });
+  const shared = allies.reduce((sum, a) => sum + Number(a.military_power), 0);
+  const allianceSupport = settings.battle.allianceSupportRatio * (power.defensePower > 0 ? Math.min(1, shared / power.defensePower) : 0);
+  return {
+    nationId: nation.id,
+    attackPower: power.attackPower,
+    defensePower: power.defensePower,
+    troopsCount: power.troopsCount,
+    equipmentCount: power.equipmentCount,
+    treasury: nation.treasury,
+    allianceSupport,
+    fortificationLevel,
+    morale,
+    categories
+  };
+}
 async function combatantOf(db, nation, settings, side) {
   const computed = await computeNation(db, nation, settings);
   const inventory = await loadInventory(db, nation.id);
@@ -6098,7 +6187,7 @@ async function proposeWar(db, attacker, targetNationId, indemnityOffered, settin
   const plan = normalizeAttackPlan(attackPlan);
   if (plan) await validateAttackPlan(db, attacker.id, plan);
   const att = plan ? await committedCombatantOf(db, attacker, settings, plan) : await combatantOf(db, attacker, settings, "attacker");
-  const def = await combatantOf(db, target, settings, "defender");
+  const def = await defenseCombatantOf(db, target, settings);
   const preview = previewBattle(att, def, settings.battle);
   const indemnity = Math.max(0, Math.min(indemnityOffered || 0, attacker.treasury));
   const at = nowSeconds();
@@ -6148,7 +6237,7 @@ async function respondToWar(db, warId, accept, nation, settings, botToken) {
   if (!attacker) throw ApiError.notFound("\u06A9\u0634\u0648\u0631 \u0645\u0647\u0627\u062C\u0645 \u06CC\u0627\u0641\u062A \u0646\u0634\u062F.");
   const plan = parseAttackPlan(war.attack_plan);
   const att = plan ? await committedCombatantOf(db, attacker, settings, plan) : await combatantOf(db, attacker, settings, "attacker");
-  const def = await combatantOf(db, nation, settings, "defender");
+  const def = await defenseCombatantOf(db, nation, settings);
   const preview = previewBattle(att, def, settings.battle);
   const entryCost = war.entry_cost || preview.entryCost;
   if (entryCost > 0) {
@@ -6275,7 +6364,7 @@ async function resolveRound(db, warId, settings, opts = {}) {
   if (!attacker || !defender) throw ApiError.notFound("\u06A9\u0634\u0648\u0631\u0647\u0627\u06CC \u062F\u0631\u06AF\u06CC\u0631 \u06CC\u0627\u0641\u062A \u0646\u0634\u062F\u0646\u062F.");
   const plan = parseAttackPlan(war.attack_plan_remaining ?? war.attack_plan);
   const att = plan ? await committedCombatantOf(db, attacker, settings, plan) : await combatantOf(db, attacker, settings, "attacker");
-  const def = await combatantOf(db, defender, settings, "defender");
+  const def = await defenseCombatantOf(db, defender, settings);
   const roundsLeft = Math.max(1, settings.battle.maxRounds - war.rounds_played);
   const outcome = simulateBattle({
     attacker: att,
@@ -6312,7 +6401,14 @@ async function resolveRound(db, warId, settings, opts = {}) {
   } else {
     await applyLosses(db, attacker.id, outcome.attackerLossesByCategory, at);
   }
-  await applyLosses(db, defender.id, outcome.defenderLossesByCategory, at);
+  const defPlan = await loadDefensePlan(db, defender.id);
+  if (defPlan) {
+    const allow = new Set(defPlan.filter((k) => k !== DEFENSE_FORTIFICATION_TOKEN));
+    const filtered = Object.fromEntries(Object.entries(outcome.defenderLossesByCategory).filter(([k]) => allow.has(k)));
+    await applyLosses(db, defender.id, filtered, at);
+  } else {
+    await applyLosses(db, defender.id, outcome.defenderLossesByCategory, at);
+  }
   if (finished) await finalizeWar(db, warId, settings, at);
   return { round: nextRound, finished, outcome };
 }
@@ -6398,9 +6494,11 @@ async function finalizeWar(db, warId, settings, at = nowSeconds()) {
 }
 async function applyResidualLosses(db, attackerId, defenderId, ratios, at, war) {
   const attackerPlan = parseAttackPlan(war.attack_plan_remaining ?? war.attack_plan);
+  const defenderArrangement = await loadDefensePlan(db, defenderId);
+  const defenderPlan = defenderArrangement ? (await expandDefensePlan(db, defenderId, defenderArrangement)).map((u) => ({ templateId: u.templateId, quantity: u.quantity })) : null;
   for (const [nationId, ratio, plan] of [
     [attackerId, ratios.attackerRatio, attackerPlan],
-    [defenderId, ratios.defenderRatio, null]
+    [defenderId, ratios.defenderRatio, defenderPlan]
   ]) {
     if (ratio <= 0.05) continue;
     const effective = Math.min(0.5, ratio * 0.5);
@@ -6621,6 +6719,7 @@ var init_warService = __esm({
     init_queries();
     init_scoring();
     init_battle();
+    init_src();
     init_auditService();
     init_notificationService();
   }
@@ -7020,7 +7119,7 @@ async function previewForWarTarget(db, attacker, targetId, settings, attackPlan)
   } else {
     att = await combatant(db, attacker, settings, "attacker");
   }
-  const def = await combatant(db, target, settings, "defender");
+  const def = await defenderCombatant(db, target, settings);
   const p = previewBattle(att, def, settings.battle);
   return {
     targetName: target.name,
@@ -7032,6 +7131,10 @@ async function previewForWarTarget(db, attacker, targetId, settings, attackPlan)
     maxRounds: settings.battle.maxRounds,
     expectedLossPercent: p.expectedLossPercent
   };
+}
+async function defenderCombatant(db, nation, settings) {
+  const { defenseCombatantOf: defenseCombatantOf2 } = await Promise.resolve().then(() => (init_warService(), warService_exports));
+  return defenseCombatantOf2(db, nation, settings);
 }
 async function combatant(db, nation, settings, side) {
   const computed = await computeNation(db, nation, settings);
@@ -14319,6 +14422,131 @@ async function globalMoneyStats(db) {
 
 // apps/worker/src/api/routes/player.ts
 init_notificationService();
+init_src();
+
+// apps/worker/src/services/dailyPrizeService.ts
+init_src();
+init_sql();
+init_errors2();
+init_format();
+init_ids();
+init_queries();
+init_notificationService();
+var WEIGHTS = {
+  aster30_10: 10,
+  soldiers_500: 18,
+  su57_5: 8,
+  nimitz_1: 5,
+  df41_2: 6,
+  coins_5000: 25,
+  coins_800: 28
+};
+var PRIZES = [
+  { key: "aster30_10", emoji: "\u{1F6E1}\uFE0F", labelFa: "\u06F1\u06F0 \u067E\u062F\u0627\u0641\u0646\u062F Aster 30", weight: WEIGHTS.aster30_10, kind: "equipment", qty: 10, templateCode: "aster_30" },
+  { key: "soldiers_500", emoji: "\u{1FA96}", labelFa: "\u06F5\u06F0\u06F0 \u0633\u0631\u0628\u0627\u0632 \u062A\u06A9\u0627\u0648\u0631", weight: WEIGHTS.soldiers_500, kind: "equipment", qty: 500, templateCode: "rangers" },
+  { key: "su57_5", emoji: "\u2708\uFE0F", labelFa: "\u06F5 \u062C\u0646\u06AF\u0646\u062F\u0647 SU-57", weight: WEIGHTS.su57_5, kind: "equipment", qty: 5, templateCode: "su57" },
+  { key: "nimitz_1", emoji: "\u{1F6A2}", labelFa: "\u06F1 \u0646\u0627\u0648 \u0647\u0648\u0627\u067E\u06CC\u0645\u0627\u0628\u0631 Nimitz", weight: WEIGHTS.nimitz_1, kind: "equipment", qty: 1, templateCode: "nimitz" },
+  { key: "df41_2", emoji: "\u{1F680}", labelFa: "\u06F2 \u0645\u0648\u0634\u06A9 DF-41", weight: WEIGHTS.df41_2, kind: "equipment", qty: 2, templateCode: "df41" },
+  { key: "coins_5000", emoji: "\u{1F4B0}", labelFa: "\u06F5\u06F0\u06F0\u06F0 \u0633\u06A9\u0647", weight: WEIGHTS.coins_5000, kind: "coins", amount: 5e3 },
+  { key: "coins_800", emoji: "\u{1F4B0}", labelFa: "\u06F8\u06F0\u06F0 \u0633\u06A9\u0647", weight: WEIGHTS.coins_800, kind: "coins", amount: 800 }
+];
+function publicPrizes() {
+  return PRIZES.map(({ key, emoji, labelFa, kind }) => ({ key, emoji, labelFa, kind }));
+}
+function publicPrize(key) {
+  const found = PRIZES.find((p) => p.key === key);
+  if (found) {
+    const { key: k, emoji, labelFa, kind } = found;
+    return { key: k, emoji, labelFa, kind };
+  }
+  const shared = DAILY_PRIZES.find((p) => p.key === key);
+  return shared ? { key: shared.key, emoji: shared.emoji, labelFa: shared.labelFa, kind: shared.kind } : { key, emoji: "\u{1F381}", labelFa: key, kind: "coins" };
+}
+function pickPrize(rng = Math.random) {
+  const total = PRIZES.reduce((s, p) => s + p.weight, 0);
+  let roll = Math.min(Math.max(rng(), 0), 1 - Number.EPSILON) * total;
+  for (const prize of PRIZES) {
+    roll -= prize.weight;
+    if (roll < 0) return prize;
+  }
+  return PRIZES[PRIZES.length - 1];
+}
+async function prizeState(db, nationId) {
+  const day = dayKey(nowSeconds());
+  const row = await db.first(
+    sql`SELECT prize_key FROM daily_prize_claims WHERE nation_id = ${nationId} AND day = ${day}`
+  );
+  return { day, claimed: !!row, prize: row ? publicPrize(String(row.prize_key)) : null };
+}
+async function claimDailyPrize(db, nation, settings, deps = {}) {
+  const at = nowSeconds();
+  const day = dayKey(at);
+  const existing = await db.first(
+    sql`SELECT prize_key FROM daily_prize_claims WHERE nation_id = ${nation.id} AND day = ${day}`
+  );
+  if (existing) return { alreadyClaimed: true, day, prize: publicPrize(String(existing.prize_key)) };
+  const prize = pickPrize(deps.rng ?? Math.random);
+  let template = null;
+  if (prize.kind === "equipment") {
+    template = await db.first(
+      sql`SELECT id, name_fa FROM equipment_templates WHERE code = ${prize.templateCode} AND is_active = 1`
+    );
+    if (!template) {
+      throw ApiError.conflict("\u0627\u06CC\u0646 \u062C\u0627\u06CC\u0632\u0647 \u0641\u0639\u0644\u0627\u064B \u062F\u0631 \u062F\u0633\u062A\u0631\u0633 \u0646\u06CC\u0633\u062A\u061B \u0644\u0637\u0641\u0627\u064B \u0628\u0639\u062F\u0627\u064B \u062F\u0648\u0628\u0627\u0631\u0647 \u062A\u0644\u0627\u0634 \u06A9\u0646\u06CC\u062F.");
+    }
+  }
+  const txKey = `prize:${nation.id}:${day}`;
+  const balanceBefore = nation.treasury;
+  const stmts = [];
+  if (prize.kind === "coins") {
+    const amount = prize.amount;
+    stmts.push(
+      sql`INSERT INTO transactions (uuid, nation_id, type, amount, balance_before, balance_after, currency, idempotency_key,
+                                    reference_type, reason, created_at)
+           VALUES (${uuid()}, ${nation.id}, 'prize', ${amount}, ${balanceBefore}, ${balanceBefore + amount}, 'coin',
+                   ${txKey}, 'prize', 'جایزه شانسی روزانه', ${at})`,
+      sql`UPDATE nations SET treasury = treasury + ${amount}, updated_at = ${at} WHERE id = ${nation.id}`,
+      sql`UPDATE nation_economy SET total_income = total_income + ${amount}, updated_at = ${at} WHERE nation_id = ${nation.id}`
+    );
+  } else {
+    stmts.push(
+      sql`INSERT INTO nation_inventory (nation_id, template_id, quantity)
+           VALUES (${nation.id}, ${template.id}, ${prize.qty})
+           ON CONFLICT (nation_id, template_id) DO UPDATE SET quantity = quantity + excluded.quantity, updated_at = ${at}`,
+      sql`INSERT INTO transactions (uuid, nation_id, type, amount, balance_before, balance_after, currency, idempotency_key,
+                                    reference_type, reason, created_at)
+           VALUES (${uuid()}, ${nation.id}, 'prize', 0, ${balanceBefore}, ${balanceBefore}, 'coin',
+                   ${txKey}, 'prize', ${`\u062C\u0627\u06CC\u0632\u0647 \u0634\u0627\u0646\u0633\u06CC \u0631\u0648\u0632\u0627\u0646\u0647 \u2014 ${prize.labelFa}`}, ${at})`
+    );
+  }
+  stmts.push(sql`INSERT INTO daily_prize_claims (nation_id, day, prize_key, created_at) VALUES (${nation.id}, ${day}, ${prize.key}, ${at})`);
+  try {
+    await db.batch(stmts);
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    if (message.toLowerCase().includes("unique")) {
+      const winner = await db.first(
+        sql`SELECT prize_key FROM daily_prize_claims WHERE nation_id = ${nation.id} AND day = ${day}`
+      );
+      if (winner) return { alreadyClaimed: true, day, prize: publicPrize(String(winner.prize_key)) };
+    }
+    throw err;
+  }
+  await refreshNationStats(db, { ...nation, treasury: prize.kind === "coins" ? balanceBefore + prize.amount : balanceBefore }, settings);
+  const owner = await db.first(
+    sql`SELECT u.telegram_user_id FROM nations n JOIN users u ON u.id = n.owner_user_id WHERE n.id = ${nation.id}`
+  );
+  await notify(db, {
+    nationId: nation.id,
+    kind: "prize",
+    title: "\u{1F381} \u062C\u0627\u06CC\u0632\u0647 \u0634\u0627\u0646\u0633\u06CC \u0631\u0648\u0632\u0627\u0646\u0647",
+    body: `\u062A\u0628\u0631\u06CC\u06A9! \xAB${prize.labelFa}\xBB \u0628\u0647 \u062F\u0627\u0631\u0627\u06CC\u06CC \u0634\u0645\u0627 \u0627\u0636\u0627\u0641\u0647 \u0634\u062F.`,
+    telegram: deps.botToken && owner ? { botToken: deps.botToken, chatId: Number(owner.telegram_user_id), text: `\u{1F381} \u062A\u0628\u0631\u06CC\u06A9! \xAB${prize.labelFa}\xBB \u0628\u0647 \u062F\u0627\u0631\u0627\u06CC\u06CC \u0634\u0645\u0627 \u0627\u0636\u0627\u0641\u0647 \u0634\u062F.` } : null
+  });
+  return { alreadyClaimed: false, day, prize: publicPrize(prize.key) };
+}
+
+// apps/worker/src/api/routes/player.ts
 var playerRoutes = new Hono3();
 playerRoutes.use(requireUser);
 playerRoutes.use(requireNation);
@@ -14381,6 +14609,47 @@ playerRoutes.get("/defense", async (c) => {
   const db = c.get("db");
   const settings = await settingsFor(c);
   return c.json(await buildDefenseView(db, c.get("nation"), settings));
+});
+playerRoutes.get("/defense-plan", async (c) => {
+  const db = c.get("db");
+  const ns = await db.first(
+    sql`SELECT defense_plan FROM nation_settings WHERE nation_id = ${c.get("nation").id}`
+  );
+  let plan = null;
+  try {
+    const parsed = ns?.defense_plan ? JSON.parse(ns.defense_plan) : null;
+    plan = Array.isArray(parsed) ? parsed.filter((k) => typeof k === "string") : null;
+  } catch {
+    plan = null;
+  }
+  return c.json({ plan, tiles: DEFENSE_ARRANGEMENT });
+});
+playerRoutes.put("/defense-plan", async (c) => {
+  const db = c.get("db");
+  const body = parse(external_exports2.object({ categories: external_exports2.array(external_exports2.string()).max(DEFENSE_ARRANGEMENT.length).nullable() }), await parseJson(c));
+  let value = null;
+  if (body.categories !== null) {
+    const unique = [...new Set(body.categories)];
+    const invalid = unique.filter((k) => !DEFENSE_ARRANGEMENT_KEYS.includes(k));
+    if (invalid.length) throw ApiError.validation(`\u062F\u0633\u062A\u0647 \u0646\u0627\u0645\u0639\u062A\u0628\u0631: ${invalid.join("\u060C ")}`);
+    value = JSON.stringify(unique);
+  }
+  await db.run(
+    sql`INSERT INTO nation_settings (nation_id, defense_plan, updated_at) VALUES (${c.get("nation").id}, ${value}, ${nowSeconds()})
+        ON CONFLICT (nation_id) DO UPDATE SET defense_plan = excluded.defense_plan, updated_at = excluded.updated_at`
+  );
+  return c.json({ plan: value === null ? null : JSON.parse(value) });
+});
+playerRoutes.get("/daily-prize", async (c) => {
+  const db = c.get("db");
+  const state = await prizeState(db, c.get("nation").id);
+  return c.json({ ...state, prizes: publicPrizes() });
+});
+playerRoutes.post("/daily-prize/claim", async (c) => {
+  const db = c.get("db");
+  const settings = await settingsFor(c);
+  const result = await claimDailyPrize(db, c.get("nation"), settings, { botToken: c.env.BOT_TOKEN });
+  return c.json(result);
 });
 playerRoutes.get("/notifications", async (c) => {
   const db = c.get("db");
@@ -16444,7 +16713,7 @@ init_telegram();
 var REPLY_MENU = [
   [{ text: "\u{1F6E1}\uFE0F \u0645\u062F\u06CC\u0631\u06CC\u062A \u06A9\u0634\u0648\u0631" }, { text: "\u{1F4B0} \u062F\u0627\u0631\u0627\u06CC\u06CC" }],
   [{ text: "\u{1F6D2} \u062E\u0631\u06CC\u062F \u062A\u062C\u0647\u06CC\u0632\u0627\u062A" }, { text: "\u2694\uFE0F \u062D\u0645\u0644\u0647" }],
-  [{ text: "\u{1F6E1}\uFE0F \u062F\u0641\u0627\u0639" }, { text: "\u{1F310} \u062F\u06CC\u067E\u0644\u0645\u0627\u0633\u06CC" }],
+  [{ text: "\u{1F6E1}\uFE0F \u062F\u0641\u0627\u0639" }, { text: "\u{1F381} \u062C\u0648\u0627\u06CC\u0632 \u0631\u0648\u0632\u0627\u0646\u0647" }],
   [{ text: "\u{1F4DC} \u0628\u06CC\u0627\u0646\u06CC\u0647\u200C\u0647\u0627" }, { text: "\u{1F4CA} \u0622\u0645\u0627\u0631 \u0648 \u0627\u0637\u0644\u0627\u0639\u0627\u062A" }],
   [{ text: "\u{1F30D} \u0627\u062E\u0628\u0627\u0631 \u062C\u0647\u0627\u0646\u06CC" }, { text: "\u2699\uFE0F \u062A\u0646\u0638\u06CC\u0645\u0627\u062A" }]
 ];
@@ -16608,6 +16877,19 @@ async function handleUserMessage(ctx, message, updateId) {
     );
     await ctx.tg.sendMessage(message.chat.id, preview, { inline: yesNoRows("sp") });
     return { handled: "statement_preview" };
+  }
+  if (text === "\u{1F381} \u062C\u0648\u0627\u06CC\u0632 \u0631\u0648\u0632\u0627\u0646\u0647") {
+    await sendPrizesCard(ctx, message.chat.id, identity.userId);
+    return { handled: "reply:prizes" };
+  }
+  if (text === "\u{1F6E1}\uFE0F \u062F\u0641\u0627\u0639") {
+    const nation = await currentNation(ctx, identity.userId);
+    if (!nation) {
+      await ctx.tg.sendMessage(message.chat.id, "\u0627\u0628\u062A\u062F\u0627 \u06A9\u0634\u0648\u0631 \u0628\u0633\u0627\u0632\u06CC\u062F.", { inline: [[{ text: "\u{1F3F3}\uFE0F \u0633\u0627\u062E\u062A \u06A9\u0634\u0648\u0631", callback_data: "new" }]] });
+      return { handled: "reply:defense:no_nation" };
+    }
+    await renderDefenseArranger(ctx, message.chat.id, null, identity.userId, nation);
+    return { handled: "reply:defense" };
   }
   const catKey = CATEGORY_TO_KEY[text];
   if (catKey) {
@@ -16975,6 +17257,88 @@ async function handleCallback(ctx, cb, updateId) {
         await answer("\u062F\u0633\u062A\u0648\u0631 \u0646\u0627\u0634\u0646\u0627\u062E\u062A\u0647", true);
         return { handled: "war:unknown" };
       }
+      case "prize": {
+        const nation = await currentNation(ctx, identity.userId);
+        if (!nation) {
+          await answer("\u0627\u0628\u062A\u062F\u0627 \u06A9\u0634\u0648\u0631 \u0628\u0633\u0627\u0632\u06CC\u062F.", true);
+          return { handled: "prize:no_nation" };
+        }
+        if (rest[0] === "claim") {
+          const res = await claimDailyPrize(ctx.db, nation, ctx.settings, { botToken: ctx.env.BOT_TOKEN });
+          await ctx.tg.editMessageText(
+            chatId,
+            messageId,
+            res.alreadyClaimed ? `\u2705 \u062C\u0627\u06CC\u0632\u0647\u0654 \u0627\u0645\u0631\u0648\u0632 \u0634\u0645\u0627 \u0642\u0628\u0644\u0627\u064B \u062F\u0631\u06CC\u0627\u0641\u062A \u0634\u062F\u0647 \u0628\u0648\u062F: ${res.prize.emoji} ${res.prize.labelFa}
+
+\u0641\u0631\u062F\u0627 (\u0628\u0647 \u0648\u0642\u062A UTC) \u0628\u0631\u06AF\u0631\u062F\u06CC\u062F!` : `\u{1F389} \u062A\u0628\u0631\u06CC\u06A9! \xAB${res.prize.emoji} ${res.prize.labelFa}\xBB \u0628\u0647 \u062F\u0627\u0631\u0627\u06CC\u06CC \u0634\u0645\u0627 \u0627\u0636\u0627\u0641\u0647 \u0634\u062F.`,
+            backButton()
+          );
+          await answer(res.alreadyClaimed ? "\u0642\u0628\u0644\u0627\u064B \u062F\u0631\u06CC\u0627\u0641\u062A \u06A9\u0631\u062F\u0647\u200C\u0627\u06CC\u062F" : "\u062C\u0627\u06CC\u0632\u0647 \u0627\u0636\u0627\u0641\u0647 \u0634\u062F \u{1F389}");
+          return { handled: "prize:claim" };
+        }
+        await answer("\u062F\u0633\u062A\u0648\u0631 \u0646\u0627\u0634\u0646\u0627\u062E\u062A\u0647", true);
+        return { handled: "prize:unknown" };
+      }
+      case "def": {
+        const nation = await currentNation(ctx, identity.userId);
+        if (!nation) {
+          await answer("\u0627\u0628\u062A\u062F\u0627 \u06A9\u0634\u0648\u0631 \u0628\u0633\u0627\u0632\u06CC\u062F.", true);
+          return { handled: "def:no_nation" };
+        }
+        const sub = rest[0];
+        if (sub === "toggle") {
+          const key = String(rest[1] ?? "");
+          if (!DEFENSE_ARRANGEMENT.some((t) => t.key === key)) {
+            await answer("\u062F\u0633\u062A\u0647 \u0646\u0627\u0645\u0639\u062A\u0628\u0631 \u0627\u0633\u062A.", true);
+            return { handled: "def:bad_key" };
+          }
+          const saved = await loadDefensePlan(ctx.db, nation.id);
+          const draft = await loadDefenseDraft(ctx.db, identity.userId) ?? saved ?? ALL_DEFENSE_KEYS;
+          const next = draft.includes(key) ? draft.filter((k) => k !== key) : [...draft, key];
+          await saveDefenseDraft(ctx.db, identity.userId, nation.id, next);
+          await renderDefenseArranger(ctx, chatId, messageId, identity.userId, nation);
+          await answer();
+          return { handled: "def:toggle" };
+        }
+        if (sub === "apply") {
+          const saved = await loadDefensePlan(ctx.db, nation.id);
+          const draft = await loadDefenseDraft(ctx.db, identity.userId) ?? saved ?? ALL_DEFENSE_KEYS;
+          const isAll = ALL_DEFENSE_KEYS.every((k) => draft.includes(k));
+          await ctx.db.run(
+            sql`INSERT INTO nation_settings (nation_id, defense_plan, updated_at)
+                VALUES (${nation.id}, ${isAll ? null : JSON.stringify(draft)}, ${nowSeconds()})
+                ON CONFLICT (nation_id) DO UPDATE SET defense_plan = excluded.defense_plan, updated_at = excluded.updated_at`
+          );
+          await clearDefenseDraft(ctx.db, identity.userId);
+          await renderDefenseArranger(ctx, chatId, messageId, identity.userId, nation);
+          await answer("\u0622\u0631\u0627\u06CC\u0634 \u062F\u0641\u0627\u0639\u06CC \u062B\u0628\u062A \u0634\u062F \u2705");
+          return { handled: "def:apply" };
+        }
+        if (sub === "reset") {
+          await ctx.db.run(
+            sql`INSERT INTO nation_settings (nation_id, defense_plan, updated_at)
+                VALUES (${nation.id}, NULL, ${nowSeconds()})
+                ON CONFLICT (nation_id) DO UPDATE SET defense_plan = NULL, updated_at = excluded.updated_at`
+          );
+          await clearDefenseDraft(ctx.db, identity.userId);
+          await renderDefenseArranger(ctx, chatId, messageId, identity.userId, nation);
+          await answer("\u0628\u0647 \u062D\u0627\u0644\u062A \u067E\u06CC\u0634\u200C\u0641\u0631\u0636 \u0628\u0627\u0632\u06AF\u0634\u062A (\u0647\u0645\u0647 \u0646\u06CC\u0631\u0648\u0647\u0627)");
+          return { handled: "def:reset" };
+        }
+        if (sub === "stats") {
+          const text = await defenseStatsText(ctx, nation);
+          await ctx.tg.editMessageText(chatId, messageId, text, [[{ text: "\u{1F6E1}\uFE0F \u0622\u0631\u0627\u06CC\u0634 \u062F\u0641\u0627\u0639\u06CC", callback_data: "def:back" }, { text: "\u2B05\uFE0F \u0645\u0646\u0648", callback_data: "m" }]]);
+          await answer();
+          return { handled: "def:stats" };
+        }
+        if (sub === "back") {
+          await renderDefenseArranger(ctx, chatId, messageId, identity.userId, nation);
+          await answer();
+          return { handled: "def:back" };
+        }
+        await answer("\u062F\u0633\u062A\u0648\u0631 \u0646\u0627\u0634\u0646\u0627\u062E\u062A\u0647", true);
+        return { handled: "def:unknown" };
+      }
       case "atk": {
         const nation = await currentNation(ctx, identity.userId);
         if (!nation) throw ApiError.forbidden("\u0627\u0628\u062A\u062F\u0627 \u06A9\u0634\u0648\u0631 \u0628\u0633\u0627\u0632\u06CC\u062F.");
@@ -17207,6 +17571,10 @@ async function renderPage(ctx, chatId, userId, page, _messageId) {
     );
     return { handled: `page:${page}:no_nation` };
   }
+  if (page === "defense") {
+    await renderDefenseArranger(ctx, chatId, null, userId, nation);
+    return { handled: "page:defense" };
+  }
   const { text, inline } = await renderFor(ctx, nation, page);
   await ctx.tg.sendMessage(chatId, text, { inline });
   return { handled: `page:${page}` };
@@ -17215,6 +17583,10 @@ async function renderPageCallback(ctx, chatId, messageId, userId, page) {
   const nation = await currentNation(ctx, userId);
   if (!nation) {
     await ctx.tg.editMessageText(chatId, messageId, "\u0628\u0631\u0627\u06CC \u0627\u06CC\u0646 \u0628\u062E\u0634 \u0627\u0628\u062A\u062F\u0627 \u0628\u0627\u06CC\u062F \u06A9\u0634\u0648\u0631 \u0628\u0633\u0627\u0632\u06CC\u062F.", [[{ text: "\u{1F3F3}\uFE0F \u0633\u0627\u062E\u062A \u06A9\u0634\u0648\u0631", callback_data: "new" }, { text: "\u{1F3E0} \u0645\u0646\u0648", callback_data: "m" }]]);
+    return;
+  }
+  if (page === "defense") {
+    await renderDefenseArranger(ctx, chatId, messageId, userId, nation);
     return;
   }
   const { text, inline } = await renderFor(ctx, nation, page);
@@ -17297,27 +17669,11 @@ async function renderFor(ctx, nation, page) {
         inline: [[{ text: "\u270F\uFE0F \u062A\u063A\u06CC\u06CC\u0631 \u0645\u0634\u062E\u0635\u0627\u062A \u062F\u0631 Mini App", url: ctx.webAppUrl + "#/country" }], ...backButton()]
       };
     }
-    case "defense": {
-      const d = await buildDefenseView(ctx.db, nation, ctx.settings);
+    case "defense":
       return {
-        text: [
-          `\u{1F6E1}\uFE0F <b>\u0648\u0636\u0639\u06CC\u062A \u062F\u0641\u0627\u0639\u06CC ${nation.flag} ${escapeHtml(nation.name)}</b>`,
-          "",
-          statLine("\u0648\u0636\u0639\u06CC\u062A", d.statusLabelFa),
-          statLine("\u0627\u0645\u062A\u06CC\u0627\u0632 \u062F\u0641\u0627\u0639", formatNumber(d.defenseScore)),
-          statLine("\u0627\u0645\u062A\u06CC\u0627\u0632 \u06A9\u0644\u06CC", formatNumber(d.overallScore)),
-          statLine("\u0646\u06CC\u0631\u0648\u0647\u0627", formatNumber(d.troopsCount)),
-          statLine("\u0631\u0627\u062F\u0627\u0631\u0647\u0627", formatNumber(d.radarCount)),
-          statLine("\u0648\u0627\u062D\u062F\u0647\u0627\u06CC \u067E\u062F\u0627\u0641\u0646\u062F\u06CC", formatNumber(d.airDefenseUnits)),
-          statLine("\u0633\u0637\u062D \u0627\u0633\u062A\u062D\u06A9\u0627\u0645\u0627\u062A", String(d.fortificationLevel)),
-          "",
-          "\u0633\u0647\u0645 \u062F\u0633\u062A\u0647\u200C\u0647\u0627 \u062F\u0631 \u062F\u0641\u0627\u0639:",
-          ...d.breakdown.slice(0, 8).map((b) => `${b.emoji} ${b.labelFa}: ${formatNumber(b.contribution)}`),
-          ...d.activeThreats.length ? ["", `\u26A0\uFE0F \u062A\u0647\u062F\u06CC\u062F \u0641\u0639\u0627\u0644: ${d.activeThreats.map((t) => t.attackerName).join("\u060C ")}`] : []
-        ].join("\n"),
-        inline: backButton()
+        text: await defenseStatsText(ctx, nation),
+        inline: [[{ text: "\u{1F6E1}\uFE0F \u0622\u0631\u0627\u06CC\u0634 \u062F\u0641\u0627\u0639\u06CC", callback_data: "def:back" }, { text: "\u2B05\uFE0F \u0645\u0646\u0648", callback_data: "m" }]]
       };
-    }
     case "war": {
       const wars = await getWarsForNation(ctx.db, nation.id);
       const text = [
@@ -17804,6 +18160,91 @@ async function confirmPurchaseAsk(ctx, chatId, messageId, userId, templateId, qu
     [{ text: "\u2705 \u062A\u0623\u06CC\u06CC\u062F \u0648 \u067E\u0631\u062F\u0627\u062E\u062A", callback_data: `bought:${templateId}:${quantity}` }],
     [{ text: "\u274C \u0627\u0646\u0635\u0631\u0627\u0641", callback_data: `item:${templateId}:0` }]
   ]);
+}
+var ALL_DEFENSE_KEYS = DEFENSE_ARRANGEMENT.map((t) => t.key);
+async function defenseStatsText(ctx, nation) {
+  const d = await buildDefenseView(ctx.db, nation, ctx.settings);
+  return [
+    `\u{1F6E1}\uFE0F <b>\u0648\u0636\u0639\u06CC\u062A \u062F\u0641\u0627\u0639\u06CC ${nation.flag} ${escapeHtml(nation.name)}</b>`,
+    "",
+    statLine("\u0648\u0636\u0639\u06CC\u062A", d.statusLabelFa),
+    statLine("\u0627\u0645\u062A\u06CC\u0627\u0632 \u062F\u0641\u0627\u0639", formatNumber(d.defenseScore)),
+    statLine("\u0627\u0645\u062A\u06CC\u0627\u0632 \u06A9\u0644\u06CC", formatNumber(d.overallScore)),
+    statLine("\u0646\u06CC\u0631\u0648\u0647\u0627", formatNumber(d.troopsCount)),
+    statLine("\u0631\u0627\u062F\u0627\u0631\u0647\u0627", formatNumber(d.radarCount)),
+    statLine("\u0648\u0627\u062D\u062F\u0647\u0627\u06CC \u067E\u062F\u0627\u0641\u0646\u062F\u06CC", formatNumber(d.airDefenseUnits)),
+    statLine("\u0633\u0637\u062D \u0627\u0633\u062A\u062D\u06A9\u0627\u0645\u0627\u062A", String(d.fortificationLevel)),
+    "",
+    "\u0633\u0647\u0645 \u062F\u0633\u062A\u0647\u200C\u0647\u0627 \u062F\u0631 \u062F\u0641\u0627\u0639:",
+    ...d.breakdown.slice(0, 8).map((b) => `${b.emoji} ${b.labelFa}: ${formatNumber(b.contribution)}`),
+    ...d.activeThreats.length ? ["", `\u26A0\uFE0F \u062A\u0647\u062F\u06CC\u062F \u0641\u0639\u0627\u0644: ${d.activeThreats.map((t) => t.attackerName).join("\u060C ")}`] : []
+  ].join("\n");
+}
+async function loadDefenseDraft(db, userId) {
+  const row = await db.first(
+    sql`SELECT state, data FROM bot_flow_states WHERE user_id = ${userId}`
+  );
+  if (row?.state !== "def:plan") return null;
+  const data = safeJson3(row.data);
+  if (!Array.isArray(data.selected)) return null;
+  const valid = data.selected.filter((k) => typeof k === "string" && ALL_DEFENSE_KEYS.includes(k));
+  return valid;
+}
+async function saveDefenseDraft(db, userId, nationId, selected) {
+  await db.run(
+    sql`INSERT INTO bot_flow_states (user_id, state, nation_id, data, updated_at, expires_at)
+        VALUES (${userId}, 'def:plan', ${nationId}, ${JSON.stringify({ selected })}, ${nowSeconds()}, ${nowSeconds() + 3600})
+        ON CONFLICT (user_id) DO UPDATE SET state = 'def:plan', nation_id = excluded.nation_id, data = excluded.data, updated_at = excluded.updated_at, expires_at = excluded.expires_at`
+  );
+}
+async function clearDefenseDraft(db, userId) {
+  await db.run(sql`DELETE FROM bot_flow_states WHERE user_id = ${userId} AND state = 'def:plan'`);
+}
+async function renderDefenseArranger(ctx, chatId, messageId, userId, nation) {
+  const saved = await loadDefensePlan(ctx.db, nation.id);
+  const draft = await loadDefenseDraft(ctx.db, userId);
+  const selected = draft ?? saved ?? ALL_DEFENSE_KEYS;
+  const tileButtons = DEFENSE_ARRANGEMENT.map((t) => ({
+    text: `${selected.includes(t.key) ? "\u2705" : "\u2B1C"} ${t.emoji} ${t.labelFa}`,
+    callback_data: `def:toggle:${t.key}`
+  }));
+  const rows = [];
+  for (let i = 0; i < tileButtons.length; i += 2) rows.push(tileButtons.slice(i, i + 2));
+  rows.push([{ text: "\u2705 \u062A\u0623\u06CC\u06CC\u062F \u0622\u0631\u0627\u06CC\u0634 \u062F\u0641\u0627\u0639\u06CC", callback_data: "def:apply" }]);
+  rows.push([{ text: "\u267B\uFE0F \u0628\u0627\u0632\u0646\u0634\u0627\u0646\u06CC (\u0647\u0645\u0647 \u0646\u06CC\u0631\u0648\u0647\u0627)", callback_data: "def:reset" }, { text: "\u{1F4CA} \u062C\u0632\u0626\u06CC\u0627\u062A \u062F\u0641\u0627\u0639", callback_data: "def:stats" }]);
+  rows.push([{ text: "\u{1F3E0} \u0645\u0646\u0648", callback_data: "m" }]);
+  const text = [
+    "\u{1F6E1}\uFE0F <b>\u0645\u0631\u06A9\u0632 \u0641\u0631\u0645\u0627\u0646\u062F\u0647\u06CC \u062F\u0641\u0627\u0639</b>",
+    "",
+    "\u062A\u062C\u0647\u06CC\u0632\u0627\u062A \u0645\u0648\u0631\u062F\u0646\u0638\u0631 \u0631\u0627 \u0628\u0631\u0627\u06CC \u062F\u0641\u0627\u0639 \u0627\u0632 \u06A9\u0634\u0648\u0631 \u0627\u0646\u062A\u062E\u0627\u0628 \u06A9\u0646:",
+    "",
+    `\u062A\u0639\u062F\u0627\u062F \u062F\u0633\u062A\u0647\u200C\u0647\u0627\u06CC \u0645\u062A\u0639\u0647\u062F: <b>${selected.length}</b> \u0627\u0632 ${ALL_DEFENSE_KEYS.length}`,
+    selected.includes(DEFENSE_FORTIFICATION_TOKEN) ? "\u{1F3F0} \u0627\u0633\u062A\u062D\u06A9\u0627\u0645\u0627\u062A \u062F\u0631 \u0646\u0628\u0631\u062F \u0627\u062D\u062A\u0633\u0627\u0628 \u0645\u06CC\u200C\u0634\u0648\u062F." : "\u{1F3F0} \u0627\u0633\u062A\u062D\u06A9\u0627\u0645\u0627\u062A \u062F\u0631 \u0646\u0628\u0631\u062F \u0627\u062D\u062A\u0633\u0627\u0628 \u0646\u0645\u06CC\u200C\u0634\u0648\u062F.",
+    "",
+    "\u0641\u0642\u0637 \u0647\u0645\u06CC\u0646 \u062F\u0633\u062A\u0647\u200C\u0647\u0627 \u062F\u0631 \u062C\u0646\u06AF \u062F\u0641\u0627\u0639 \u0645\u06CC\u200C\u06A9\u0646\u0646\u062F \u0648 \u0641\u0642\u0637 \u0647\u0645\u06CC\u0646\u200C\u0647\u0627 \u062E\u0633\u0627\u0631\u062A \u0645\u06CC\u200C\u0628\u06CC\u0646\u0646\u062F."
+  ].join("\n");
+  if (messageId === null) await ctx.tg.sendMessage(chatId, text, { inline: rows });
+  else await ctx.tg.editMessageText(chatId, messageId, text, rows);
+}
+async function sendPrizesCard(ctx, chatId, userId) {
+  const nation = await currentNation(ctx, userId);
+  if (!nation) {
+    await ctx.tg.sendMessage(chatId, "\u0627\u0628\u062A\u062F\u0627 \u06A9\u0634\u0648\u0631 \u0628\u0633\u0627\u0632\u06CC\u062F.", { inline: [[{ text: "\u{1F3F3}\uFE0F \u0633\u0627\u062E\u062A \u06A9\u0634\u0648\u0631", callback_data: "new" }]] });
+    return;
+  }
+  const state = await prizeState(ctx.db, nation.id);
+  const lines = [
+    "\u{1F381} <b>\u062C\u0627\u06CC\u0632\u0647 \u0634\u0627\u0646\u0633\u06CC \u0631\u0648\u0632\u0627\u0646\u0647</b>",
+    "",
+    "\u06CC\u06A9\u06CC \u0627\u0632 \u062C\u0648\u0627\u06CC\u0632 \u0632\u06CC\u0631 \u0628\u0647\u200C\u0635\u0648\u0631\u062A \u062A\u0635\u0627\u062F\u0641\u06CC \u0628\u0647 \u0634\u0645\u0627 \u062A\u0639\u0644\u0642 \u0645\u06CC\u200C\u06AF\u06CC\u0631\u062F:",
+    "",
+    ...DAILY_PRIZES.map((p) => `${p.emoji} ${p.labelFa}`),
+    "",
+    state.claimed && state.prize ? `\u2705 \u062C\u0627\u06CC\u0632\u0647\u0654 \u0627\u0645\u0631\u0648\u0632 \u0634\u0645\u0627: ${state.prize.emoji} ${state.prize.labelFa}
+\u0641\u0631\u062F\u0627 (\u0628\u0647 \u0648\u0642\u062A UTC) \u0628\u0631\u06AF\u0631\u062F\u06CC\u062F!` : "\u0628\u0631\u0627\u06CC \u062F\u0631\u06CC\u0627\u0641\u062A \u062F\u06A9\u0645\u0647\u0654 \u0632\u06CC\u0631 \u0631\u0627 \u0628\u0632\u0646:"
+  ];
+  const inline = state.claimed && state.prize ? [[{ text: "\u2705 \u062F\u0631\u06CC\u0627\u0641\u062A \u0634\u062F", callback_data: "noop" }], ...backButton()] : [[{ text: "\u{1F381} \u062F\u0631\u06CC\u0627\u0641\u062A \u062C\u0627\u06CC\u0632\u0647 \u0634\u0627\u0646\u0633\u06CC", callback_data: "prize:claim" }], ...backButton()];
+  await ctx.tg.sendMessage(chatId, lines.join("\n"), { inline });
 }
 
 // apps/worker/src/app.ts

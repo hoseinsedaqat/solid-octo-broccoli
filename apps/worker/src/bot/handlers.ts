@@ -1,4 +1,4 @@
-import { FLAG_CHOICES, type PlayerPage } from '@ww/shared';
+import { FLAG_CHOICES, DAILY_PRIZES, DEFENSE_ARRANGEMENT, DEFENSE_FORTIFICATION_TOKEN, type PlayerPage } from '@ww/shared';
 import type { Db } from '../core/db';
 import { sql } from '../core/sql';
 import { nowSeconds } from '../core/format';
@@ -15,9 +15,10 @@ import {
 import { loadNationOwnedBy, relationCounts, txLabel } from '../db/queries';
 import { listCategories, listCategoryItems, purchase, inventoryView } from '../services/shopService';
 import { listTransactions } from '../services/financeService';
-import { listNations, proposeWar, respondToWar, getWarsForNation, getWarDetail, resolveRound, requestPeace, mapWar } from '../services/warService';
+import { listNations, proposeWar, respondToWar, getWarsForNation, getWarDetail, resolveRound, requestPeace, mapWar, loadDefensePlan } from '../services/warService';
 import { listIncoming, decideRequest, listRelations } from '../services/diplomacyService';
 import { createStatement, listMyStatements } from '../services/statementService';
+import { prizeState, claimDailyPrize } from '../services/dailyPrizeService';
 import { feed as newsFeed, listRankings } from '../services/newsService';
 import { configureTelegramApiBase, TelegramApi, escapeHtml, coins, type TgCallbackQuery, type TgMessage, type TgUpdate, type InlineKeyboardButton, type KeyboardRow } from './telegram';
 import { backButton, CATEGORY_BACK_TEXT, CATEGORY_ENTRY_TEXT, CATEGORY_KEYPAD, CATEGORY_TO_KEY, flagKeyboard, formatNumber, formatNumber as fmt, mainMenu, moreMenu, pager, percent, REPLY_MENU, REPLY_TO_LABEL, statLine, yesNoRows } from './ui';
@@ -115,6 +116,20 @@ async function handleUserMessage(ctx: BotCtx, message: TgMessage, updateId: numb
     );
     await ctx.tg.sendMessage(message.chat.id, preview, { inline: yesNoRows('sp') });
     return { handled: 'statement_preview' };
+  }
+
+  if (text === '🎁 جوایز روزانه') {
+    await sendPrizesCard(ctx, message.chat.id, identity.userId);
+    return { handled: 'reply:prizes' };
+  }
+  if (text === '🛡️ دفاع') {
+    const nation = await currentNation(ctx, identity.userId);
+    if (!nation) {
+      await ctx.tg.sendMessage(message.chat.id, 'ابتدا کشور بسازید.', { inline: [[{ text: '🏳️ ساخت کشور', callback_data: 'new' }]] });
+      return { handled: 'reply:defense:no_nation' };
+    }
+    await renderDefenseArranger(ctx, message.chat.id, null, identity.userId, nation);
+    return { handled: 'reply:defense' };
   }
 
   // the 18 category buttons of the purchase keypad (installed by «مدیریت کشور»)
@@ -507,6 +522,88 @@ async function handleCallback(ctx: BotCtx, cb: TgCallbackQuery, updateId: number
         await answer('دستور ناشناخته', true);
         return { handled: 'war:unknown' };
       }
+      case 'prize': {
+        const nation = await currentNation(ctx, identity.userId);
+        if (!nation) {
+          await answer('ابتدا کشور بسازید.', true);
+          return { handled: 'prize:no_nation' };
+        }
+        if (rest[0] === 'claim') {
+          const res = await claimDailyPrize(ctx.db, nation, ctx.settings, { botToken: ctx.env.BOT_TOKEN });
+          await ctx.tg.editMessageText(
+            chatId,
+            messageId,
+            res.alreadyClaimed
+              ? `✅ جایزهٔ امروز شما قبلاً دریافت شده بود: ${res.prize.emoji} ${res.prize.labelFa}\n\nفردا (به وقت UTC) برگردید!`
+              : `🎉 تبریک! «${res.prize.emoji} ${res.prize.labelFa}» به دارایی شما اضافه شد.`,
+            backButton(),
+          );
+          await answer(res.alreadyClaimed ? 'قبلاً دریافت کرده‌اید' : 'جایزه اضافه شد 🎉');
+          return { handled: 'prize:claim' };
+        }
+        await answer('دستور ناشناخته', true);
+        return { handled: 'prize:unknown' };
+      }
+      case 'def': {
+        const nation = await currentNation(ctx, identity.userId);
+        if (!nation) {
+          await answer('ابتدا کشور بسازید.', true);
+          return { handled: 'def:no_nation' };
+        }
+        const sub = rest[0];
+        if (sub === 'toggle') {
+          const key = String(rest[1] ?? '');
+          if (!DEFENSE_ARRANGEMENT.some((t) => t.key === key)) {
+            await answer('دسته نامعتبر است.', true);
+            return { handled: 'def:bad_key' };
+          }
+          const saved = await loadDefensePlan(ctx.db, nation.id);
+          const draft = (await loadDefenseDraft(ctx.db, identity.userId)) ?? saved ?? ALL_DEFENSE_KEYS;
+          const next = draft.includes(key) ? draft.filter((k) => k !== key) : [...draft, key];
+          await saveDefenseDraft(ctx.db, identity.userId, nation.id, next);
+          await renderDefenseArranger(ctx, chatId, messageId, identity.userId, nation);
+          await answer();
+          return { handled: 'def:toggle' };
+        }
+        if (sub === 'apply') {
+          const saved = await loadDefensePlan(ctx.db, nation.id);
+          const draft = (await loadDefenseDraft(ctx.db, identity.userId)) ?? saved ?? ALL_DEFENSE_KEYS;
+          const isAll = ALL_DEFENSE_KEYS.every((k) => draft.includes(k));
+          await ctx.db.run(
+            sql`INSERT INTO nation_settings (nation_id, defense_plan, updated_at)
+                VALUES (${nation.id}, ${isAll ? null : JSON.stringify(draft)}, ${nowSeconds()})
+                ON CONFLICT (nation_id) DO UPDATE SET defense_plan = excluded.defense_plan, updated_at = excluded.updated_at`,
+          );
+          await clearDefenseDraft(ctx.db, identity.userId);
+          await renderDefenseArranger(ctx, chatId, messageId, identity.userId, nation);
+          await answer('آرایش دفاعی ثبت شد ✅');
+          return { handled: 'def:apply' };
+        }
+        if (sub === 'reset') {
+          await ctx.db.run(
+            sql`INSERT INTO nation_settings (nation_id, defense_plan, updated_at)
+                VALUES (${nation.id}, NULL, ${nowSeconds()})
+                ON CONFLICT (nation_id) DO UPDATE SET defense_plan = NULL, updated_at = excluded.updated_at`,
+          );
+          await clearDefenseDraft(ctx.db, identity.userId);
+          await renderDefenseArranger(ctx, chatId, messageId, identity.userId, nation);
+          await answer('به حالت پیش‌فرض بازگشت (همه نیروها)');
+          return { handled: 'def:reset' };
+        }
+        if (sub === 'stats') {
+          const text = await defenseStatsText(ctx, nation);
+          await ctx.tg.editMessageText(chatId, messageId, text, [[{ text: '🛡️ آرایش دفاعی', callback_data: 'def:back' }, { text: '⬅️ منو', callback_data: 'm' }]]);
+          await answer();
+          return { handled: 'def:stats' };
+        }
+        if (sub === 'back') {
+          await renderDefenseArranger(ctx, chatId, messageId, identity.userId, nation);
+          await answer();
+          return { handled: 'def:back' };
+        }
+        await answer('دستور ناشناخته', true);
+        return { handled: 'def:unknown' };
+      }
       case 'atk': {
         const nation = await currentNation(ctx, identity.userId);
         if (!nation) throw ApiError.forbidden('ابتدا کشور بسازید.');
@@ -738,6 +835,10 @@ async function renderPage(ctx: BotCtx, chatId: number, userId: number, page: Pla
     );
     return { handled: `page:${page}:no_nation` };
   }
+  if (page === 'defense') {
+    await renderDefenseArranger(ctx, chatId, null, userId, nation);
+    return { handled: 'page:defense' };
+  }
   const { text, inline } = await renderFor(ctx, nation, page);
   await ctx.tg.sendMessage(chatId, text, { inline });
   return { handled: `page:${page}` };
@@ -747,6 +848,10 @@ async function renderPageCallback(ctx: BotCtx, chatId: number, messageId: number
   const nation = await currentNation(ctx, userId);
   if (!nation) {
     await ctx.tg.editMessageText(chatId, messageId, 'برای این بخش ابتدا باید کشور بسازید.', [[{ text: '🏳️ ساخت کشور', callback_data: 'new' }, { text: '🏠 منو', callback_data: 'm' }]]);
+    return;
+  }
+  if (page === 'defense') {
+    await renderDefenseArranger(ctx, chatId, messageId, userId, nation);
     return;
   }
   const { text, inline } = await renderFor(ctx, nation, page);
@@ -830,27 +935,11 @@ async function renderFor(ctx: BotCtx, nation: NationRow, page: PlayerPage): Prom
         inline: [[{ text: '✏️ تغییر مشخصات در Mini App', url: ctx.webAppUrl + '#/country' }], ...backButton()],
       };
     }
-    case 'defense': {
-      const d = await buildDefenseView(ctx.db, nation, ctx.settings);
+    case 'defense':
       return {
-        text: [
-          `🛡️ <b>وضعیت دفاعی ${nation.flag} ${escapeHtml(nation.name)}</b>`,
-          '',
-          statLine('وضعیت', d.statusLabelFa),
-          statLine('امتیاز دفاع', fmt(d.defenseScore)),
-          statLine('امتیاز کلی', fmt(d.overallScore)),
-          statLine('نیروها', fmt(d.troopsCount)),
-          statLine('رادارها', fmt(d.radarCount)),
-          statLine('واحدهای پدافندی', fmt(d.airDefenseUnits)),
-          statLine('سطح استحکامات', String(d.fortificationLevel)),
-          '',
-          'سهم دسته‌ها در دفاع:',
-          ...d.breakdown.slice(0, 8).map((b) => `${b.emoji} ${b.labelFa}: ${fmt(b.contribution)}`),
-          ...(d.activeThreats.length ? ['', `⚠️ تهدید فعال: ${d.activeThreats.map((t) => t.attackerName).join('، ')}`] : []),
-        ].join('\n'),
-        inline: backButton(),
+        text: await defenseStatsText(ctx, nation),
+        inline: [[{ text: '🛡️ آرایش دفاعی', callback_data: 'def:back' }, { text: '⬅️ منو', callback_data: 'm' }]],
       };
-    }
     case 'war': {
       const wars = await getWarsForNation(ctx.db, nation.id);
       const text = [
@@ -1383,4 +1472,106 @@ async function confirmPurchaseAsk(ctx: BotCtx, chatId: number, messageId: number
     [{ text: '✅ تأیید و پرداخت', callback_data: `bought:${templateId}:${quantity}` }],
     [{ text: '❌ انصراف', callback_data: `item:${templateId}:0` }],
   ]);
+}
+
+/* ------------------- bot daily prize + defense arrangement ------------------- */
+
+const ALL_DEFENSE_KEYS: string[] = DEFENSE_ARRANGEMENT.map((t) => t.key);
+
+async function defenseStatsText(ctx: BotCtx, nation: NationRow): Promise<string> {
+  const d = await buildDefenseView(ctx.db, nation, ctx.settings);
+  return [
+    `🛡️ <b>وضعیت دفاعی ${nation.flag} ${escapeHtml(nation.name)}</b>`,
+    '',
+    statLine('وضعیت', d.statusLabelFa),
+    statLine('امتیاز دفاع', fmt(d.defenseScore)),
+    statLine('امتیاز کلی', fmt(d.overallScore)),
+    statLine('نیروها', fmt(d.troopsCount)),
+    statLine('رادارها', fmt(d.radarCount)),
+    statLine('واحدهای پدافندی', fmt(d.airDefenseUnits)),
+    statLine('سطح استحکامات', String(d.fortificationLevel)),
+    '',
+    'سهم دسته‌ها در دفاع:',
+    ...d.breakdown.slice(0, 8).map((b) => `${b.emoji} ${b.labelFa}: ${fmt(b.contribution)}`),
+    ...(d.activeThreats.length ? ['', `⚠️ تهدید فعال: ${d.activeThreats.map((t) => t.attackerName).join('، ')}`] : []),
+  ].join('\n');
+}
+
+/* --- defense arrangement draft (two-phase: taps edit the draft, «تأیید» commits) --- */
+
+async function loadDefenseDraft(db: Db, userId: number): Promise<string[] | null> {
+  const row = await db.first<{ state: string; data: string | null }>(
+    sql`SELECT state, data FROM bot_flow_states WHERE user_id = ${userId}`,
+  );
+  if (row?.state !== 'def:plan') return null;
+  const data = safeJson(row.data) as { selected?: unknown };
+  if (!Array.isArray(data.selected)) return null;
+  const valid = (data.selected as unknown[]).filter((k): k is string => typeof k === 'string' && (ALL_DEFENSE_KEYS as string[]).includes(k));
+  return valid;
+}
+
+async function saveDefenseDraft(db: Db, userId: number, nationId: number, selected: string[]): Promise<void> {
+  await db.run(
+    sql`INSERT INTO bot_flow_states (user_id, state, nation_id, data, updated_at, expires_at)
+        VALUES (${userId}, 'def:plan', ${nationId}, ${JSON.stringify({ selected })}, ${nowSeconds()}, ${nowSeconds() + 3600})
+        ON CONFLICT (user_id) DO UPDATE SET state = 'def:plan', nation_id = excluded.nation_id, data = excluded.data, updated_at = excluded.updated_at, expires_at = excluded.expires_at`,
+  );
+}
+
+async function clearDefenseDraft(db: Db, userId: number): Promise<void> {
+  await db.run(sql`DELETE FROM bot_flow_states WHERE user_id = ${userId} AND state = 'def:plan'`);
+}
+
+async function renderDefenseArranger(ctx: BotCtx, chatId: number, messageId: number | null, userId: number, nation: NationRow) {
+  const saved = await loadDefensePlan(ctx.db, nation.id);
+  const draft = await loadDefenseDraft(ctx.db, userId);
+  const selected = draft ?? saved ?? ALL_DEFENSE_KEYS;
+  const tileButtons: InlineKeyboardButton[] = DEFENSE_ARRANGEMENT.map((t) => ({
+    text: `${selected.includes(t.key) ? '✅' : '⬜'} ${t.emoji} ${t.labelFa}`,
+    callback_data: `def:toggle:${t.key}`,
+  }));
+  const rows: KeyboardRow<InlineKeyboardButton>[] = [];
+  for (let i = 0; i < tileButtons.length; i += 2) rows.push(tileButtons.slice(i, i + 2));
+  rows.push([{ text: '✅ تأیید آرایش دفاعی', callback_data: 'def:apply' }]);
+  rows.push([{ text: '♻️ بازنشانی (همه نیروها)', callback_data: 'def:reset' }, { text: '📊 جزئیات دفاع', callback_data: 'def:stats' }]);
+  rows.push([{ text: '🏠 منو', callback_data: 'm' }]);
+  const text = [
+    '🛡️ <b>مرکز فرماندهی دفاع</b>',
+    '',
+    'تجهیزات موردنظر را برای دفاع از کشور انتخاب کن:',
+    '',
+    `تعداد دسته‌های متعهد: <b>${selected.length}</b> از ${ALL_DEFENSE_KEYS.length}`,
+    selected.includes(DEFENSE_FORTIFICATION_TOKEN) ? '🏰 استحکامات در نبرد احتساب می‌شود.' : '🏰 استحکامات در نبرد احتساب نمی‌شود.',
+    '',
+    'فقط همین دسته‌ها در جنگ دفاع می‌کنند و فقط همین‌ها خسارت می‌بینند.',
+  ].join('\n');
+  if (messageId === null) await ctx.tg.sendMessage(chatId, text, { inline: rows });
+  else await ctx.tg.editMessageText(chatId, messageId, text, rows);
+}
+
+/* --- جایزه شانسی روزانه card --- */
+
+async function sendPrizesCard(ctx: BotCtx, chatId: number, userId: number) {
+  const nation = await currentNation(ctx, userId);
+  if (!nation) {
+    await ctx.tg.sendMessage(chatId, 'ابتدا کشور بسازید.', { inline: [[{ text: '🏳️ ساخت کشور', callback_data: 'new' }]] });
+    return;
+  }
+  const state = await prizeState(ctx.db, nation.id);
+  const lines = [
+    '🎁 <b>جایزه شانسی روزانه</b>',
+    '',
+    'یکی از جوایز زیر به‌صورت تصادفی به شما تعلق می‌گیرد:',
+    '',
+    ...DAILY_PRIZES.map((p) => `${p.emoji} ${p.labelFa}`),
+    '',
+    state.claimed && state.prize
+      ? `✅ جایزهٔ امروز شما: ${state.prize.emoji} ${state.prize.labelFa}\nفردا (به وقت UTC) برگردید!`
+      : 'برای دریافت دکمهٔ زیر را بزن:',
+  ];
+  const inline: KeyboardRow<InlineKeyboardButton>[] =
+    state.claimed && state.prize
+      ? [[{ text: '✅ دریافت شد', callback_data: 'noop' }], ...backButton()]
+      : [[{ text: '🎁 دریافت جایزه شانسی', callback_data: 'prize:claim' }], ...backButton()];
+  await ctx.tg.sendMessage(chatId, lines.join('\n'), { inline });
 }

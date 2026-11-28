@@ -30,8 +30,8 @@ describe('bot onboarding (the real /start flow, offline)', () => {
       .filter((s) => s.method === 'sendMessage')
       .map((s) => (s.payload.reply_markup ?? {}) as { keyboard?: { text: string }[][]; inline_keyboard?: { text: string; web_app?: unknown; url?: string }[][] });
     const labels = markups.flatMap((m) => (m.keyboard ?? []).flat().map((b) => String(b.text ?? '')));
-    // every one of the 9 main menu entries of the design document must be tappable
-    for (const needle of ['مدیریت کشور', 'دارایی', 'خرید تجهیزات', 'حمله', 'دفاع', 'دیپلماسی', 'بیانیه‌ها', 'آمار', 'تنظیمات']) {
+    // every one of the 9 main menu entries must be tappable (دیپلماسی was replaced by «جوایز روزانه» per product decision)
+    for (const needle of ['مدیریت کشور', 'دارایی', 'خرید تجهیزات', 'حمله', 'دفاع', 'جوایز روزانه', 'بیانیه‌ها', 'آمار', 'تنظیمات']) {
       expect(labels.some((l) => l.includes(needle))).toBe(true);
     }
     const inline = markups.flatMap((m) => (m.inline_keyboard ?? []).flat());

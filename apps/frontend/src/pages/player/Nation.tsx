@@ -1,9 +1,9 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { api, type ApiError } from '../../api';
 import { useApi, useAuth } from '../../auth';
 import { useRouter } from '../../router';
 import { Badge, Btn, Card, Empty, ErrorBox, Grid, Input, Loading, Row, Stat, fa, faDateTime, faDuration, faMoney, useToast } from '../../ui';
-import { EQUIPMENT_CATEGORIES, FLAG_CHOICES, NAV_TITLES, categoryEmoji, categoryLabel } from './meta';
+import { EQUIPMENT_CATEGORIES, FLAG_CHOICES, NAV_TITLES, DEFENSE_ARRANGEMENT, categoryEmoji, categoryLabel } from './meta';
 
 /* ------------------------------ nation detail ----------------------------- */
 
@@ -239,6 +239,112 @@ const navigate = (path: string) => {
 
 /* --------------------------------- defense --------------------------------- */
 
+const ALL_DEFENSE_KEYS = DEFENSE_ARRANGEMENT.map((d) => d.key) as string[];
+
+/** «🛡️ مرکز فرماندهی دفاع» — انتخاب دسته‌های متعهد به دفاع کشور */
+function DefenseArrangement() {
+  const toast = useToast();
+  const planState = useApi<{ plan: string[] | null }>('/player/defense-plan');
+  const [selected, setSelected] = useState<string[] | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    if (selected === null && planState.data) {
+      setSelected(planState.data.plan === null ? ALL_DEFENSE_KEYS : planState.data.plan);
+    }
+  }, [planState.data, selected]);
+
+  const sel = selected ?? [];
+  const toggle = (key: string) =>
+    setSelected((prev) => {
+      const base = prev ?? ALL_DEFENSE_KEYS;
+      return base.includes(key) ? base.filter((k) => k !== key) : [...base, key];
+    });
+
+  async function save() {
+    if (selected === null) return;
+    if (selected.length === 0) {
+      const ok = window.confirm('هیچ نیرویی انتخاب نکرده‌اید؛ در حمله مدافع شما بی‌نیرو خواهد بود. تأیید می‌کنید؟');
+      if (!ok) return;
+    }
+    setBusy(true);
+    try {
+      const all = selected.length === ALL_DEFENSE_KEYS.length;
+      await api.put('/player/defense-plan', { categories: all ? null : selected });
+      toast('✅ آرایش دفاعی ثبت شد', 'ok');
+      await planState.reload();
+    } catch (err) {
+      toast((err as ApiError).message ?? 'ثبت آرایش دفاعی ناموفق بود', 'err');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function reset() {
+    setBusy(true);
+    try {
+      await api.put('/player/defense-plan', { categories: null });
+      setSelected(ALL_DEFENSE_KEYS);
+      toast('به حالت پیش‌فرض بازگشت؛ همه نیروها دفاع می‌کنند.', 'ok');
+      await planState.reload();
+    } catch (err) {
+      toast((err as ApiError).message ?? 'بازنشانی ناموفق بود', 'err');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  if (planState.loading && selected === null) {
+    return (
+      <Card>
+        <Loading />
+      </Card>
+    );
+  }
+
+  return (
+    <Card>
+      <div className="mb-2 flex items-center justify-between gap-2 text-[11px] text-slate-400">
+        <span>
+          {fa(sel.length)} از {fa(ALL_DEFENSE_KEYS.length)} دسته متعهد شدند
+        </span>
+        <button className="ww-btn ww-btn-ghost !px-2 !py-1 text-[10px]" onClick={() => void reset()} disabled={busy}>
+          ♻️ بازنشانی (همه نیروها)
+        </button>
+      </div>
+      {planState.error ? <ErrorBox message={planState.error} onRetry={planState.reload} /> : null}
+      <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+        {DEFENSE_ARRANGEMENT.map((tile) => {
+          const on = sel.includes(tile.key);
+          return (
+            <button
+              key={tile.key}
+              onClick={() => toggle(tile.key)}
+              aria-pressed={on}
+              className={`flex flex-col items-center gap-1 rounded-2xl border px-2 py-4 transition ${
+                on ? 'border-emerald-400/40 bg-emerald-400/10 shadow-[0_0_0_1px_rgba(52,211,153,.35)]' : 'border-white/10 bg-white/5 opacity-60'
+              }`}
+            >
+              <span className="text-3xl leading-none">{tile.emoji}</span>
+              <span className="text-xs font-extrabold">{tile.labelFa}</span>
+              <span className={`text-[10px] font-bold ${on ? 'text-ok' : 'text-slate-500'}`}>{on ? '✓ در آرایش' : 'خارج'}</span>
+            </button>
+          );
+        })}
+      </div>
+      <p className="mt-2 text-[10px] leading-5 text-slate-500">
+        🏰 «استحکامات دفاعی» یعنی سطح استحکامات کشور در نبرد احتساب شود. آرایش دفاعی در جنگ علیه شما اعمال می‌شود:
+        فقط همین دسته‌ها دفاع می‌کنند و فقط همین‌ها خسارت می‌بینند.
+      </p>
+      <div className="mt-2">
+        <Btn variant="primary" className="!w-full !rounded-2xl !py-3 !text-sm" loading={busy} onClick={() => void save()}>
+          ✅ تأیید آرایش دفاعی
+        </Btn>
+      </div>
+    </Card>
+  );
+}
+
 export function DefensePage() {
   const def = useApi<any>('/player/defense');
   const d = def.data;
@@ -246,7 +352,11 @@ export function DefensePage() {
 
   return (
     <div className="space-y-3">
-      <h1 className="text-base font-extrabold">{NAV_TITLES.defense}</h1>
+      <div className="pt-1 text-center">
+        <h1 className="text-lg font-black">🛡️ مرکز فرماندهی دفاع</h1>
+        <p className="mt-1 text-[11px] text-slate-400">تجهیزات موردنظر را برای دفاع از کشور انتخاب کنید.</p>
+      </div>
+      <DefenseArrangement />
       {def.loading ? <Loading /> : null}
       {def.error ? <ErrorBox message={def.error} onRetry={def.reload} /> : null}
       {d ? (
@@ -314,6 +424,9 @@ export function DefensePage() {
           </Card>
         </>
       ) : null}
+      <Btn variant="ghost" className="!w-full !rounded-2xl !py-3" onClick={() => navigate('/app/player')}>
+        🔙 بازگشت به منوی اصلی
+      </Btn>
     </div>
   );
 }

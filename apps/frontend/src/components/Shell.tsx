@@ -10,6 +10,7 @@ const PLAYER_NAV: { path: string; label: string; emoji: string }[] = [
   { path: '/app/military', label: 'نظامی', emoji: '🛡️' },
   { path: '/app/wars', label: 'جنگ', emoji: '⚔️' },
   { path: '/app/ranking', label: 'رتبه', emoji: '🏆' },
+  { path: '/app/rewards', label: 'جوایز', emoji: '🎁' },
   { path: '/app/friends', label: 'دیپلماسی', emoji: '🕊️' },
   { path: '/app/statements', label: 'بیانیه', emoji: '📣' },
   { path: '/app/profile', label: 'پروفایل', emoji: '👤' },

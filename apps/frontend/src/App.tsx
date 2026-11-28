@@ -39,6 +39,7 @@ const PLAYER_ROUTES: { pattern: string; Comp: Page }[] = [
   { pattern: '/app/shop/:categoryKey', Comp: player('ShopPage') },
   { pattern: '/app/military', Comp: player('MilitaryPage') },
   { pattern: '/app/defense', Comp: player('DefensePage') },
+  { pattern: '/app/rewards', Comp: player('RewardsPage') },
   { pattern: '/app/wars', Comp: player('WarRoomPage') },
   { pattern: '/app/war/:id', Comp: player('WarRoomPage') },
   { pattern: '/app/ranking', Comp: player('RankingPage') },
