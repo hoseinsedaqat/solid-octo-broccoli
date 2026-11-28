@@ -13,7 +13,7 @@ function starterUnitCount(category) {
   const list = STARTER_PACK[category];
   return (list ?? []).reduce((sum, item) => sum + item.quantity, 0);
 }
-var EQUIPMENT_CATEGORIES, STARTER_PACK, STARTER_ECONOMY, FACTORY_COUNT_IN_STARTER, MINE_COUNT_IN_STARTER, DERIVED_FACTORY_INCOME_PER_UNIT, DERIVED_MINE_INCOME_PER_UNIT, FLAG_CHOICES, RELATION_STATUSES, RELATION_LABELS_FA, ROLES, BUILDINGS, BUILDING_KEYS, BANK_LOAN, TRANSACTION_TYPE_LABELS_FA, WAR_STATUS_LABELS_FA, DIPLOMACY_REQUEST_KINDS, STATEMENT_STATUS_LABELS_FA, RANKING_METRICS, DEFAULT_RANKING_WEIGHTS, DEFAULT_BATTLE_PARAMS, DEFAULT_PROFILE_RULES, DEFAULT_DIPLOMACY_RULES, DEFAULT_ECONOMY_RULES, FEATURE_FLAGS, GAME_SETTING_KEYS, DEFAULT_BRANDING, DEFAULT_QUOTA_GUARD, ROUTES, PLAYER_PAGES, PLAYER_PAGE_META, ADMIN_SECTIONS, MAX_STATEMENT_CHARS, MIN_STATEMENT_CHARS, DEFENSE_ARRANGEMENT, DEFENSE_ARRANGEMENT_KEYS, DEFENSE_FORTIFICATION_TOKEN, DAILY_PRIZES;
+var EQUIPMENT_CATEGORIES, STARTER_PACK, STARTER_ECONOMY, FACTORY_COUNT_IN_STARTER, MINE_COUNT_IN_STARTER, DERIVED_FACTORY_INCOME_PER_UNIT, DERIVED_MINE_INCOME_PER_UNIT, FLAG_CHOICES, RELATION_STATUSES, RELATION_LABELS_FA, ROLES, RESOURCES, RESOURCE_KEYS, REFINED_PRODUCTS, REFINERY_RECIPES, TRADE_PARTNERS, IMPORT_SHIPPING_FEE, CONTRACT_TERM_DAYS, CONTRACT_TYPES, BUDGET_POTS, BUILDINGS, BUILDING_KEYS, BANK_LOAN, TRANSACTION_TYPE_LABELS_FA, WAR_STATUS_LABELS_FA, DIPLOMACY_REQUEST_KINDS, STATEMENT_STATUS_LABELS_FA, RANKING_METRICS, DEFAULT_RANKING_WEIGHTS, DEFAULT_BATTLE_PARAMS, DEFAULT_PROFILE_RULES, DEFAULT_DIPLOMACY_RULES, DEFAULT_ECONOMY_RULES, FEATURE_FLAGS, GAME_SETTING_KEYS, DEFAULT_BRANDING, DEFAULT_QUOTA_GUARD, ROUTES, PLAYER_PAGES, PLAYER_PAGE_META, ADMIN_SECTIONS, MAX_STATEMENT_CHARS, MIN_STATEMENT_CHARS, DEFENSE_ARRANGEMENT, DEFENSE_ARRANGEMENT_KEYS, DEFENSE_FORTIFICATION_TOKEN, DAILY_PRIZES;
 var init_constants = __esm({
   "shared/src/constants.ts"() {
     "use strict";
@@ -153,6 +153,45 @@ var init_constants = __esm({
       peace_treaty: "\u062F\u0627\u0631\u0627\u06CC \u067E\u06CC\u0645\u0627\u0646 \u0635\u0644\u062D"
     };
     ROLES = ["player", "admin", "super_admin"];
+    RESOURCES = [
+      { key: "oil", emoji: "\u{1F6E2}\uFE0F", nameFa: "\u0646\u0641\u062A", unitFa: "\u0628\u0634\u06A9\u0647", reserve: 5e5, stock: 5e5, market: 10, extractCost: 500, capacity: 5e3, wells: 5 },
+      { key: "gas", emoji: "\u{1F525}", nameFa: "\u06AF\u0627\u0632 \u0637\u0628\u06CC\u0639\u06CC", unitFa: "\u0648\u0627\u062D\u062F", reserve: 8e5, stock: 8e5, market: 8, extractCost: 700, capacity: 8e3, wells: 6 },
+      { key: "iron", emoji: "\u26CF\uFE0F", nameFa: "\u0622\u0647\u0646", unitFa: "\u062A\u0646", reserve: 3e5, stock: 3e5, market: 10, extractCost: 600, capacity: 6e3, wells: 4 },
+      { key: "gold", emoji: "\u{1F947}", nameFa: "\u0637\u0644\u0627", unitFa: "\u0648\u0627\u062D\u062F", reserve: 5e4, stock: 5e4, market: 1e3, extractCost: 1500, capacity: 1e3, wells: 2 },
+      { key: "uranium", emoji: "\u2622\uFE0F", nameFa: "\u0627\u0648\u0631\u0627\u0646\u06CC\u0648\u0645", unitFa: "\u0648\u0627\u062D\u062F", reserve: 2e3, stock: 2e3, market: 5e3, extractCost: 2500, capacity: 200, wells: 1 },
+      { key: "diamond", emoji: "\u{1F48E}", nameFa: "\u0627\u0644\u0645\u0627\u0633", unitFa: "\u0648\u0627\u062D\u062F", reserve: 1e3, stock: 1e3, market: 5e3, extractCost: 3e3, capacity: 100, wells: 1 }
+    ];
+    RESOURCE_KEYS = RESOURCES.map((r) => r.key);
+    REFINED_PRODUCTS = [
+      { key: "fuel", emoji: "\u26FD", nameFa: "\u0633\u0648\u062E\u062A", unitFa: "\u0648\u0627\u062D\u062F" },
+      { key: "steel", emoji: "\u2699\uFE0F", nameFa: "\u0641\u0648\u0644\u0627\u062F", unitFa: "\u0648\u0627\u062D\u062F" },
+      { key: "energy", emoji: "\u26A1", nameFa: "\u0627\u0646\u0631\u0698\u06CC", unitFa: "\u0648\u0627\u062D\u062F" }
+    ];
+    REFINERY_RECIPES = [
+      { key: "oil_to_fuel", emoji: "\u26FD", inputKey: "oil", inputQty: 1e3, outputKey: "fuel", outputQty: 800, cost: 300, minutes: 30 },
+      { key: "iron_to_steel", emoji: "\u2699\uFE0F", inputKey: "iron", inputQty: 1e3, outputKey: "steel", outputQty: 800, cost: 300, minutes: 30 },
+      { key: "gas_to_energy", emoji: "\u26A1", inputKey: "gas", inputQty: 1e3, outputKey: "energy", outputQty: 800, cost: 300, minutes: 30 }
+    ];
+    TRADE_PARTNERS = [
+      { key: "russia", flag: "\u{1F1F7}\u{1F1FA}", nameFa: "\u0631\u0648\u0633\u06CC\u0647" },
+      { key: "saudi", flag: "\u{1F1F8}\u{1F1E6}", nameFa: "\u0639\u0631\u0628\u0633\u062A\u0627\u0646" },
+      { key: "iraq", flag: "\u{1F1EE}\u{1F1F6}", nameFa: "\u0639\u0631\u0627\u0642" },
+      { key: "emirates", flag: "\u{1F1E6}\u{1F1EA}", nameFa: "\u0627\u0645\u0627\u0631\u0627\u062A" }
+    ];
+    IMPORT_SHIPPING_FEE = 2e3;
+    CONTRACT_TERM_DAYS = 7;
+    CONTRACT_TYPES = [
+      { key: "oil", emoji: "\u{1F6E2}\uFE0F", nameFa: "\u0642\u0631\u0627\u0631\u062F\u0627\u062F \u0646\u0641\u062A\u06CC" },
+      { key: "gas", emoji: "\u{1F525}", nameFa: "\u0642\u0631\u0627\u0631\u062F\u0627\u062F \u06AF\u0627\u0632\u06CC" },
+      { key: "mineral", emoji: "\u26CF\uFE0F", nameFa: "\u0642\u0631\u0627\u0631\u062F\u0627\u062F \u0645\u0648\u0627\u062F \u0645\u0639\u062F\u0646\u06CC" },
+      { key: "supply", emoji: "\u{1F4E6}", nameFa: "\u0642\u0631\u0627\u0631\u062F\u0627\u062F \u062A\u0623\u0645\u06CC\u0646 \u0645\u0646\u0627\u0628\u0639" }
+    ];
+    BUDGET_POTS = [
+      { key: "military", emoji: "\u{1F6E1}\uFE0F", nameFa: "\u0628\u0648\u062F\u062C\u0647 \u0646\u0638\u0627\u0645\u06CC" },
+      { key: "construction", emoji: "\u{1F3D7}\uFE0F", nameFa: "\u0628\u0648\u062F\u062C\u0647 \u0633\u0627\u062E\u062A\u200C\u0648\u0633\u0627\u0632" },
+      { key: "industry", emoji: "\u{1F3ED}", nameFa: "\u0628\u0648\u062F\u062C\u0647 \u0635\u0646\u0627\u06CC\u0639" },
+      { key: "public", emoji: "\u{1F4B5}", nameFa: "\u0628\u0648\u062F\u062C\u0647 \u0639\u0645\u0648\u0645\u06CC" }
+    ];
     BUILDINGS = [
       { key: "barracks", emoji: "\u{1FA96}", nameFa: "\u067E\u0627\u062F\u06AF\u0627\u0646 \u0646\u0638\u0627\u0645\u06CC", descFa: "\u0622\u0645\u0648\u0632\u0634 \u0648 \u062C\u0630\u0628 \u0633\u0631\u0628\u0627\u0632", cost: 1e4, grant: { kind: "units", templateCode: "rangers", quantity: 1e3 } },
       { key: "airbase", emoji: "\u{1F6E9}\uFE0F", nameFa: "\u067E\u0627\u06CC\u06AF\u0627\u0647 \u0647\u0648\u0627\u06CC\u06CC", descFa: "\u0627\u0633\u062A\u0642\u0631\u0627\u0631 \u062C\u0646\u06AF\u0646\u062F\u0647\u200C\u0647\u0627", cost: 2e4, grant: { kind: "units", templateCode: "su57", quantity: 3 } },
@@ -14727,18 +14766,22 @@ async function takeLoan(db, nation, principal, now = nowSeconds()) {
   });
   return { principal: allowed, repayAmount, dueAt, treasury: Number(after?.treasury ?? nation.treasury + allowed) };
 }
-async function repayLoan(db, nation, now = nowSeconds()) {
+async function repayLoan(db, nation, now = nowSeconds(), partial) {
   const loan = await activeLoan(db, nation.id);
   if (!loan) throw ApiError.validation("\u0648\u0627\u0645\u06CC \u0628\u0631\u0627\u06CC \u0628\u0627\u0632\u067E\u0631\u062F\u0627\u062E\u062A \u0646\u062F\u0627\u0631\u06CC\u062F.");
-  const repayAmount = Number(loan.repay_amount);
+  const fullAmount = Number(loan.repay_amount);
+  const repayAmount = partial === void 0 ? fullAmount : Math.floor(Number(partial));
+  if (!Number.isFinite(repayAmount) || repayAmount <= 0) throw ApiError.validation("\u0645\u0628\u0644\u063A \u0628\u0627\u0632\u067E\u0631\u062F\u0627\u062E\u062A \u0646\u0627\u0645\u0639\u062A\u0628\u0631 \u0627\u0633\u062A.");
+  if (repayAmount > fullAmount) throw ApiError.validation("\u0645\u0628\u0644\u063A \u0628\u0627\u0632\u067E\u0631\u062F\u0627\u062E\u062A \u0628\u06CC\u0634\u062A\u0631 \u0627\u0632 \u0628\u0627\u0642\u06CC\u200C\u0645\u0627\u0646\u062F\u0647\u0654 \u0628\u062F\u0647\u06CC \u0627\u0633\u062A.");
   if (nation.treasury < repayAmount) {
     throw ApiError.validation(`\u0645\u0648\u062C\u0648\u062F\u06CC \u062E\u0632\u0627\u0646\u0647 (${nation.treasury.toLocaleString("en-US")} \u0633\u06A9\u0647) \u0628\u0631\u0627\u06CC \u0628\u0627\u0632\u067E\u0631\u062F\u0627\u062E\u062A \u0648\u0627\u0645 (${repayAmount.toLocaleString("en-US")} \u0633\u06A9\u0647) \u06A9\u0627\u0641\u06CC \u0646\u06CC\u0633\u062A.`);
   }
+  const isPartial = repayAmount < fullAmount;
   const at = now;
-  const idempotencyKey = `loan-repay:${loan.id}`;
+  const idempotencyKey = isPartial ? `loan-repay:${loan.id}:${at}:${repayAmount}` : `loan-repay:${loan.id}`;
   try {
     await db.batch([
-      sql`UPDATE nation_loans SET status = 'repaid', repaid_at = ${at} WHERE id = ${loan.id} AND status = 'active'`,
+      isPartial ? sql`UPDATE nation_loans SET repay_amount = repay_amount - ${repayAmount} WHERE id = ${loan.id} AND status = 'active' AND repay_amount >= ${repayAmount}` : sql`UPDATE nation_loans SET status = 'repaid', repaid_at = ${at} WHERE id = ${loan.id} AND status = 'active'`,
       sql`UPDATE nations SET treasury = treasury - ${repayAmount}, updated_at = ${at} WHERE id = ${nation.id}`,
       sql`INSERT INTO transactions (uuid, nation_id, type, amount, balance_before, balance_after, currency,
                                     idempotency_key, reference_type, reference_id, reason, meta, created_at)
@@ -14771,9 +14814,28 @@ async function repayLoan(db, nation, now = nowSeconds()) {
     targetId: nation.id,
     before: { treasury: nation.treasury },
     after: { treasury: Number(after?.treasury ?? 0), repayAmount },
-    reason: "\u062A\u0633\u0648\u06CC\u0647 \u0648\u0627\u0645 \u0628\u0627\u0646\u06A9\u06CC"
+    reason: isPartial ? "\u067E\u0631\u062F\u0627\u062E\u062A \u062C\u0632\u0626\u06CC \u0628\u062F\u0647\u06CC \u0628\u0627\u0646\u06A9\u06CC" : "\u062A\u0633\u0648\u06CC\u0647 \u0648\u0627\u0645 \u0628\u0627\u0646\u06A9\u06CC"
   });
-  return { repayAmount, treasury: Number(after?.treasury ?? nation.treasury - repayAmount) };
+  return { repayAmount, partial: isPartial, remaining: isPartial ? fullAmount - repayAmount : 0, treasury: Number(after?.treasury ?? nation.treasury - repayAmount) };
+}
+async function listLoans(db, nationId, limit = 20) {
+  const rows = await db.all(
+    sql`SELECT id, principal, repay_amount, interest_rate, status, created_at, due_at, repaid_at
+          FROM nation_loans WHERE nation_id = ${nationId} ORDER BY id DESC LIMIT ${Math.min(50, Math.max(1, limit))}`
+  );
+  return {
+    loans: rows.map((r) => ({
+      id: Number(r.id),
+      principal: Number(r.principal),
+      repayAmount: Number(r.repay_amount),
+      interestRate: Number(r.interest_rate),
+      status: String(r.status),
+      statusLabelFa: String(r.status) === "active" ? "\u0641\u0639\u0627\u0644" : String(r.status) === "repaid" ? "\u062A\u0633\u0648\u06CC\u0647\u200C\u0634\u062F\u0647" : String(r.status),
+      createdAt: toIso(Number(r.created_at)),
+      dueAt: toIso(Number(r.due_at)),
+      repaidAt: r.repaid_at ? toIso(Number(r.repaid_at)) : null
+    }))
+  };
 }
 
 // apps/worker/src/services/buildService.ts
@@ -14873,6 +14935,441 @@ async function construct(db, nation, key, now = nowSeconds()) {
     body: `${building.emoji} ${building.nameFa} \u0628\u0627 \u0647\u0632\u06CC\u0646\u0647 ${building.cost.toLocaleString("en-US")} \u0633\u06A9\u0647 \u0633\u0627\u062E\u062A\u0647 \u0634\u062F.`
   });
   return { building: { key: building.key, nameFa: building.nameFa, emoji: building.emoji }, cost: building.cost, treasury: Number(after?.treasury ?? nation.treasury - building.cost) };
+}
+
+// apps/worker/src/services/resourceService.ts
+init_src();
+init_sql();
+init_errors2();
+init_format();
+init_ids();
+init_auditService();
+var resourceDef = (key) => RESOURCES.find((r) => r.key === key) ?? null;
+var partnerDef = (key) => TRADE_PARTNERS.find((p) => p.key === key) ?? null;
+var recipeDef = (key) => REFINERY_RECIPES.find((r) => r.key === key) ?? null;
+var contractTypeDef = (key) => CONTRACT_TYPES.find((t) => t.key === key) ?? null;
+async function stockOf(db, nationId, key) {
+  const row = await db.first(sql`SELECT stock FROM nation_resources WHERE nation_id = ${nationId} AND resource_key = ${key}`);
+  return Number(row?.stock ?? 0);
+}
+async function ledger(batch, nation, type, amount, reason, referenceType, referenceId, now, meta = {}) {
+  batch.push(
+    sql`INSERT INTO transactions (uuid, nation_id, type, amount, balance_before, balance_after, currency,
+                                  idempotency_key, reference_type, reference_id, reason, meta, created_at)
+         VALUES (${uuid()}, ${nation.id}, ${type}, ${amount}, ${nation.treasury}, ${nation.treasury + amount}, 'coin',
+                 ${`${referenceType}:${nation.id}:${uuid()}`}, ${referenceType}, ${referenceId}, ${reason}, ${JSON.stringify(meta)}, ${now})`
+  );
+}
+async function settleRefineries(db, nationId, now = nowSeconds()) {
+  const due = await db.all(
+    sql`SELECT id, output_key, output_qty FROM nation_refinery_ops WHERE nation_id = ${nationId} AND settled_at IS NULL AND completes_at <= ${now}`
+  );
+  if (due.length === 0) return 0;
+  const batch = [];
+  for (const op of due) {
+    batch.push(
+      sql`UPDATE nation_refinery_ops SET settled_at = ${now} WHERE id = ${op.id} AND settled_at IS NULL`,
+      sql`INSERT INTO nation_resources (nation_id, resource_key, reserves, stock, updated_at)
+           VALUES (${nationId}, ${op.output_key}, 0, ${op.output_qty}, ${now})
+           ON CONFLICT (nation_id, resource_key) DO UPDATE SET stock = stock + ${op.output_qty}, updated_at = ${now}`
+    );
+  }
+  await db.batch(batch);
+  return due.length;
+}
+async function settleContracts(db, nationId, now = nowSeconds()) {
+  const nation = await db.first(sql`SELECT * FROM nations WHERE id = ${nationId}`);
+  if (!nation) return 0;
+  const due = await db.all(
+    sql`SELECT id, side, resource_key, quantity, unit_price, total, partner_key FROM nation_contracts
+         WHERE nation_id = ${nationId} AND status = 'active' AND completes_at <= ${now}`
+  );
+  if (due.length === 0) return 0;
+  for (const c of due) {
+    const batch = [];
+    batch.push(sql`UPDATE nation_contracts SET status = 'completed', settled_at = ${now} WHERE id = ${c.id} AND status = 'active'`);
+    if (c.side === "export") {
+      batch.push(sql`UPDATE nations SET treasury = treasury + ${c.total}, updated_at = ${now} WHERE id = ${nationId}`);
+      batch.push(
+        sql`INSERT INTO transactions (uuid, nation_id, type, amount, balance_before, balance_after, currency,
+                                      idempotency_key, reference_type, reference_id, reason, meta, created_at)
+             VALUES (${uuid()}, ${nationId}, 'contract', ${c.total}, ${nation.treasury}, ${nation.treasury + c.total}, 'coin',
+                     ${`contract-settle:${c.id}`}, 'contract', ${c.id},
+                     ${`\u062A\u0633\u0648\u06CC\u0647 \u0642\u0631\u0627\u0631\u062F\u0627\u062F \u0635\u0627\u062F\u0631\u0627\u062A ${c.quantity.toLocaleString("en-US")} \u0648\u0627\u062D\u062F ${c.resource_key}`},
+                     ${JSON.stringify({ side: "export", resourceKey: c.resource_key, quantity: c.quantity, unitPrice: c.unit_price })}, ${now})`
+      );
+      batch.push(sql`UPDATE nation_economy SET total_income = total_income + ${c.total}, updated_at = ${now} WHERE nation_id = ${nationId}`);
+    } else {
+      batch.push(
+        sql`INSERT INTO nation_resources (nation_id, resource_key, reserves, stock, updated_at)
+             VALUES (${nationId}, ${c.resource_key}, 0, ${c.quantity}, ${now})
+             ON CONFLICT (nation_id, resource_key) DO UPDATE SET stock = stock + ${c.quantity}, updated_at = ${now}`
+      );
+    }
+    batch.push(
+      sql`INSERT INTO trade_log (nation_id, kind, resource_key, partner_key, quantity, unit_price, total, created_at)
+           VALUES (${nationId}, 'contract_settle', ${c.resource_key}, ${c.partner_key}, ${c.quantity}, ${c.unit_price}, ${c.total}, ${now})`
+    );
+    await db.batch(batch);
+  }
+  return due.length;
+}
+async function resourceState(db, nation, now = nowSeconds()) {
+  await settleRefineries(db, nation.id, now);
+  await settleContracts(db, nation.id, now);
+  const rows = await db.all(
+    sql`SELECT resource_key, reserves, stock FROM nation_resources WHERE nation_id = ${nation.id}`
+  );
+  const byKey = new Map(rows.map((r) => [String(r.resource_key), { reserves: Number(r.reserves), stock: Number(r.stock) }]));
+  const fresh = await db.first(sql`SELECT treasury FROM nations WHERE id = ${nation.id}`);
+  const treasury = Number(fresh?.treasury ?? nation.treasury);
+  const resources = RESOURCES.map((r) => ({
+    key: r.key,
+    emoji: r.emoji,
+    nameFa: r.nameFa,
+    unitFa: r.unitFa,
+    market: r.market,
+    extractCost: r.extractCost,
+    capacity: r.capacity,
+    wells: r.wells,
+    reserves: byKey.get(r.key)?.reserves ?? 0,
+    stock: byKey.get(r.key)?.stock ?? 0
+  }));
+  const products = REFINED_PRODUCTS.map((p) => ({
+    key: p.key,
+    emoji: p.emoji,
+    nameFa: p.nameFa,
+    unitFa: p.unitFa,
+    stock: byKey.get(p.key)?.stock ?? 0
+  }));
+  const refineryOps = (await db.all(
+    sql`SELECT id, recipe_key, input_key, input_qty, output_key, output_qty, cost, started_at, completes_at
+            FROM nation_refinery_ops WHERE nation_id = ${nation.id} AND settled_at IS NULL ORDER BY completes_at ASC`
+  )).map((op) => ({
+    id: Number(op.id),
+    recipeKey: String(op.recipe_key),
+    inputKey: String(op.input_key),
+    inputQty: Number(op.input_qty),
+    outputKey: String(op.output_key),
+    outputQty: Number(op.output_qty),
+    cost: Number(op.cost),
+    startedAt: toIso(Number(op.started_at)),
+    completesAt: toIso(Number(op.completes_at)),
+    completesInSeconds: Math.max(0, Number(op.completes_at) - now)
+  }));
+  const tradeTotals = await db.first(
+    sql`SELECT SUM(CASE WHEN kind IN ('export','contract_settle') THEN total ELSE 0 END) AS export_total,
+               SUM(CASE WHEN kind = 'import' THEN total ELSE 0 END) AS import_total,
+               SUM(CASE WHEN kind IN ('export','contract_settle') THEN 1 ELSE 0 END) AS export_count,
+               SUM(CASE WHEN kind = 'import' THEN 1 ELSE 0 END) AS import_count
+          FROM trade_log WHERE nation_id = ${nation.id}`
+  );
+  const pots = await db.all(sql`SELECT pot_key, amount FROM nation_budget_pots WHERE nation_id = ${nation.id}`);
+  const budgets = BUDGET_POTS.map((p) => ({ key: p.key, emoji: p.emoji, nameFa: p.nameFa, amount: Number(pots.find((x) => String(x.pot_key) === p.key)?.amount ?? 0) }));
+  return {
+    treasury,
+    resources,
+    products,
+    refineryOps,
+    tradeTotals: {
+      exportTotal: Number(tradeTotals?.export_total ?? 0),
+      importTotal: Number(tradeTotals?.import_total ?? 0),
+      exportCount: Number(tradeTotals?.export_count ?? 0),
+      importCount: Number(tradeTotals?.import_count ?? 0)
+    },
+    budgets,
+    market: RESOURCES.map((r) => ({ key: r.key, emoji: r.emoji, nameFa: r.nameFa, unitFa: r.unitFa, price: r.market }))
+  };
+}
+async function extract(db, nation, key, amount, now = nowSeconds()) {
+  const def = resourceDef(key);
+  if (!def) throw ApiError.validation("\u0645\u0646\u0628\u0639 \u0627\u0646\u062A\u062E\u0627\u0628\u200C\u0634\u062F\u0647 \u0645\u0639\u062A\u0628\u0631 \u0646\u06CC\u0633\u062A.");
+  const qty = Math.floor(Number(amount));
+  if (!Number.isFinite(qty) || qty <= 0) throw ApiError.validation("\u0645\u0642\u062F\u0627\u0631 \u0627\u0633\u062A\u062E\u0631\u0627\u062C \u0646\u0627\u0645\u0639\u062A\u0628\u0631 \u0627\u0633\u062A.");
+  if (qty > def.capacity) throw ApiError.validation(`\u062D\u062F\u0627\u06A9\u062B\u0631 \u0638\u0631\u0641\u06CC\u062A \u0647\u0631 \u0639\u0645\u0644\u06CC\u0627\u062A ${def.capacity.toLocaleString("en-US")} \u0648\u0627\u062D\u062F \u0627\u0633\u062A.`);
+  if (nation.treasury < def.extractCost) throw ApiError.validation("\u0645\u0648\u062C\u0648\u062F\u06CC \u0646\u0627\u06A9\u0627\u0641\u06CC \u0627\u0633\u062A.");
+  const row = await db.first(sql`SELECT reserves FROM nation_resources WHERE nation_id = ${nation.id} AND resource_key = ${def.key}`);
+  const reserves = Number(row?.reserves ?? 0);
+  if (reserves < qty) throw ApiError.validation("\u0630\u062E\u0627\u06CC\u0631 \u0627\u06CC\u0646 \u0645\u0646\u0628\u0639 \u06A9\u0627\u0641\u06CC \u0646\u06CC\u0633\u062A.");
+  const batch = [
+    sql`UPDATE nation_resources SET reserves = reserves - ${qty}, stock = stock + ${qty}, updated_at = ${now}
+         WHERE nation_id = ${nation.id} AND resource_key = ${def.key} AND reserves >= ${qty}`,
+    sql`UPDATE nations SET treasury = treasury - ${def.extractCost}, updated_at = ${now} WHERE id = ${nation.id}`
+  ];
+  await ledger(batch, nation, "resource_extract", -def.extractCost, `\u0627\u0633\u062A\u062E\u0631\u0627\u062C ${qty.toLocaleString("en-US")} ${def.unitFa} ${def.nameFa}`, "resource", null, now, { resourceKey: def.key, quantity: qty });
+  batch.push(sql`UPDATE nation_economy SET total_spent = total_spent + ${def.extractCost}, updated_at = ${now} WHERE nation_id = ${nation.id}`);
+  await db.batch(batch);
+  await audit(db, { actor: null, action: "resource.extract", targetType: "nation", targetId: nation.id, before: { reserves, treasury: nation.treasury }, after: { reserves: reserves - qty, stockDelta: qty }, reason: `\u0627\u0633\u062A\u062E\u0631\u0627\u062C ${def.nameFa}` });
+  return { resourceKey: def.key, extracted: qty, cost: def.extractCost, reservesLeft: reserves - qty };
+}
+async function sellResource(db, nation, key, amount, partnerKey = null, now = nowSeconds()) {
+  const def = resourceDef(key);
+  if (!def) throw ApiError.validation("\u0645\u0646\u0628\u0639 \u0627\u0646\u062A\u062E\u0627\u0628\u200C\u0634\u062F\u0647 \u0645\u0639\u062A\u0628\u0631 \u0646\u06CC\u0633\u062A.");
+  const qty = Number(amount);
+  if (!Number.isFinite(qty) || qty <= 0) throw ApiError.validation("\u0645\u0642\u062F\u0627\u0631 \u0641\u0631\u0648\u0634 \u0646\u0627\u0645\u0639\u062A\u0628\u0631 \u0627\u0633\u062A.");
+  const income = Math.floor(qty * def.market);
+  const stock = await stockOf(db, nation.id, def.key);
+  if (stock < qty) throw ApiError.validation("\u0645\u0648\u062C\u0648\u062F\u06CC \u0627\u06CC\u0646 \u0645\u0646\u0628\u0639 \u062F\u0631 \u0627\u0646\u0628\u0627\u0631 \u06A9\u0627\u0641\u06CC \u0646\u06CC\u0633\u062A.");
+  const isTrade = partnerKey !== null && partnerDef(partnerKey) !== null;
+  const batch = [
+    sql`UPDATE nation_resources SET stock = stock - ${qty}, updated_at = ${now}
+         WHERE nation_id = ${nation.id} AND resource_key = ${def.key} AND stock >= ${qty}`,
+    sql`UPDATE nations SET treasury = treasury + ${income}, updated_at = ${now} WHERE id = ${nation.id}`
+  ];
+  await ledger(
+    batch,
+    nation,
+    isTrade ? "trade_export" : "resource_sale",
+    income,
+    `${isTrade ? "\u0635\u0627\u062F\u0631\u0627\u062A" : "\u0641\u0631\u0648\u0634"} ${qty.toLocaleString("en-US")} ${def.unitFa} ${def.nameFa}`,
+    "resource",
+    null,
+    now,
+    { resourceKey: def.key, quantity: qty, unitPrice: def.market, partnerKey: partnerKey ?? void 0 }
+  );
+  batch.push(sql`UPDATE nation_economy SET total_income = total_income + ${income}, updated_at = ${now} WHERE nation_id = ${nation.id}`);
+  if (isTrade && partnerKey) {
+    batch.push(
+      sql`INSERT INTO trade_log (nation_id, kind, resource_key, partner_key, quantity, unit_price, total, created_at)
+           VALUES (${nation.id}, 'export', ${def.key}, ${partnerKey}, ${qty}, ${def.market}, ${income}, ${now})`
+    );
+  }
+  await db.batch(batch);
+  await audit(db, { actor: null, action: isTrade ? "trade.export" : "resource.sell", targetType: "nation", targetId: nation.id, before: { stock, treasury: nation.treasury }, after: { stock: stock - qty, treasury: nation.treasury + income }, reason: `${isTrade ? "\u0635\u0627\u062F\u0631\u0627\u062A" : "\u0641\u0631\u0648\u0634"} ${def.nameFa}` });
+  return { resourceKey: def.key, sold: qty, unitPrice: def.market, total: income, treasury: nation.treasury + income };
+}
+async function importResource(db, nation, key, quantity, partnerKey, now = nowSeconds()) {
+  const def = resourceDef(key);
+  if (!def) throw ApiError.validation("\u0645\u0646\u0628\u0639 \u0627\u0646\u062A\u062E\u0627\u0628\u200C\u0634\u062F\u0647 \u0645\u0639\u062A\u0628\u0631 \u0646\u06CC\u0633\u062A.");
+  const partner = partnerDef(partnerKey);
+  if (!partner) throw ApiError.validation("\u06A9\u0634\u0648\u0631 \u0641\u0631\u0648\u0634\u0646\u062F\u0647 \u0645\u0639\u062A\u0628\u0631 \u0646\u06CC\u0633\u062A.");
+  const qty = Number(quantity);
+  if (!Number.isFinite(qty) || qty <= 0) throw ApiError.validation("\u0645\u0642\u062F\u0627\u0631 \u062E\u0631\u06CC\u062F \u0646\u0627\u0645\u0639\u062A\u0628\u0631 \u0627\u0633\u062A.");
+  const goods = Math.floor(qty * def.market);
+  const total = goods + IMPORT_SHIPPING_FEE;
+  if (nation.treasury < total) throw ApiError.validation("\u0645\u0648\u062C\u0648\u062F\u06CC \u0646\u0627\u06A9\u0627\u0641\u06CC \u0627\u0633\u062A.");
+  const batch = [
+    sql`UPDATE nations SET treasury = treasury - ${total}, updated_at = ${now} WHERE id = ${nation.id}`,
+    sql`INSERT INTO nation_resources (nation_id, resource_key, reserves, stock, updated_at)
+         VALUES (${nation.id}, ${def.key}, 0, ${qty}, ${now})
+         ON CONFLICT (nation_id, resource_key) DO UPDATE SET stock = stock + ${qty}, updated_at = ${now}`
+  ];
+  await ledger(
+    batch,
+    nation,
+    "trade_import",
+    -total,
+    `\u0648\u0627\u0631\u062F\u0627\u062A ${qty.toLocaleString("en-US")} ${def.unitFa} ${def.nameFa} \u0627\u0632 ${partner.nameFa}`,
+    "trade",
+    null,
+    now,
+    { resourceKey: def.key, quantity: qty, unitPrice: def.market, shippingFee: IMPORT_SHIPPING_FEE, partnerKey }
+  );
+  batch.push(sql`UPDATE nation_economy SET total_spent = total_spent + ${total}, updated_at = ${now} WHERE nation_id = ${nation.id}`);
+  batch.push(
+    sql`INSERT INTO trade_log (nation_id, kind, resource_key, partner_key, quantity, unit_price, total, created_at)
+         VALUES (${nation.id}, 'import', ${def.key}, ${partnerKey}, ${qty}, ${def.market}, ${total}, ${now})`
+  );
+  await db.batch(batch);
+  await audit(db, { actor: null, action: "trade.import", targetType: "nation", targetId: nation.id, before: { treasury: nation.treasury }, after: { treasury: nation.treasury - total }, reason: `\u0648\u0627\u0631\u062F\u0627\u062A ${def.nameFa} \u0627\u0632 ${partner.nameFa}` });
+  return { resourceKey: def.key, quantity: qty, goods, shippingFee: IMPORT_SHIPPING_FEE, total, treasury: nation.treasury - total };
+}
+async function startRefinery(db, nation, recipeKey, now = nowSeconds()) {
+  const recipe = recipeDef(recipeKey);
+  if (!recipe) throw ApiError.validation("\u062F\u0633\u062A\u0648\u0631 \u067E\u0627\u0644\u0627\u06CC\u0634 \u0627\u0646\u062A\u062E\u0627\u0628\u200C\u0634\u062F\u0647 \u0645\u0639\u062A\u0628\u0631 \u0646\u06CC\u0633\u062A.");
+  const stock = await stockOf(db, nation.id, recipe.inputKey);
+  if (stock < recipe.inputQty) throw ApiError.validation("\u0645\u0648\u062C\u0648\u062F\u06CC \u0645\u0627\u062F\u0647\u0654 \u062E\u0627\u0645 \u06A9\u0627\u0641\u06CC \u0646\u06CC\u0633\u062A.");
+  if (nation.treasury < recipe.cost) throw ApiError.validation("\u0645\u0648\u062C\u0648\u062F\u06CC \u0646\u0627\u06A9\u0627\u0641\u06CC \u0627\u0633\u062A.");
+  const inputDef = resourceDef(recipe.inputKey);
+  const batch = [
+    sql`UPDATE nation_resources SET stock = stock - ${recipe.inputQty}, updated_at = ${now}
+         WHERE nation_id = ${nation.id} AND resource_key = ${recipe.inputKey} AND stock >= ${recipe.inputQty}`,
+    sql`UPDATE nations SET treasury = treasury - ${recipe.cost}, updated_at = ${now} WHERE id = ${nation.id}`,
+    sql`INSERT INTO nation_refinery_ops (nation_id, recipe_key, input_key, input_qty, output_key, output_qty, cost, started_at, completes_at)
+         VALUES (${nation.id}, ${recipe.key}, ${recipe.inputKey}, ${recipe.inputQty}, ${recipe.outputKey}, ${recipe.outputQty}, ${recipe.cost}, ${now}, ${now + recipe.minutes * 60})`
+  ];
+  await ledger(
+    batch,
+    nation,
+    "refinery",
+    -recipe.cost,
+    `\u067E\u0627\u0644\u0627\u06CC\u0634 ${recipe.inputQty.toLocaleString("en-US")} ${inputDef.unitFa} ${inputDef.nameFa}`,
+    "refinery",
+    null,
+    now,
+    { recipeKey: recipe.key, inputKey: recipe.inputKey, outputKey: recipe.outputKey, outputQty: recipe.outputQty }
+  );
+  batch.push(sql`UPDATE nation_economy SET total_spent = total_spent + ${recipe.cost}, updated_at = ${now} WHERE nation_id = ${nation.id}`);
+  await db.batch(batch);
+  await audit(db, { actor: null, action: "refinery.start", targetType: "nation", targetId: nation.id, reason: `\u067E\u0627\u0644\u0627\u06CC\u0634 ${recipe.key}`, after: { inputQty: recipe.inputQty, cost: recipe.cost } });
+  return { recipeKey: recipe.key, inputKey: recipe.inputKey, inputQty: recipe.inputQty, outputKey: recipe.outputKey, outputQty: recipe.outputQty, cost: recipe.cost, completesInSeconds: recipe.minutes * 60 };
+}
+async function createContract(db, nation, input, now = nowSeconds()) {
+  const def = resourceDef(String(input.resourceKey));
+  if (!def) throw ApiError.validation("\u0645\u0646\u0628\u0639 \u0645\u0639\u0627\u0645\u0644\u0647 \u0645\u0639\u062A\u0628\u0631 \u0646\u06CC\u0633\u062A.");
+  const type = contractTypeDef(String(input.contractType));
+  if (!type) throw ApiError.validation("\u0646\u0648\u0639 \u0642\u0631\u0627\u0631\u062F\u0627\u062F \u0645\u0639\u062A\u0628\u0631 \u0646\u06CC\u0633\u062A.");
+  const partner = partnerDef(String(input.partnerKey));
+  if (!partner) throw ApiError.validation("\u06A9\u0634\u0648\u0631 \u0637\u0631\u0641 \u0642\u0631\u0627\u0631\u062F\u0627\u062F \u0645\u0639\u062A\u0628\u0631 \u0646\u06CC\u0633\u062A.");
+  if (input.side !== "export" && input.side !== "import") throw ApiError.validation("\u062C\u0647\u062A \u0642\u0631\u0627\u0631\u062F\u0627\u062F \u0645\u0639\u062A\u0628\u0631 \u0646\u06CC\u0633\u062A.");
+  const qty = Number(input.quantity);
+  if (!Number.isFinite(qty) || qty <= 0) throw ApiError.validation("\u0645\u0642\u062F\u0627\u0631 \u0642\u0631\u0627\u0631\u062F\u0627\u062F \u0646\u0627\u0645\u0639\u062A\u0628\u0631 \u0627\u0633\u062A.");
+  const total = Math.floor(qty * def.market);
+  const completesAt = now + CONTRACT_TERM_DAYS * 86400;
+  const batch = [];
+  if (input.side === "export") {
+    const stock = await stockOf(db, nation.id, def.key);
+    if (stock < qty) throw ApiError.validation("\u0645\u0648\u062C\u0648\u062F\u06CC \u0627\u06CC\u0646 \u0645\u0646\u0628\u0639 \u062F\u0631 \u0627\u0646\u0628\u0627\u0631 \u06A9\u0627\u0641\u06CC \u0646\u06CC\u0633\u062A.");
+    batch.push(sql`UPDATE nation_resources SET stock = stock - ${qty}, updated_at = ${now}
+                    WHERE nation_id = ${nation.id} AND resource_key = ${def.key} AND stock >= ${qty}`);
+  } else {
+    if (nation.treasury < total) throw ApiError.validation("\u0645\u0648\u062C\u0648\u062F\u06CC \u0646\u0627\u06A9\u0627\u0641\u06CC \u0627\u0633\u062A.");
+    batch.push(sql`UPDATE nations SET treasury = treasury - ${total}, updated_at = ${now} WHERE id = ${nation.id}`);
+  }
+  batch.push(
+    sql`INSERT INTO nation_contracts (nation_id, side, contract_type, resource_key, partner_key, quantity, unit_price, total, status, created_at, completes_at)
+         VALUES (${nation.id}, ${input.side}, ${type.key}, ${def.key}, ${partner.key}, ${qty}, ${def.market}, ${total}, 'active', ${now}, ${completesAt})`
+  );
+  if (input.side === "export") {
+  } else {
+    await ledger(
+      batch,
+      nation,
+      "contract",
+      -total,
+      `\u0642\u0631\u0627\u0631\u062F\u0627\u062F \u0648\u0627\u0631\u062F\u0627\u062A ${qty.toLocaleString("en-US")} ${def.unitFa} ${def.nameFa} \u0627\u0632 ${partner.nameFa}`,
+      "contract",
+      null,
+      now,
+      { side: "import", resourceKey: def.key, quantity: qty, unitPrice: def.market }
+    );
+    batch.push(sql`UPDATE nation_economy SET total_spent = total_spent + ${total}, updated_at = ${now} WHERE nation_id = ${nation.id}`);
+  }
+  batch.push(
+    sql`INSERT INTO trade_log (nation_id, kind, resource_key, partner_key, quantity, unit_price, total, created_at)
+         VALUES (${nation.id}, 'contract_create', ${def.key}, ${partner.key}, ${qty}, ${def.market}, ${total}, ${now})`
+  );
+  await db.batch(batch);
+  const row = await db.first(sql`SELECT id FROM nation_contracts WHERE nation_id = ${nation.id} ORDER BY id DESC LIMIT 1`);
+  await audit(db, { actor: null, action: "contract.create", targetType: "nation", targetId: nation.id, after: { side: input.side, resourceKey: def.key, quantity: qty, total }, reason: `\u0642\u0631\u0627\u0631\u062F\u0627\u062F ${type.nameFa}` });
+  return { contractId: Number(row?.id ?? 0), side: input.side, resourceKey: def.key, quantity: qty, unitPrice: def.market, total, completesInDays: CONTRACT_TERM_DAYS };
+}
+async function cancelContract(db, nation, contractId, now = nowSeconds()) {
+  const row = await db.first(
+    sql`SELECT id, side, resource_key, quantity, total, status, partner_key FROM nation_contracts WHERE id = ${contractId} AND nation_id = ${nation.id}`
+  );
+  if (!row) throw ApiError.notFound("\u0642\u0631\u0627\u0631\u062F\u0627\u062F \u06CC\u0627\u0641\u062A \u0646\u0634\u062F.");
+  if (String(row.status) !== "active") throw ApiError.conflict("\u0627\u06CC\u0646 \u0642\u0631\u0627\u0631\u062F\u0627\u062F \u062F\u06CC\u06AF\u0631 \u0641\u0639\u0627\u0644 \u0646\u06CC\u0633\u062A.");
+  const batch = [sql`UPDATE nation_contracts SET status = 'cancelled', settled_at = ${now} WHERE id = ${row.id} AND status = 'active'`];
+  if (String(row.side) === "export") {
+    batch.push(
+      sql`INSERT INTO nation_resources (nation_id, resource_key, reserves, stock, updated_at)
+           VALUES (${nation.id}, ${row.resource_key}, 0, ${Number(row.quantity)}, ${now})
+           ON CONFLICT (nation_id, resource_key) DO UPDATE SET stock = stock + ${Number(row.quantity)}, updated_at = ${now}`
+    );
+  } else {
+    batch.push(sql`UPDATE nations SET treasury = treasury + ${Number(row.total)}, updated_at = ${now} WHERE id = ${nation.id}`);
+    await ledger(
+      batch,
+      nation,
+      "contract",
+      Number(row.total),
+      `\u0644\u063A\u0648 \u0642\u0631\u0627\u0631\u062F\u0627\u062F \u0648\u0627\u0631\u062F\u0627\u062A \u2014 \u0628\u0627\u0632\u06AF\u0634\u062A ${Number(row.total).toLocaleString("en-US")} \u0633\u06A9\u0647`,
+      "contract",
+      Number(row.id),
+      now,
+      { side: "import", cancelled: true }
+    );
+  }
+  batch.push(
+    sql`INSERT INTO trade_log (nation_id, kind, resource_key, partner_key, quantity, unit_price, total, created_at)
+         VALUES (${nation.id}, 'contract_cancel', ${row.resource_key}, ${row.partner_key}, ${Number(row.quantity)}, 0, ${Number(row.total)}, ${now})`
+  );
+  await db.batch(batch);
+  await audit(db, { actor: null, action: "contract.cancel", targetType: "nation", targetId: nation.id, after: { contractId: row.id }, reason: "\u0644\u063A\u0648 \u0642\u0631\u0627\u0631\u062F\u0627\u062F" });
+  return { contractId: row.id, cancelled: true };
+}
+async function listContracts(db, nation, now = nowSeconds()) {
+  await settleContracts(db, nation.id, now);
+  const rows = await db.all(
+    sql`SELECT id, side, contract_type, resource_key, partner_key, quantity, unit_price, total, status, created_at, completes_at
+          FROM nation_contracts WHERE nation_id = ${nation.id} ORDER BY id DESC LIMIT 20`
+  );
+  return {
+    contracts: rows.map((r) => ({
+      id: Number(r.id),
+      side: String(r.side),
+      sideLabelFa: String(r.side) === "export" ? "\u0635\u0627\u062F\u0631\u0627\u062A" : "\u0648\u0627\u0631\u062F\u0627\u062A",
+      contractType: String(r.contract_type),
+      contractTypeLabelFa: contractTypeDef(String(r.contract_type))?.nameFa ?? String(r.contract_type),
+      resourceKey: String(r.resource_key),
+      partnerKey: String(r.partner_key),
+      partnerLabelFa: partnerDef(String(r.partner_key))?.nameFa ?? String(r.partner_key),
+      partnerFlag: partnerDef(String(r.partner_key))?.flag ?? "",
+      quantity: Number(r.quantity),
+      unitPrice: Number(r.unit_price),
+      total: Number(r.total),
+      status: String(r.status),
+      daysLeft: String(r.status) === "active" ? Math.max(0, Math.ceil((Number(r.completes_at) - now) / 86400)) : null,
+      createdAt: toIso(Number(r.created_at)),
+      completesAt: toIso(Number(r.completes_at))
+    }))
+  };
+}
+async function tradeHistory(db, nationId, limit = 20) {
+  const rows = await db.all(
+    sql`SELECT id, kind, resource_key, partner_key, quantity, unit_price, total, created_at
+          FROM trade_log WHERE nation_id = ${nationId} ORDER BY id DESC LIMIT ${Math.min(50, Math.max(1, limit))}`
+  );
+  const kindFa2 = { import: "\u0648\u0627\u0631\u062F\u0627\u062A", export: "\u0635\u0627\u062F\u0631\u0627\u062A", contract_create: "\u0642\u0631\u0627\u0631\u062F\u0627\u062F (\u0627\u06CC\u062C\u0627\u062F)", contract_settle: "\u0642\u0631\u0627\u0631\u062F\u0627\u062F (\u062A\u0633\u0648\u06CC\u0647)", contract_cancel: "\u0642\u0631\u0627\u0631\u062F\u0627\u062F (\u0644\u063A\u0648)" };
+  return {
+    rows: rows.map((r) => ({
+      id: Number(r.id),
+      kind: String(r.kind),
+      kindLabelFa: kindFa2[String(r.kind)] ?? String(r.kind),
+      resourceKey: String(r.resource_key),
+      partnerKey: String(r.partner_key),
+      partnerLabelFa: partnerDef(String(r.partner_key))?.nameFa ?? String(r.partner_key),
+      partnerFlag: partnerDef(String(r.partner_key))?.flag ?? "",
+      quantity: Number(r.quantity),
+      unitPrice: Number(r.unit_price),
+      total: Number(r.total),
+      createdAt: toIso(Number(r.created_at))
+    }))
+  };
+}
+async function budgetAllocate(db, nation, potKey, amount, now = nowSeconds()) {
+  const pot = BUDGET_POTS.find((p) => p.key === potKey);
+  if (!pot) throw ApiError.validation("\u0633\u0631\u0641\u0635\u0644 \u0628\u0648\u062F\u062C\u0647 \u0645\u0639\u062A\u0628\u0631 \u0646\u06CC\u0633\u062A.");
+  const qty = Math.floor(Number(amount));
+  if (!Number.isFinite(qty) || qty <= 0) throw ApiError.validation("\u0645\u0628\u0644\u063A \u0646\u0627\u0645\u0639\u062A\u0628\u0631 \u0627\u0633\u062A.");
+  if (nation.treasury < qty) throw ApiError.validation("\u0645\u0648\u062C\u0648\u062F\u06CC \u0646\u0627\u06A9\u0627\u0641\u06CC \u0627\u0633\u062A.");
+  const batch = [
+    sql`UPDATE nations SET treasury = treasury - ${qty}, updated_at = ${now} WHERE id = ${nation.id}`,
+    sql`INSERT INTO nation_budget_pots (nation_id, pot_key, amount, updated_at)
+         VALUES (${nation.id}, ${pot.key}, ${qty}, ${now})
+         ON CONFLICT (nation_id, pot_key) DO UPDATE SET amount = amount + ${qty}, updated_at = ${now}`
+  ];
+  await ledger(batch, nation, "budget_transfer", -qty, `\u0648\u0627\u0631\u06CC\u0632 \u0628\u0647 ${pot.nameFa}`, "budget", null, now, { potKey: pot.key });
+  batch.push(sql`UPDATE nation_economy SET total_spent = total_spent + ${qty}, updated_at = ${now} WHERE nation_id = ${nation.id}`);
+  await db.batch(batch);
+  return { potKey: pot.key, allocated: qty, treasury: nation.treasury - qty };
+}
+async function budgetWithdraw(db, nation, potKey, amount, now = nowSeconds()) {
+  const pot = BUDGET_POTS.find((p) => p.key === potKey);
+  if (!pot) throw ApiError.validation("\u0633\u0631\u0641\u0635\u0644 \u0628\u0648\u062F\u062C\u0647 \u0645\u0639\u062A\u0628\u0631 \u0646\u06CC\u0633\u062A.");
+  const qty = Math.floor(Number(amount));
+  if (!Number.isFinite(qty) || qty <= 0) throw ApiError.validation("\u0645\u0628\u0644\u063A \u0646\u0627\u0645\u0639\u062A\u0628\u0631 \u0627\u0633\u062A.");
+  const row = await db.first(sql`SELECT amount FROM nation_budget_pots WHERE nation_id = ${nation.id} AND pot_key = ${pot.key}`);
+  const current = Number(row?.amount ?? 0);
+  if (current < qty) throw ApiError.validation("\u0645\u0648\u062C\u0648\u062F\u06CC \u0627\u06CC\u0646 \u0633\u0631\u0641\u0635\u0644 \u06A9\u0627\u0641\u06CC \u0646\u06CC\u0633\u062A.");
+  const batch = [
+    sql`UPDATE nation_budget_pots SET amount = amount - ${qty}, updated_at = ${now} WHERE nation_id = ${nation.id} AND pot_key = ${pot.key} AND amount >= ${qty}`,
+    sql`UPDATE nations SET treasury = treasury + ${qty}, updated_at = ${now} WHERE id = ${nation.id}`
+  ];
+  await ledger(batch, nation, "budget_transfer", qty, `\u0628\u0631\u062F\u0627\u0634\u062A \u0627\u0632 ${pot.nameFa}`, "budget", null, now, { potKey: pot.key });
+  await db.batch(batch);
+  return { potKey: pot.key, withdrawn: qty, treasury: nation.treasury + qty };
 }
 
 // apps/worker/src/api/routes/player.ts
@@ -15000,7 +15497,88 @@ playerRoutes.post("/bank/loan", async (c) => {
 });
 playerRoutes.post("/bank/loan/repay", async (c) => {
   const db = c.get("db");
-  const result = await repayLoan(db, c.get("nation"));
+  const body = await c.req.json().catch(() => ({}));
+  const amount = typeof body.amount === "number" ? Number(body.amount) : void 0;
+  const result = await repayLoan(db, c.get("nation"), nowSeconds(), amount);
+  return c.json(result);
+});
+playerRoutes.get("/bank/loans", async (c) => {
+  const db = c.get("db");
+  return c.json(await listLoans(db, c.get("nation").id));
+});
+playerRoutes.get("/resources", async (c) => {
+  const db = c.get("db");
+  return c.json(await resourceState(db, c.get("nation")));
+});
+playerRoutes.post("/resources/:key/extract", async (c) => {
+  const db = c.get("db");
+  const body = parse(external_exports2.object({ amount: external_exports2.coerce.number().positive() }), await parseJson(c));
+  const result = await extract(db, c.get("nation"), c.req.param("key"), body.amount);
+  return c.json(result);
+});
+playerRoutes.post("/resources/:key/sell", async (c) => {
+  const db = c.get("db");
+  const body = parse(external_exports2.object({ amount: external_exports2.coerce.number().positive(), partnerKey: external_exports2.string().optional() }), await parseJson(c));
+  const result = await sellResource(db, c.get("nation"), c.req.param("key"), body.amount, body.partnerKey ?? null);
+  return c.json(result);
+});
+playerRoutes.post("/trade/import", async (c) => {
+  const db = c.get("db");
+  const body = parse(external_exports2.object({ resourceKey: external_exports2.string().min(1), quantity: external_exports2.coerce.number().positive(), partnerKey: external_exports2.string().min(1) }), await parseJson(c));
+  const result = await importResource(db, c.get("nation"), body.resourceKey, body.quantity, body.partnerKey);
+  return c.json(result);
+});
+playerRoutes.post("/trade/export", async (c) => {
+  const db = c.get("db");
+  const body = parse(external_exports2.object({ resourceKey: external_exports2.string().min(1), quantity: external_exports2.coerce.number().positive(), partnerKey: external_exports2.string().min(1) }), await parseJson(c));
+  const result = await sellResource(db, c.get("nation"), body.resourceKey, body.quantity, body.partnerKey);
+  return c.json(result);
+});
+playerRoutes.get("/trade/history", async (c) => {
+  const db = c.get("db");
+  return c.json(await tradeHistory(db, c.get("nation").id, Number(c.req.query("limit") ?? 20)));
+});
+playerRoutes.post("/refinery/start", async (c) => {
+  const db = c.get("db");
+  const body = parse(external_exports2.object({ recipeKey: external_exports2.string().min(1) }), await parseJson(c));
+  const result = await startRefinery(db, c.get("nation"), body.recipeKey);
+  return c.json(result);
+});
+playerRoutes.get("/contracts", async (c) => {
+  const db = c.get("db");
+  return c.json(await listContracts(db, c.get("nation")));
+});
+playerRoutes.post("/contracts", async (c) => {
+  const db = c.get("db");
+  const body = parse(
+    external_exports2.object({
+      side: external_exports2.enum(["export", "import"]),
+      contractType: external_exports2.string().min(1),
+      resourceKey: external_exports2.string().min(1),
+      partnerKey: external_exports2.string().min(1),
+      quantity: external_exports2.coerce.number().positive()
+    }),
+    await parseJson(c)
+  );
+  const result = await createContract(db, c.get("nation"), body);
+  return c.json(result);
+});
+playerRoutes.post("/contracts/:id/cancel", async (c) => {
+  const db = c.get("db");
+  const id = Number(c.req.param("id"));
+  const result = await cancelContract(db, c.get("nation"), id);
+  return c.json(result);
+});
+playerRoutes.post("/budget/allocate", async (c) => {
+  const db = c.get("db");
+  const body = parse(external_exports2.object({ potKey: external_exports2.string().min(1), amount: external_exports2.coerce.number().positive() }), await parseJson(c));
+  const result = await budgetAllocate(db, c.get("nation"), body.potKey, body.amount);
+  return c.json(result);
+});
+playerRoutes.post("/budget/withdraw", async (c) => {
+  const db = c.get("db");
+  const body = parse(external_exports2.object({ potKey: external_exports2.string().min(1), amount: external_exports2.coerce.number().positive() }), await parseJson(c));
+  const result = await budgetWithdraw(db, c.get("nation"), body.potKey, body.amount);
   return c.json(result);
 });
 playerRoutes.get("/buildings", async (c) => {

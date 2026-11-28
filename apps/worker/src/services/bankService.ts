@@ -166,19 +166,26 @@ export async function takeLoan(db: Db, nation: NationRow, principal: number, now
   return { principal: allowed, repayAmount, dueAt, treasury: Number(after?.treasury ?? nation.treasury + allowed) };
 }
 
-/** repays the active loan early or on due date; treasury may never go negative */
-export async function repayLoan(db: Db, nation: NationRow, now = nowSeconds()) {
+/** repays the active loan early or on due date; treasury may never go negative.
+ *  Optional `partial` pays a smaller amount against the outstanding repay amount (the «پرداخت بدهی» screen). */
+export async function repayLoan(db: Db, nation: NationRow, now = nowSeconds(), partial?: number) {
   const loan = await activeLoan(db, nation.id);
   if (!loan) throw ApiError.validation('وامی برای بازپرداخت ندارید.');
-  const repayAmount = Number(loan.repay_amount);
+  const fullAmount = Number(loan.repay_amount);
+  const repayAmount = partial === undefined ? fullAmount : Math.floor(Number(partial));
+  if (!Number.isFinite(repayAmount) || repayAmount <= 0) throw ApiError.validation('مبلغ بازپرداخت نامعتبر است.');
+  if (repayAmount > fullAmount) throw ApiError.validation('مبلغ بازپرداخت بیشتر از باقی‌ماندهٔ بدهی است.');
   if (nation.treasury < repayAmount) {
     throw ApiError.validation(`موجودی خزانه (${nation.treasury.toLocaleString('en-US')} سکه) برای بازپرداخت وام (${repayAmount.toLocaleString('en-US')} سکه) کافی نیست.`);
   }
+  const isPartial = repayAmount < fullAmount;
   const at = now;
-  const idempotencyKey = `loan-repay:${loan.id}`;
+  const idempotencyKey = isPartial ? `loan-repay:${loan.id}:${at}:${repayAmount}` : `loan-repay:${loan.id}`;
   try {
     await db.batch([
-      sql`UPDATE nation_loans SET status = 'repaid', repaid_at = ${at} WHERE id = ${loan.id} AND status = 'active'`,
+      isPartial
+        ? sql`UPDATE nation_loans SET repay_amount = repay_amount - ${repayAmount} WHERE id = ${loan.id} AND status = 'active' AND repay_amount >= ${repayAmount}`
+        : sql`UPDATE nation_loans SET status = 'repaid', repaid_at = ${at} WHERE id = ${loan.id} AND status = 'active'`,
       sql`UPDATE nations SET treasury = treasury - ${repayAmount}, updated_at = ${at} WHERE id = ${nation.id}`,
       sql`INSERT INTO transactions (uuid, nation_id, type, amount, balance_before, balance_after, currency,
                                     idempotency_key, reference_type, reference_id, reason, meta, created_at)
@@ -211,7 +218,28 @@ export async function repayLoan(db: Db, nation: NationRow, now = nowSeconds()) {
     targetId: nation.id,
     before: { treasury: nation.treasury },
     after: { treasury: Number(after?.treasury ?? 0), repayAmount },
-    reason: 'تسویه وام بانکی',
+    reason: isPartial ? 'پرداخت جزئی بدهی بانکی' : 'تسویه وام بانکی',
   });
-  return { repayAmount, treasury: Number(after?.treasury ?? nation.treasury - repayAmount) };
+  return { repayAmount, partial: isPartial, remaining: isPartial ? fullAmount - repayAmount : 0, treasury: Number(after?.treasury ?? nation.treasury - repayAmount) };
+}
+
+/** تاریخچهٔ همهٔ وام‌های کشور — برای صفحهٔ «تاریخچه وام‌ها» */
+export async function listLoans(db: Db, nationId: number, limit = 20) {
+  const rows = await db.all<{ id: number; principal: number; repay_amount: number; interest_rate: number; status: string; created_at: number; due_at: number; repaid_at: number | null }>(
+    sql`SELECT id, principal, repay_amount, interest_rate, status, created_at, due_at, repaid_at
+          FROM nation_loans WHERE nation_id = ${nationId} ORDER BY id DESC LIMIT ${Math.min(50, Math.max(1, limit))}`,
+  );
+  return {
+    loans: rows.map((r) => ({
+      id: Number(r.id),
+      principal: Number(r.principal),
+      repayAmount: Number(r.repay_amount),
+      interestRate: Number(r.interest_rate),
+      status: String(r.status),
+      statusLabelFa: String(r.status) === 'active' ? 'فعال' : String(r.status) === 'repaid' ? 'تسویه‌شده' : String(r.status),
+      createdAt: toIso(Number(r.created_at)),
+      dueAt: toIso(Number(r.due_at)),
+      repaidAt: r.repaid_at ? toIso(Number(r.repaid_at)) : null,
+    })),
+  };
 }

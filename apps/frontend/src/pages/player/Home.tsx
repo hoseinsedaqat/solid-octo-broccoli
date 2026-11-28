@@ -120,7 +120,7 @@ export function PlayerHome() {
             { p: '/app/friends', t: '🕊️ دیپلماسی' },
             { p: '/app/bank', t: '🏦 بانک' },
             { p: '/app/build', t: '🏗️ ساخت‌وساز' },
-            { p: '/app/ranking', t: '🏆 رتبه‌بندی' },
+            { p: '/app/manage', t: '🏛️ مدیریت کشور' },
           ].map((b) => (
             <button key={b.p} className="ww-btn justify-center py-3" onClick={() => navigate(b.p)}>
               {b.t}

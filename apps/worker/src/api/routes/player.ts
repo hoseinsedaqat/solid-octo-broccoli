@@ -11,8 +11,9 @@ import { listTransactions, treasuryHistory } from '../../services/financeService
 import { listNotifications, markRead, unreadCount } from '../../services/notificationService';
 import { DEFENSE_ARRANGEMENT_KEYS, DEFENSE_ARRANGEMENT } from '@ww/shared';
 import { claimDailyPrize, prizeState, publicPrizes } from '../../services/dailyPrizeService';
-import { bankState, claimIncome, repayLoan, takeLoan } from '../../services/bankService';
+import { bankState, claimIncome, listLoans, repayLoan, takeLoan } from '../../services/bankService';
 import { buildState, construct } from '../../services/buildService';
+import { resourceState, extract as extractResource, sellResource, importResource, startRefinery, createContract, cancelContract, listContracts, tradeHistory, budgetAllocate, budgetWithdraw } from '../../services/resourceService';
 import type { HonoEnv } from '../../types';
 
 export const playerRoutes = new Hono<HonoEnv>();
@@ -163,10 +164,108 @@ playerRoutes.post('/bank/loan', async (c) => {
   return c.json(result);
 });
 
-/** بازپرداخت (تسویه) وام فعال — زودتر از موعد هم مجاز است */
+/** بازپرداخت (تسویه) وام فعال — زودتر از موعد هم مجاز است؛ «amount» اختیاری = پرداخت جزئی */
 playerRoutes.post('/bank/loan/repay', async (c) => {
   const db = c.get('db');
-  const result = await repayLoan(db, c.get('nation'));
+  const body = await c.req.json().catch(() => ({}));
+  const amount = typeof (body as { amount?: unknown }).amount === 'number' ? Number((body as { amount: number }).amount) : undefined;
+  const result = await repayLoan(db, c.get('nation'), nowSeconds(), amount);
+  return c.json(result);
+});
+
+playerRoutes.get('/bank/loans', async (c) => {
+  const db = c.get('db');
+  return c.json(await listLoans(db, c.get('nation').id));
+});
+
+/* --------------------------- 🛢️ منابع طبیعی کشور --------------------------- */
+
+playerRoutes.get('/resources', async (c) => {
+  const db = c.get('db');
+  return c.json(await resourceState(db, c.get('nation')));
+});
+
+/** استخراج از میدان — هزینهٔ ثابت هر عملیات؛ مقدار در هر عملیات ≤ ظرفیت میدان */
+playerRoutes.post('/resources/:key/extract', async (c) => {
+  const db = c.get('db');
+  const body = parse(z.object({ amount: z.coerce.number().positive() }), await parseJson(c));
+  const result = await extractResource(db, c.get('nation'), c.req.param('key'), body.amount);
+  return c.json(result);
+});
+
+/** فروش در بازار منابع (یا صادرات، در صورت دادن partnerKey) */
+playerRoutes.post('/resources/:key/sell', async (c) => {
+  const db = c.get('db');
+  const body = parse(z.object({ amount: z.coerce.number().positive(), partnerKey: z.string().optional() }), await parseJson(c));
+  const result = await sellResource(db, c.get('nation'), c.req.param('key'), body.amount, body.partnerKey ?? null);
+  return c.json(result);
+});
+
+playerRoutes.post('/trade/import', async (c) => {
+  const db = c.get('db');
+  const body = parse(z.object({ resourceKey: z.string().min(1), quantity: z.coerce.number().positive(), partnerKey: z.string().min(1) }), await parseJson(c));
+  const result = await importResource(db, c.get('nation'), body.resourceKey, body.quantity, body.partnerKey);
+  return c.json(result);
+});
+
+playerRoutes.post('/trade/export', async (c) => {
+  const db = c.get('db');
+  const body = parse(z.object({ resourceKey: z.string().min(1), quantity: z.coerce.number().positive(), partnerKey: z.string().min(1) }), await parseJson(c));
+  const result = await sellResource(db, c.get('nation'), body.resourceKey, body.quantity, body.partnerKey);
+  return c.json(result);
+});
+
+playerRoutes.get('/trade/history', async (c) => {
+  const db = c.get('db');
+  return c.json(await tradeHistory(db, c.get('nation').id, Number(c.req.query('limit') ?? 20)));
+});
+
+playerRoutes.post('/refinery/start', async (c) => {
+  const db = c.get('db');
+  const body = parse(z.object({ recipeKey: z.string().min(1) }), await parseJson(c));
+  const result = await startRefinery(db, c.get('nation'), body.recipeKey);
+  return c.json(result);
+});
+
+playerRoutes.get('/contracts', async (c) => {
+  const db = c.get('db');
+  return c.json(await listContracts(db, c.get('nation')));
+});
+
+playerRoutes.post('/contracts', async (c) => {
+  const db = c.get('db');
+  const body = parse(
+    z.object({
+      side: z.enum(['export', 'import']),
+      contractType: z.string().min(1),
+      resourceKey: z.string().min(1),
+      partnerKey: z.string().min(1),
+      quantity: z.coerce.number().positive(),
+    }),
+    await parseJson(c),
+  );
+  const result = await createContract(db, c.get('nation'), body);
+  return c.json(result);
+});
+
+playerRoutes.post('/contracts/:id/cancel', async (c) => {
+  const db = c.get('db');
+  const id = Number(c.req.param('id'));
+  const result = await cancelContract(db, c.get('nation'), id);
+  return c.json(result);
+});
+
+playerRoutes.post('/budget/allocate', async (c) => {
+  const db = c.get('db');
+  const body = parse(z.object({ potKey: z.string().min(1), amount: z.coerce.number().positive() }), await parseJson(c));
+  const result = await budgetAllocate(db, c.get('nation'), body.potKey, body.amount);
+  return c.json(result);
+});
+
+playerRoutes.post('/budget/withdraw', async (c) => {
+  const db = c.get('db');
+  const body = parse(z.object({ potKey: z.string().min(1), amount: z.coerce.number().positive() }), await parseJson(c));
+  const result = await budgetWithdraw(db, c.get('nation'), body.potKey, body.amount);
   return c.json(result);
 });
 

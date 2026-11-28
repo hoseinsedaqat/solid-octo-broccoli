@@ -6,6 +6,7 @@ import { Badge, Loading, fa } from '../ui';
 
 const PLAYER_NAV: { path: string; label: string; emoji: string }[] = [
   { path: '/app/player', label: 'خانه', emoji: '🏠' },
+  { path: '/app/manage', label: 'مدیریت', emoji: '🏛️' },
   { path: '/app/shop', label: 'فروشگاه', emoji: '🛒' },
   { path: '/app/military', label: 'نظامی', emoji: '🛡️' },
   { path: '/app/wars', label: 'جنگ', emoji: '⚔️' },
@@ -114,7 +115,8 @@ export function Shell({ children }: { children: ReactNode }) {
       <nav className="sticky top-[52px] z-20 overflow-x-auto border-b border-white/5 bg-ink-900/80 px-2 py-2 backdrop-blur" style={{ scrollbarWidth: 'none' }}>
         <div className="flex gap-1">
           {nav.map((item) => {
-            const isActive = item.path === path || (item.path !== '/app/player' && item.path !== '/app/admin' && path.startsWith(item.path));
+            const MANAGE_PREFIXES = ['/app/manage', '/app/soon', '/app/resources', '/app/market', '/app/trade', '/app/contracts', '/app/economy-hub', '/app/economy'];
+            const isActive = item.path === path || (item.path !== '/app/player' && item.path !== '/app/admin' && path.startsWith(item.path)) || (item.path === '/app/manage' && MANAGE_PREFIXES.some((pre) => path.startsWith(pre)));
             return (
               <button key={item.path} className={`ww-tab ww-focus ${isActive ? 'ww-nav-active' : 'hover:bg-white/5'}`} onClick={() => navigate(item.path)} aria-current={isActive ? 'page' : undefined}>
                 <span className="ml-1">{item.emoji}</span>
