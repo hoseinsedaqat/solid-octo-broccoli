@@ -20,7 +20,7 @@ import { listIncoming, decideRequest, listRelations } from '../services/diplomac
 import { createStatement, listMyStatements } from '../services/statementService';
 import { prizeState, claimDailyPrize } from '../services/dailyPrizeService';
 import { bankState, claimIncome, takeLoan, repayLoan } from '../services/bankService';
-import { buildState, construct } from '../services/buildService';
+import { buildState, buildSpeed, construct } from '../services/buildService';
 import { listRankings } from '../services/newsService';
 import { configureTelegramApiBase, TelegramApi, escapeHtml, coins, type TgCallbackQuery, type TgMessage, type TgUpdate, type InlineKeyboardButton, type KeyboardRow } from './telegram';
 import { backButton, CATEGORY_BACK_TEXT, CATEGORY_ENTRY_TEXT, CATEGORY_KEYPAD, CATEGORY_TO_KEY, flagKeyboard, formatNumber, formatNumber as fmt, mainMenu, moreMenu, pager, percent, REPLY_MENU, REPLY_TO_LABEL, statLine, yesNoRows } from './ui';
@@ -786,19 +786,26 @@ async function handleCallback(ctx: BotCtx, cb: TgCallbackQuery, updateId: number
         if (sub === 'go') {
           const key = String(rest[1] ?? '');
           try {
-            const res = await construct(ctx.db, nation, key);
+            const res = await construct(ctx.db, nation, key, nowSeconds(), buildSpeed(ctx.env));
+            const doneLine = res.completed
+              ? res.kind === 'build'
+                ? `🏗️ <b>${escapeHtml(res.building.nameFa)}</b> ساخته شد!`
+                : `⏫ <b>${escapeHtml(res.building.nameFa)}</b> به سطح ${res.level} ارتقا یافت!`
+              : res.kind === 'build'
+                ? `🚧 پروژهٔ ساخت <b>${escapeHtml(res.building.nameFa)}</b> آغاز شد`
+                : `🚧 پروژهٔ ارتقای <b>${escapeHtml(res.building.nameFa)}</b> به سطح ${res.level} آغاز شد`;
             await ctx.tg.editMessageText(
               chatId,
               messageId,
               [
-                `🏗️ <b>${escapeHtml(res.building.nameFa)}</b> ساخته شد!`,
+                doneLine,
                 '',
                 `هزینه: <b>${fmt(res.cost)} سکه</b>`,
                 `موجودی خزانه: <b>${fmt(res.treasury)} سکه</b>`,
               ].join('\n'),
               [[{ text: '⬅️ بازگشت به ساخت‌وساز', callback_data: 'build:home' }]],
             );
-            await answer('سازه ساخته شد 🏗️');
+            await answer(res.completed ? 'انجام شد 🏗️' : 'پروژه آغاز شد 🚧');
             return { handled: 'build:go' };
           } catch (err) {
             const message = err instanceof Error ? err.message : 'خطایی رخ داد.';
@@ -1902,24 +1909,34 @@ async function editBankLoan(ctx: BotCtx, chatId: number, messageId: number, nati
 /* --------------------------- 🏗️ وزارت ساخت‌وساز --------------------------- */
 
 function buildingsScreenText(state: Awaited<ReturnType<typeof buildState>>): string {
+  const projectLines = state.projects.length
+    ? ['', '🚧 <b>پروژه‌های در حال ساخت:</b>', ...state.projects.map((p) => `${p.emoji} ${escapeHtml(p.nameFa)} — ${p.kind === 'build' ? 'ساخت' : 'ارتقا به سطح ' + p.targetLevel} · ${p.progressPercent}٪ · ${escapeHtml(p.remainingFa)} باقی‌مانده`)]
+    : [];
   return [
     '🏗️ <b>وزارت ساخت‌وساز</b>',
     '',
     'فرمانده، برای توسعه کشور خود سازه‌های جدید بساز.',
     '',
     `💰 موجودی خزانه: <b>${fmt(state.treasury)} سکه</b>`,
-    `سازه‌های ساخته‌شده: <b>${state.builtCount}</b> از ${state.totalCount}`,
+    `سازه‌های ساخته‌شده: <b>${state.builtCount}</b> از ${state.totalCount} · پروژه‌های باز: <b>${state.activeProjectCount}</b> از ${state.maxConcurrent}`,
+    ...projectLines,
     '',
-    'برای ساخت یک سازه، دکمهٔ آن را بزنید:',
+    'برای ساخت یا ارتقای یک سازه، دکمهٔ آن را بزنید:',
   ].join('\n');
 }
 
 function buildingsRows(state: Awaited<ReturnType<typeof buildState>>): KeyboardRow<InlineKeyboardButton>[] {
   const rows: KeyboardRow<InlineKeyboardButton>[] = state.buildings.map((b) => [
-    {
-      text: b.built ? `${b.emoji} ${b.nameFa} ✅ ساخته شد` : `${b.emoji} ${b.nameFa} — ${fmt(b.cost)} سکه`,
-      callback_data: b.built ? 'noop' : `build:ask:${b.key}`,
-    },
+    b.activeProjectId
+      ? { text: `${b.emoji} ${b.nameFa} — 🚧 در حال ساخت`, callback_data: 'noop' } as InlineKeyboardButton
+      : {
+          text: b.built
+            ? b.nextAction === 'upgrade'
+              ? `${b.emoji} ${b.nameFa} ✅ سطح ${b.level} — ارتقا ${fmt(b.nextCost)} سکه`
+              : `${b.emoji} ${b.nameFa} ✅ حداکثر سطح`
+            : `${b.emoji} ${b.nameFa} — ${fmt(b.cost)} سکه`,
+          callback_data: b.nextAction === 'max' ? 'noop' : `build:ask:${b.key}`,
+        },
   ]);
   rows.push([{ text: 'بازگشت به منوی اصلی ⬅ BACK', callback_data: 'm' }]);
   return rows;

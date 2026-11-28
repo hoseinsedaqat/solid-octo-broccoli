@@ -10,12 +10,12 @@ export function ManagePage() {
   const tiles: { emoji: string; label: string; to: string }[] = [
     { emoji: '💰', label: 'اقتصاد کشور', to: '/app/economy-hub' },
     { emoji: '🛢️', label: 'منابع کشور', to: '/app/resources' },
-    { emoji: '🏭', label: 'صنایع و تولید', to: '/app/soon?title=صنایع%20و%20تولید&emoji=🏭' },
+    { emoji: '🏭', label: 'صنایع و تولید', to: '/app/industries' },
     { emoji: '🏗️', label: 'ساخت‌وساز', to: '/app/build' },
-    { emoji: '🪖', label: 'مدیریت ارتش', to: '/app/military' },
-    { emoji: '📦', label: 'انبار تجهیزات', to: '/app/military' },
-    { emoji: '👥', label: 'مدیریت جمعیت', to: '/app/soon?title=مدیریت%20جمعیت&emoji=👥' },
-    { emoji: '🛡️', label: 'امنیت کشور', to: '/app/soon?title=امنیت%20کشور&emoji=🛡️' },
+    { emoji: '🪖', label: 'مدیریت ارتش', to: '/app/army' },
+    { emoji: '📦', label: 'انبار تجهیزات', to: '/app/arsenal' },
+    { emoji: '👥', label: 'مدیریت جمعیت', to: '/app/population' },
+    { emoji: '🛡️', label: 'امنیت کشور', to: '/app/security' },
   ];
 
   return (

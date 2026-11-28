@@ -126,11 +126,12 @@ export async function execScript(db: D1Database, sql: string): Promise<number> {
 
 export const BOT_TOKEN = '123456:TEST-token-for-harness-only';
 
-export const MIGRATIONS = ['0001_init.sql', '0002_rate_limits.sql', '0003_war_attack_plan.sql', '0004_attack_plan_remaining.sql', '0005_defense_plan_daily_prizes.sql', '0006_transactions_prize_type.sql', '0007_central_bank.sql', '0008_nation_buildings.sql', '0009_resources.sql'].map((f) => ({
+export const MIGRATIONS = ['0001_init.sql', '0002_rate_limits.sql', '0003_war_attack_plan.sql', '0004_attack_plan_remaining.sql', '0005_defense_plan_daily_prizes.sql', '0006_transactions_prize_type.sql', '0007_central_bank.sql', '0008_nation_buildings.sql', '0009_resources.sql', '0010_catalog_operations.sql'].map((f) => ({
   name: f,
   sql: readFileSync(join(ROOT, 'apps/worker/migrations', f), 'utf8'),
 }));
 export const SEED_SQL = readFileSync(join(ROOT, 'apps/worker/seeds/seed.sql'), 'utf8');
+export const CATALOG_SQL = readFileSync(join(ROOT, 'apps/worker/seeds/catalog.sql'), 'utf8');
 
 export interface SentTelegramCall {
   method: string;
@@ -217,6 +218,7 @@ export async function createWorld(opts: { adminIds?: string; env?: Record<string
   const db = (await mf.getD1Database('DB')) as unknown as D1Database;
   for (const m of MIGRATIONS) await execScript(db, m.sql);
   await execScript(db, SEED_SQL);
+  await execScript(db, CATALOG_SQL);
 
   const api: World['api'] = async (method, path, a = {}) => {
     const res = await mf.dispatchFetch('http://miniflare.test' + path, {

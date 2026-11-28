@@ -37,30 +37,44 @@ describe('shop catalogue', () => {
     expect(res.json.enabled).toBe(true);
   });
 
-  it('marks every un-priced item as not purchasable instead of inventing a price', async () => {
+  it('marks un-priced items as not purchasable instead of inventing a price', async () => {
+    // کاتالوگ همه‌چیز را قیمت‌گذاری کرده؛ اما اصل «بدون قیمت = غیرقابل‌خرید» برای آیتم‌های آینده ادمین هم باید برقرار بماند
+    const create = await world.api('POST', '/api/admin/shop/equipment', {
+      token: adminToken,
+      body: { categoryKey: 'tanks', code: 'qa_unpriced_template', nameFa: 'تانک آزمایشی بدون قیمت', unitFa: 'عدد' },
+    });
+    expect(create.status).toBe(200);
+    const qaId = Number(create.json.id);
     const res = await world.api('GET', '/api/shop/category/tanks', { token: tokenA });
     expect(res.status).toBe(200);
-    expect(res.json.items.length).toBeGreaterThan(0);
-    for (const item of res.json.items) {
-      expect(item.price).toBeNull();
-      expect(item.purchasable).toBe(false);
-      expect(item.disabledReason).toContain('قیمت');
-    }
+    const item = res.json.items.find((i: any) => i.templateId === qaId);
+    expect(item).toBeTruthy();
+    expect(item.price).toBeNull();
+    expect(item.purchasable).toBe(false);
+    expect(String(item.disabledReason)).toContain('قیمت');
     const unpriced = await first<{ c: number }>(world.db, `SELECT COUNT(*) AS c FROM v_unpriced_equipment`);
     expect(Number(unpriced!.c)).toBeGreaterThan(0);
+    await world.api('POST', `/api/admin/shop/equipment/${qaId}/delete`, { token: adminToken });
   });
 
   it('refuses to sell an item the admin has not priced, without touching the inventory', async () => {
+    const create = await world.api('POST', '/api/admin/shop/equipment', {
+      token: adminToken,
+      body: { categoryKey: 'tanks', code: 'qa_refusal_template', nameFa: 'تانک نخریدنی تست', unitFa: 'عدد' },
+    });
+    expect(create.status).toBe(200);
+    const qaId = Number(create.json.id);
     const invBefore = await all(world.db, `SELECT * FROM nation_inventory WHERE nation_id = ?`, nationA);
     const res = await world.api('POST', '/api/shop/purchase', {
       token: tokenA,
-      body: { templateId: tankTemplateId, quantity: 1, idempotencyKey: 'try-unpriced-0001' },
+      body: { templateId: qaId, quantity: 1, idempotencyKey: 'try-unpriced-0001' },
     });
     expect(res.status).toBeGreaterThanOrEqual(400);
     expect(res.json.error.code).toBeTruthy();
     const invAfter = await all(world.db, `SELECT * FROM nation_inventory WHERE nation_id = ?`, nationA);
     expect(invAfter).toHaveLength(invBefore.length);
     expect(await first(world.db, `SELECT id FROM transactions WHERE idempotency_key = 'buy:${nationA}:try-unpriced-0001'`)).toBeNull();
+    await world.api('POST', `/api/admin/shop/equipment/${qaId}/delete`, { token: adminToken });
   });
 });
 

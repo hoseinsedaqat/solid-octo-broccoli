@@ -13,7 +13,7 @@ function starterUnitCount(category) {
   const list = STARTER_PACK[category];
   return (list ?? []).reduce((sum, item) => sum + item.quantity, 0);
 }
-var EQUIPMENT_CATEGORIES, STARTER_PACK, STARTER_ECONOMY, FACTORY_COUNT_IN_STARTER, MINE_COUNT_IN_STARTER, DERIVED_FACTORY_INCOME_PER_UNIT, DERIVED_MINE_INCOME_PER_UNIT, FLAG_CHOICES, RELATION_STATUSES, RELATION_LABELS_FA, ROLES, RESOURCES, RESOURCE_KEYS, REFINED_PRODUCTS, REFINERY_RECIPES, TRADE_PARTNERS, IMPORT_SHIPPING_FEE, CONTRACT_TERM_DAYS, CONTRACT_TYPES, BUDGET_POTS, BUILDINGS, BUILDING_KEYS, BANK_LOAN, TRANSACTION_TYPE_LABELS_FA, WAR_STATUS_LABELS_FA, DIPLOMACY_REQUEST_KINDS, STATEMENT_STATUS_LABELS_FA, RANKING_METRICS, DEFAULT_RANKING_WEIGHTS, DEFAULT_BATTLE_PARAMS, DEFAULT_PROFILE_RULES, DEFAULT_DIPLOMACY_RULES, DEFAULT_ECONOMY_RULES, FEATURE_FLAGS, GAME_SETTING_KEYS, DEFAULT_BRANDING, DEFAULT_QUOTA_GUARD, ROUTES, PLAYER_PAGES, PLAYER_PAGE_META, ADMIN_SECTIONS, MAX_STATEMENT_CHARS, MIN_STATEMENT_CHARS, DEFENSE_ARRANGEMENT, DEFENSE_ARRANGEMENT_KEYS, DEFENSE_FORTIFICATION_TOKEN, DAILY_PRIZES;
+var EQUIPMENT_CATEGORIES, STARTER_PACK, STARTER_ECONOMY, FACTORY_COUNT_IN_STARTER, MINE_COUNT_IN_STARTER, DERIVED_FACTORY_INCOME_PER_UNIT, DERIVED_MINE_INCOME_PER_UNIT, FLAG_CHOICES, RELATION_STATUSES, RELATION_LABELS_FA, ROLES, RESOURCES, RESOURCE_KEYS, REFINED_PRODUCTS, REFINERY_RECIPES, TRADE_PARTNERS, IMPORT_SHIPPING_FEE, CONTRACT_TERM_DAYS, CONTRACT_TYPES, BUDGET_POTS, BUILDINGS, BUILDING_UPGRADE_COST_FACTOR, BUILDING_MAX_LEVEL, MAX_CONCURRENT_PROJECTS, BUILDING_KEYS, BANK_LOAN, TRANSACTION_TYPE_LABELS_FA, WAR_STATUS_LABELS_FA, DIPLOMACY_REQUEST_KINDS, STATEMENT_STATUS_LABELS_FA, RANKING_METRICS, DEFAULT_RANKING_WEIGHTS, DEFAULT_BATTLE_PARAMS, DEFAULT_PROFILE_RULES, DEFAULT_DIPLOMACY_RULES, DEFAULT_ECONOMY_RULES, FEATURE_FLAGS, GAME_SETTING_KEYS, DEFAULT_BRANDING, DEFAULT_QUOTA_GUARD, ROUTES, PLAYER_PAGES, PLAYER_PAGE_META, ADMIN_SECTIONS, MAX_STATEMENT_CHARS, MIN_STATEMENT_CHARS, DEFENSE_ARRANGEMENT, DEFENSE_ARRANGEMENT_KEYS, DEFENSE_FORTIFICATION_TOKEN, DAILY_PRIZES;
 var init_constants = __esm({
   "shared/src/constants.ts"() {
     "use strict";
@@ -35,7 +35,8 @@ var init_constants = __esm({
       { key: "ships", labelFa: "\u0646\u0627\u0648\u0647\u0627", shopLabelFa: "\u062E\u0631\u06CC\u062F \u0646\u0627\u0648", emoji: "\u{1F6A2}", role: "offense" },
       { key: "transport_aircraft", labelFa: "\u0647\u0648\u0627\u067E\u06CC\u0645\u0627\u0647\u0627\u06CC \u062A\u0631\u0627\u0628\u0631\u06CC", shopLabelFa: "\u062E\u0631\u06CC\u062F \u0647\u0648\u0627\u067E\u06CC\u0645\u0627\u06CC \u062A\u0631\u0627\u0628\u0631\u06CC", emoji: "\u2708\uFE0F", role: "support" },
       { key: "fighters", labelFa: "\u062C\u0646\u06AF\u0646\u062F\u0647\u200C\u0647\u0627", shopLabelFa: "\u062E\u0631\u06CC\u062F \u062C\u0646\u06AF\u0646\u062F\u0647", emoji: "\u{1F6EB}", role: "offense" },
-      { key: "missiles", labelFa: "\u0645\u0648\u0634\u06A9\u200C\u0647\u0627", shopLabelFa: "\u062E\u0631\u06CC\u062F \u0645\u0648\u0634\u06A9", emoji: "\u{1F680}", role: "offense" }
+      { key: "missiles", labelFa: "\u0645\u0648\u0634\u06A9\u200C\u0647\u0627", shopLabelFa: "\u062E\u0631\u06CC\u062F \u0645\u0648\u0634\u06A9", emoji: "\u{1F680}", role: "offense" },
+      { key: "fuel", labelFa: "\u0633\u0648\u062E\u062A \u0646\u0638\u0627\u0645\u06CC", shopLabelFa: "\u062E\u0631\u06CC\u062F \u0633\u0648\u062E\u062A \u0646\u0638\u0627\u0645\u06CC", emoji: "\u26FD", role: "support" }
     ];
     STARTER_PACK = {
       tanks: [
@@ -193,13 +194,16 @@ var init_constants = __esm({
       { key: "public", emoji: "\u{1F4B5}", nameFa: "\u0628\u0648\u062F\u062C\u0647 \u0639\u0645\u0648\u0645\u06CC" }
     ];
     BUILDINGS = [
-      { key: "barracks", emoji: "\u{1FA96}", nameFa: "\u067E\u0627\u062F\u06AF\u0627\u0646 \u0646\u0638\u0627\u0645\u06CC", descFa: "\u0622\u0645\u0648\u0632\u0634 \u0648 \u062C\u0630\u0628 \u0633\u0631\u0628\u0627\u0632", cost: 1e4, grant: { kind: "units", templateCode: "rangers", quantity: 1e3 } },
-      { key: "airbase", emoji: "\u{1F6E9}\uFE0F", nameFa: "\u067E\u0627\u06CC\u06AF\u0627\u0647 \u0647\u0648\u0627\u06CC\u06CC", descFa: "\u0627\u0633\u062A\u0642\u0631\u0627\u0631 \u062C\u0646\u06AF\u0646\u062F\u0647\u200C\u0647\u0627", cost: 2e4, grant: { kind: "units", templateCode: "su57", quantity: 3 } },
-      { key: "factory", emoji: "\u{1F3ED}", nameFa: "\u06A9\u0627\u0631\u062E\u0627\u0646\u0647 \u0646\u0638\u0627\u0645\u06CC", descFa: "\u062A\u0648\u0644\u06CC\u062F \u062A\u062C\u0647\u06CC\u0632\u0627\u062A \u0646\u0638\u0627\u0645\u06CC", cost: 3e4, grant: { kind: "units", templateCode: "leopard_2a7", quantity: 25 } },
-      { key: "navalbase", emoji: "\u2693", nameFa: "\u067E\u0627\u06CC\u06AF\u0627\u0647 \u062F\u0631\u06CC\u0627\u06CC\u06CC", descFa: "\u0627\u0633\u062A\u0642\u0631\u0627\u0631 \u0646\u0627\u0648\u0647\u0627 \u0648 \u0632\u06CC\u0631\u062F\u0631\u06CC\u0627\u06CC\u06CC\u200C\u0647\u0627", cost: 25e3, grant: { kind: "units", templateCode: "nimitz", quantity: 1 } },
-      { key: "shelter", emoji: "\u{1F6E1}\uFE0F", nameFa: "\u067E\u0646\u0627\u0647\u06AF\u0627\u0647 \u0646\u0638\u0627\u0645\u06CC", descFa: "\u0627\u0641\u0632\u0627\u06CC\u0634 \u0645\u0642\u0627\u0648\u0645\u062A \u06A9\u0634\u0648\u0631", cost: 15e3, grant: { kind: "fortification", quantity: 2 } },
-      { key: "radar", emoji: "\u{1F4E1}", nameFa: "\u0645\u0631\u06A9\u0632 \u0631\u0627\u062F\u0627\u0631", descFa: "\u0627\u0641\u0632\u0627\u06CC\u0634 \u0634\u0646\u0627\u0633\u0627\u06CC\u06CC \u062A\u0647\u062F\u06CC\u062F\u0647\u0627", cost: 13e3, grant: { kind: "units", templateCode: "an_spy6", quantity: 3 } }
+      { key: "barracks", emoji: "\u{1FA96}", nameFa: "\u067E\u0627\u062F\u06AF\u0627\u0646 \u0646\u0638\u0627\u0645\u06CC", descFa: "\u0622\u0645\u0648\u0632\u0634 \u0648 \u062C\u0630\u0628 \u0633\u0631\u0628\u0627\u0632", cost: 1e4, durationSeconds: 7200, grant: { kind: "units", templateCode: "rangers", quantity: 1e3 } },
+      { key: "airbase", emoji: "\u{1F6E9}\uFE0F", nameFa: "\u067E\u0627\u06CC\u06AF\u0627\u0647 \u0647\u0648\u0627\u06CC\u06CC", descFa: "\u0627\u0633\u062A\u0642\u0631\u0627\u0631 \u062C\u0646\u06AF\u0646\u062F\u0647\u200C\u0647\u0627", cost: 2e4, durationSeconds: 10800, grant: { kind: "units", templateCode: "su57", quantity: 3 } },
+      { key: "factory", emoji: "\u{1F3ED}", nameFa: "\u06A9\u0627\u0631\u062E\u0627\u0646\u0647 \u0646\u0638\u0627\u0645\u06CC", descFa: "\u062A\u0648\u0644\u06CC\u062F \u062A\u062C\u0647\u06CC\u0632\u0627\u062A \u0646\u0638\u0627\u0645\u06CC", cost: 3e4, durationSeconds: 9e3, grant: { kind: "units", templateCode: "leopard_2a7", quantity: 25 } },
+      { key: "navalbase", emoji: "\u2693", nameFa: "\u067E\u0627\u06CC\u06AF\u0627\u0647 \u062F\u0631\u06CC\u0627\u06CC\u06CC", descFa: "\u0627\u0633\u062A\u0642\u0631\u0627\u0631 \u0646\u0627\u0648\u0647\u0627 \u0648 \u0632\u06CC\u0631\u062F\u0631\u06CC\u0627\u06CC\u06CC\u200C\u0647\u0627", cost: 25e3, durationSeconds: 10800, grant: { kind: "units", templateCode: "nimitz", quantity: 1 } },
+      { key: "shelter", emoji: "\u{1F6E1}\uFE0F", nameFa: "\u067E\u0646\u0627\u0647\u06AF\u0627\u0647 \u0646\u0638\u0627\u0645\u06CC", descFa: "\u0627\u0641\u0632\u0627\u06CC\u0634 \u0645\u0642\u0627\u0648\u0645\u062A \u06A9\u0634\u0648\u0631", cost: 15e3, durationSeconds: 7200, grant: { kind: "fortification", quantity: 2 } },
+      { key: "radar", emoji: "\u{1F4E1}", nameFa: "\u0645\u0631\u06A9\u0632 \u0631\u0627\u062F\u0627\u0631", descFa: "\u0627\u0641\u0632\u0627\u06CC\u0634 \u0634\u0646\u0627\u0633\u0627\u06CC\u06CC \u062A\u0647\u062F\u06CC\u062F\u0647\u0627", cost: 13e3, durationSeconds: 5400, grant: { kind: "units", templateCode: "an_spy6", quantity: 3 } }
     ];
+    BUILDING_UPGRADE_COST_FACTOR = 0.6;
+    BUILDING_MAX_LEVEL = 10;
+    MAX_CONCURRENT_PROJECTS = 3;
     BUILDING_KEYS = BUILDINGS.map((b) => b.key);
     BANK_LOAN = {
       options: [5e3, 1e4, 2e4],
@@ -5364,17 +5368,30 @@ var init_scoring = __esm({
 // apps/worker/src/game-engine/economy.ts
 function computeCycleIncome(snap, rules) {
   const multiplier = clamp(rules.globalMultiplier, 0, 100);
-  const extraFactories = snap.factoryCount - snap.starterFactoryCount;
-  const extraMines = snap.mineCount - snap.starterMineCount;
+  const flatFactories = snap.nullIncomeFactories ?? snap.factoryCount;
+  const flatMines = snap.nullIncomeMines ?? snap.mineCount;
+  const starterFlatFactories = snap.starterFlatFactories ?? snap.starterFactoryCount;
+  const starterFlatMines = snap.starterFlatMines ?? snap.starterMineCount;
+  const factoryFraction = snap.starterFactoryCount > 0 ? clamp(snap.factoryCount / snap.starterFactoryCount, 0, 1) : 1;
+  const mineFraction = snap.starterMineCount > 0 ? clamp(snap.mineCount / snap.starterMineCount, 0, 1) : 1;
+  const extraFactories = Math.max(0, flatFactories - starterFlatFactories);
+  const extraMines = Math.max(0, flatMines - starterFlatMines);
+  const templateFactoryIncome = Math.max(0, snap.templateFactoryIncome ?? 0);
+  const templateMineIncome = Math.max(0, snap.templateMineIncome ?? 0);
+  const baseFactoryIncome = snap.factoryIncome * factoryFraction;
+  const baseMineIncome = snap.mineIncome * mineFraction;
   const factoryIncomeEffective = Math.max(
     0,
-    Math.round((snap.factoryIncome + rules.factoryIncomePerUnit * extraFactories) * multiplier)
+    Math.round((baseFactoryIncome + rules.factoryIncomePerUnit * extraFactories + templateFactoryIncome) * multiplier)
   );
-  const mineIncomeEffective = Math.max(0, Math.round((snap.mineIncome + rules.mineIncomePerUnit * extraMines) * multiplier));
+  const mineIncomeEffective = Math.max(
+    0,
+    Math.round((baseMineIncome + rules.mineIncomePerUnit * extraMines + templateMineIncome) * multiplier)
+  );
   const grossIncome = Math.max(0, factoryIncomeEffective + mineIncomeEffective);
   const taxRate = clamp(snap.taxRateOverride ?? rules.taxRate, 0, 0.95);
   const taxCost = Math.floor(grossIncome * taxRate);
-  const maintenanceCost = Math.floor(grossIncome * clamp(rules.maintenanceRate, 0, 0.95)) + Math.max(0, snap.upkeepBase) + Math.max(0, snap.perUnitMaintenance);
+  const maintenanceCost = Math.floor(grossIncome * clamp(rules.maintenanceRate, 0, 0.95)) + Math.max(0, snap.upkeepBase) + Math.max(0, snap.perUnitMaintenance) + Math.max(0, snap.policeUpkeep ?? 0);
   const netIncome = grossIncome - taxCost - maintenanceCost;
   const cycleSeconds = Math.max(60, snap.cycleSecondsOverride ?? rules.incomeCycleSeconds);
   return { factoryIncomeEffective, mineIncomeEffective, grossIncome, taxCost, maintenanceCost, netIncome, cycleSeconds };
@@ -5440,9 +5457,11 @@ var init_ranking = __esm({
 // apps/worker/src/db/queries.ts
 var queries_exports = {};
 __export(queries_exports, {
+  POLICE_UPKEEP_PER_DAY: () => POLICE_UPKEEP_PER_DAY,
   assertNationAccess: () => assertNationAccess,
   categoryQuantities: () => categoryQuantities,
   computeNation: () => computeNation,
+  ensureNationExt: () => ensureNationExt,
   loadCategoryWeights: () => loadCategoryWeights,
   loadEconomyRow: () => loadEconomyRow,
   loadInventory: () => loadInventory,
@@ -5455,6 +5474,7 @@ __export(queries_exports, {
   refreshNationStats: () => refreshNationStats,
   relationCounts: () => relationCounts,
   relationLabel: () => relationLabel,
+  templateIncomeSums: () => templateIncomeSums,
   txLabel: () => txLabel,
   warLabel: () => warLabel
 });
@@ -5500,7 +5520,9 @@ async function loadEconomyRow(db, nationId) {
   return db.first(
     sql`SELECT nation_id, factory_income, mine_income, starter_factory_count, starter_mine_count,
                upkeep_base, gross_income, maintenance_cost, tax_cost, net_income,
-               total_income, total_spent, total_tax, war_loss_total
+               total_income, total_spent, total_tax, war_loss_total,
+               starter_factory_template_income, starter_mine_template_income,
+               starter_flat_factories, starter_flat_mines
           FROM nation_economy WHERE nation_id = ${nationId}`
   );
 }
@@ -5508,6 +5530,41 @@ async function loadSettingsForNation(db, nationId) {
   return db.first(
     sql`SELECT income_cycle_seconds, tax_rate_override, defense_mode, fortification_level FROM nation_settings WHERE nation_id = ${nationId}`
   );
+}
+async function ensureNationExt(db, nationId) {
+  await db.run(
+    sql`INSERT OR IGNORE INTO nation_state_ext (nation_id) VALUES (${nationId})`
+  );
+  return db.first(
+    sql`SELECT nation_id, police, border_level, infra_level, education_level, housing_level, hospital_level,
+               fuel_level, ammo_level, equipment_health
+          FROM nation_state_ext WHERE nation_id = ${nationId}`
+  );
+}
+async function templateIncomeSums(db, nationId) {
+  const factories = await db.first(
+    sql`SELECT COALESCE(SUM(t.income_per_cycle * COALESCE(l.level, 1) * i.quantity), 0) AS tpl,
+               COALESCE(SUM(CASE WHEN t.income_per_cycle IS NULL THEN i.quantity ELSE 0 END), 0) AS flat
+          FROM nation_inventory i
+          JOIN equipment_templates t ON t.id = i.template_id
+          JOIN equipment_categories c ON c.id = t.category_id
+          LEFT JOIN nation_factory_levels l ON l.nation_id = i.nation_id AND l.template_id = t.id
+         WHERE i.nation_id = ${nationId} AND c.key = 'factories'`
+  );
+  const mines = await db.first(
+    sql`SELECT COALESCE(SUM(t.income_per_cycle * i.quantity), 0) AS tpl,
+               COALESCE(SUM(CASE WHEN t.income_per_cycle IS NULL THEN i.quantity ELSE 0 END), 0) AS flat
+          FROM nation_inventory i
+          JOIN equipment_templates t ON t.id = i.template_id
+          JOIN equipment_categories c ON c.id = t.category_id
+         WHERE i.nation_id = ${nationId} AND c.key = 'mines'`
+  );
+  return {
+    templateFactoryIncome: Number(factories?.tpl ?? 0),
+    templateMineIncome: Number(mines?.tpl ?? 0),
+    nullIncomeFactories: Number(factories?.flat ?? 0),
+    nullIncomeMines: Number(mines?.flat ?? 0)
+  };
 }
 function categoryQuantities(rows) {
   const out = {};
@@ -5539,6 +5596,8 @@ async function computeNation(db, nation, settings, opts = {}) {
   const factoryCount = inventory.filter((i) => i.categoryKey === "factories").reduce((s, i) => s + i.quantity, 0);
   const mineCount = inventory.filter((i) => i.categoryKey === "mines").reduce((s, i) => s + i.quantity, 0);
   const perUnit = opts.forceZeroMaintenance ? 0 : await perUnitMaintenance(db, nation.id, settings.economy);
+  const tplIncome = await templateIncomeSums(db, nation.id);
+  const ext = await ensureNationExt(db, nation.id);
   const snap = {
     factoryIncome: Number(economyRow?.factory_income ?? 0),
     mineIncome: Number(economyRow?.mine_income ?? 0),
@@ -5549,7 +5608,14 @@ async function computeNation(db, nation, settings, opts = {}) {
     upkeepBase: Number(economyRow?.upkeep_base ?? 0),
     perUnitMaintenance: perUnit,
     taxRateOverride: nationSettings?.tax_rate_override ?? null,
-    cycleSecondsOverride: nationSettings?.income_cycle_seconds ?? null
+    cycleSecondsOverride: nationSettings?.income_cycle_seconds ?? null,
+    templateFactoryIncome: Math.max(0, tplIncome.templateFactoryIncome - Number(economyRow?.starter_factory_template_income ?? 0)),
+    templateMineIncome: Math.max(0, tplIncome.templateMineIncome - Number(economyRow?.starter_mine_template_income ?? 0)),
+    nullIncomeFactories: tplIncome.nullIncomeFactories,
+    nullIncomeMines: tplIncome.nullIncomeMines,
+    policeUpkeep: Math.max(0, Number(ext?.police ?? 0) * POLICE_UPKEEP_PER_DAY),
+    starterFlatFactories: economyRow?.starter_flat_factories ?? null,
+    starterFlatMines: economyRow?.starter_flat_mines ?? null
   };
   const income = computeCycleIncome(snap, settings.economy);
   const power = computePower(inventory, weights, {
@@ -5654,7 +5720,7 @@ async function relationCounts(db, nationId) {
     peace: map.peace_treaty ?? 0
   };
 }
-var relationLabel, txLabel, warLabel;
+var POLICE_UPKEEP_PER_DAY, relationLabel, txLabel, warLabel;
 var init_queries = __esm({
   "apps/worker/src/db/queries.ts"() {
     "use strict";
@@ -5665,6 +5731,7 @@ var init_queries = __esm({
     init_scoring();
     init_economy();
     init_ranking();
+    POLICE_UPKEEP_PER_DAY = 150;
     relationLabel = (status) => RELATION_LABELS_FA[status] ?? status;
     txLabel = (type) => TRANSACTION_TYPE_LABELS_FA[type] ?? type;
     warLabel = (status) => WAR_STATUS_LABELS_FA[status] ?? status;
@@ -13883,6 +13950,26 @@ async function globalMoneyStats(db) {
 }
 
 // apps/worker/src/services/nationService.ts
+function starterFlatUnits(items) {
+  let factory = 0, mine = 0;
+  for (const it of items) {
+    const flat = !it.income_per_cycle || Number(it.income_per_cycle) <= 0;
+    if (!flat) continue;
+    const qty = Math.max(0, Number(it.quantity) || 0);
+    if (it.category_key === "factories") factory += qty;
+    else if (it.category_key === "mines") mine += qty;
+  }
+  return { factory, mine };
+}
+function starterTemplateIncomes(items) {
+  let factory = 0, mine = 0;
+  for (const it of items) {
+    const inc = Math.max(0, Number(it.income_per_cycle ?? 0)) * Math.max(0, Number(it.quantity) || 0);
+    if (it.category_key === "factories") factory += inc;
+    else if (it.category_key === "mines") mine += inc;
+  }
+  return { factory, mine };
+}
 async function getDefaultStarterTemplate(db) {
   const head = await db.first(
     sql`SELECT id, name, treasury, factory_income, mine_income, income_cycle_seconds
@@ -13892,7 +13979,11 @@ async function getDefaultStarterTemplate(db) {
     throw ApiError.internal("\u0628\u0633\u062A\u0647 \u0627\u0648\u0644\u06CC\u0647 \u06A9\u0634\u0648\u0631 \u062F\u0631 \u062F\u06CC\u062A\u0627\u0628\u06CC\u0633 \u0646\u06CC\u0633\u062A. seed \u0631\u0627 \u0627\u062C\u0631\u0627 \u06A9\u0646\u06CC\u062F: npm run db:seed:local / db:seed:remote");
   }
   const items = await db.all(
-    sql`SELECT equipment_template_id, quantity FROM starter_template_items WHERE starter_template_id = ${head.id}`
+    sql`SELECT ti.equipment_template_id, ti.quantity, t.income_per_cycle, c.key AS category_key
+          FROM starter_template_items ti
+          JOIN equipment_templates t ON t.id = ti.equipment_template_id
+          JOIN equipment_categories c ON c.id = t.category_id
+         WHERE ti.starter_template_id = ${head.id}`
   );
   return { ...head, items };
 }
@@ -13914,6 +14005,8 @@ async function createNation(db, actor, input, settings) {
   if (duplicate) throw ApiError.conflict("\u0627\u06CC\u0646 \u0646\u0627\u0645 \u06A9\u0634\u0648\u0631 \u0642\u0628\u0644\u0627\u064B \u062B\u0628\u062A \u0634\u062F\u0647 \u0627\u0633\u062A. \u0646\u0627\u0645 \u062F\u06CC\u06AF\u0631\u06CC \u0627\u0646\u062A\u062E\u0627\u0628 \u06A9\u0646\u06CC\u062F.");
   const starter = await getDefaultStarterTemplate(db);
   const gross = starter.factory_income + starter.mine_income;
+  const starterTpi = starterTemplateIncomes(starter.items);
+  const starterFlat = starterFlatUnits(starter.items);
   const now = nowSeconds();
   const nationRow = await db.first(
     sql`INSERT INTO nations (owner_user_id, name, flag, leader_name, status, treasury,
@@ -13927,7 +14020,8 @@ async function createNation(db, actor, input, settings) {
   await db.batch([
     ...invStmts,
     sql`INSERT INTO nation_economy (nation_id, factory_income, mine_income, starter_factory_count, starter_mine_count,
-                                    gross_income, net_income, total_income, updated_at)
+                                    gross_income, net_income, total_income, starter_factory_template_income, starter_mine_template_income,
+                                    starter_flat_factories, starter_flat_mines, updated_at)
          VALUES (${nationId}, ${starter.factory_income}, ${starter.mine_income},
                  (SELECT COALESCE(SUM(i.quantity), 0) FROM nation_inventory i
                     JOIN equipment_templates t ON t.id = i.template_id
@@ -13937,7 +14031,7 @@ async function createNation(db, actor, input, settings) {
                     JOIN equipment_templates t ON t.id = i.template_id
                     JOIN equipment_categories c ON c.id = t.category_id
                    WHERE i.nation_id = ${nationId} AND c.key = 'mines'),
-                 ${gross}, ${gross}, ${starter.treasury}, ${now})`,
+                 ${gross}, ${gross}, ${starter.treasury}, ${starterTpi.factory}, ${starterTpi.mine}, ${starterFlat.factory}, ${starterFlat.mine}, ${now})`,
     sql`INSERT INTO nation_settings (nation_id, defense_mode, fortification_level, notify_enabled, updated_at)
          VALUES (${nationId}, 'standard', 0, 1, ${now})`,
     sql`INSERT INTO transactions (uuid, nation_id, type, amount, balance_before, balance_after, currency,
@@ -14846,95 +14940,1133 @@ init_format();
 init_ids();
 init_auditService();
 init_notificationService();
-async function buildState(db, nation) {
-  const rows = await db.all(
-    sql`SELECT building_key, built_at FROM nation_buildings WHERE nation_id = ${nation.id}`
+function buildSpeed(env) {
+  const raw2 = Number(env?.BUILD_SPEED ?? "1");
+  if (!Number.isFinite(raw2) || raw2 < 0) return 1;
+  return Math.min(raw2, 100);
+}
+var BUILDING_BY_KEY = new Map(BUILDINGS.map((b) => [b.key, b]));
+function barracksCapacity(level) {
+  return 2 + level;
+}
+function upgradeCost(baseCost, currentLevel) {
+  return Math.max(1, Math.ceil(baseCost * BUILDING_UPGRADE_COST_FACTOR * currentLevel));
+}
+function projectHash(nationId, key, kind, level) {
+  return `build:${nationId}:${key}:${kind}:${level}`;
+}
+async function sweepBuildProjects(db, nationId, now = nowSeconds()) {
+  const due = await db.all(
+    sql`SELECT id, building_key, kind, level, cost FROM nation_build_projects
+         WHERE nation_id = ${nationId} AND completes_at <= ${now}
+         ORDER BY completes_at ASC`
   );
-  const built = new Map(rows.map((r) => [String(r.building_key), Number(r.built_at)]));
-  const buildings = BUILDINGS.map((b) => ({
-    key: b.key,
-    emoji: b.emoji,
-    nameFa: b.nameFa,
-    descFa: b.descFa,
-    cost: b.cost,
-    built: built.has(b.key),
-    builtAt: built.has(b.key) ? toIso(built.get(b.key)) : null,
-    grant: b.grant.kind === "units" ? { kind: "units", quantity: b.grant.quantity, templateCode: b.grant.templateCode } : { kind: "fortification", quantity: b.grant.quantity }
-  }));
+  for (const project of due) {
+    const building = BUILDING_BY_KEY.get(project.building_key);
+    if (!building) {
+      await db.run(sql`DELETE FROM nation_build_projects WHERE id = ${project.id}`);
+      continue;
+    }
+    const at = now;
+    const statements = [
+      sql`INSERT INTO nation_buildings (nation_id, building_key, built_at, level)
+           VALUES (${nationId}, ${building.key}, ${at}, ${project.level})
+           ON CONFLICT (nation_id, building_key) DO UPDATE SET level = ${project.level}`,
+      sql`DELETE FROM nation_build_projects WHERE id = ${project.id}`
+    ];
+    if (building.grant.kind === "units") {
+      const template = await db.first(
+        sql`SELECT id FROM equipment_templates WHERE code = ${building.grant.templateCode}`
+      );
+      if (template?.id) {
+        statements.push(
+          sql`INSERT INTO nation_inventory (nation_id, template_id, quantity, created_at, updated_at)
+               VALUES (${nationId}, ${template.id}, ${building.grant.quantity}, ${at}, ${at})
+               ON CONFLICT (nation_id, template_id) DO UPDATE SET quantity = quantity + ${building.grant.quantity}, updated_at = ${at}`
+        );
+      }
+    } else if (building.grant.kind === "fortification") {
+      statements.push(
+        sql`UPDATE nation_settings SET fortification_level = MIN(20, COALESCE(fortification_level, 0) + ${building.grant.quantity}), updated_at = ${at} WHERE nation_id = ${nationId}`
+      );
+    }
+    await db.batch(statements);
+    await audit(db, {
+      actor: null,
+      action: project.kind === "build" ? "build.complete" : "build.upgrade_complete",
+      targetType: "nation",
+      targetId: nationId,
+      before: null,
+      after: { building: building.key, level: project.level, cost: project.cost },
+      reason: project.kind === "build" ? `\u0633\u0627\u062E\u062A ${building.nameFa}` : `\u0627\u0631\u062A\u0642\u0627\u06CC ${building.nameFa} \u0628\u0647 \u0633\u0637\u062D ${project.level}`
+    });
+    await notify(db, {
+      nationId,
+      kind: "build",
+      title: project.kind === "build" ? "\u{1F3D7}\uFE0F \u0633\u0627\u0632\u0647 \u0633\u0627\u062E\u062A\u0647 \u0634\u062F" : "\u23EB \u0627\u0631\u062A\u0642\u0627\u06CC \u0633\u0627\u0632\u0647 \u06A9\u0627\u0645\u0644 \u0634\u062F",
+      body: project.kind === "build" ? `${building.emoji} ${building.nameFa} \u062A\u06A9\u0645\u06CC\u0644 \u0634\u062F (\u0633\u0637\u062D ${project.level}).` : `${building.emoji} ${building.nameFa} \u0628\u0647 \u0633\u0637\u062D ${project.level} \u0627\u0631\u062A\u0642\u0627 \u06CC\u0627\u0641\u062A.`
+    });
+  }
+  return due.length;
+}
+async function activeProjects(db, nationId) {
+  return db.all(
+    sql`SELECT id, building_key, kind, level, cost, started_at, completes_at
+          FROM nation_build_projects WHERE nation_id = ${nationId} ORDER BY completes_at ASC`
+  );
+}
+async function buildState(db, nation, now = nowSeconds()) {
+  await sweepBuildProjects(db, nation.id, now);
+  const [rows, projects] = await Promise.all([
+    db.all(
+      sql`SELECT building_key, built_at, COALESCE(level, 1) AS level FROM nation_buildings WHERE nation_id = ${nation.id}`
+    ),
+    activeProjects(db, nation.id)
+  ]);
+  const built = new Map(rows.map((r) => [String(r.building_key), { builtAt: Number(r.built_at), level: Number(r.level) || 1 }]));
+  const projectByKey = new Map(projects.map((p) => [p.building_key, p]));
+  const buildings = BUILDINGS.map((b) => {
+    const row = built.get(b.key);
+    const level = row?.level ?? 0;
+    const isBuilt = Boolean(row);
+    const atMax = isBuilt && level >= BUILDING_MAX_LEVEL;
+    const nextAction = !isBuilt ? "build" : atMax ? "max" : "upgrade";
+    const nextCost = !isBuilt ? b.cost : atMax ? 0 : upgradeCost(b.cost, level);
+    const nextDurationSeconds = b.durationSeconds * (!isBuilt ? 1 : 0.5 + level * 0.5);
+    const proj = projectByKey.get(b.key);
+    return {
+      key: b.key,
+      emoji: b.emoji,
+      nameFa: b.nameFa,
+      descFa: b.descFa,
+      cost: b.cost,
+      built: isBuilt,
+      builtAt: row ? toIso(row.builtAt) : null,
+      level,
+      nextAction,
+      nextCost,
+      nextDurationSeconds: Math.round(nextDurationSeconds),
+      upgradeCost: isBuilt && !atMax ? upgradeCost(b.cost, level) : 0,
+      grant: b.grant.kind === "units" ? { kind: "units", quantity: b.grant.quantity, templateCode: b.grant.templateCode } : { kind: "fortification", quantity: b.grant.quantity },
+      capacityNow: b.key === "barracks" ? barracksCapacity(level) : null,
+      capacityAfter: b.key === "barracks" ? barracksCapacity(level + 1) : null,
+      activeProjectId: proj?.id ?? null
+    };
+  });
+  const projectViews = projects.map((p) => {
+    const b = BUILDING_BY_KEY.get(p.building_key);
+    const total = Math.max(1, p.completes_at - p.started_at);
+    const progress = Math.min(100, Math.max(0, Math.floor((now - p.started_at) / total * 100)));
+    const remaining2 = Math.max(0, p.completes_at - now);
+    return {
+      id: p.id,
+      buildingKey: p.building_key,
+      emoji: b?.emoji ?? "\u{1F3D7}\uFE0F",
+      nameFa: b?.nameFa ?? p.building_key,
+      kind: p.kind,
+      targetLevel: Number(p.level),
+      cost: Number(p.cost),
+      startedAt: toIso(p.started_at),
+      completesAt: toIso(p.completes_at),
+      progressPercent: progress,
+      remainingSeconds: remaining2,
+      remainingFa: humanDuration(remaining2),
+      descFa: b?.descFa ?? ""
+    };
+  });
   return {
     treasury: nation.treasury,
     buildings,
     builtCount: buildings.filter((b) => b.built).length,
-    totalCount: buildings.length
+    totalCount: buildings.length,
+    projects: projectViews,
+    maxConcurrent: MAX_CONCURRENT_PROJECTS,
+    activeProjectCount: projectViews.length,
+    maxLevel: BUILDING_MAX_LEVEL
   };
 }
-async function construct(db, nation, key, now = nowSeconds()) {
-  const building = BUILDINGS.find((b) => b.key === key);
+async function construct(db, nation, key, now = nowSeconds(), speed = 1) {
+  const building = BUILDING_BY_KEY.get(key);
   if (!building) throw ApiError.validation("\u0633\u0627\u0632\u0647\u0654 \u0627\u0646\u062A\u062E\u0627\u0628\u200C\u0634\u062F\u0647 \u0645\u0639\u062A\u0628\u0631 \u0646\u06CC\u0633\u062A.");
+  await sweepBuildProjects(db, nation.id, now);
   const existing = await db.first(
-    sql`SELECT id FROM nation_buildings WHERE nation_id = ${nation.id} AND building_key = ${building.key}`
+    sql`SELECT COALESCE(level, 1) AS level FROM nation_buildings WHERE nation_id = ${nation.id} AND building_key = ${building.key}`
   );
-  if (existing) throw ApiError.conflict("\u0627\u06CC\u0646 \u0633\u0627\u0632\u0647 \u0642\u0628\u0644\u0627\u064B \u0633\u0627\u062E\u062A\u0647 \u0634\u062F\u0647 \u0627\u0633\u062A.");
-  if (nation.treasury < building.cost) throw ApiError.validation("\u0645\u0648\u062C\u0648\u062F\u06CC \u0646\u0627\u06A9\u0627\u0641\u06CC \u0627\u0633\u062A.");
-  const at = now;
-  const grant = building.grant;
-  const templateId = grant.kind === "units" ? Number(
-    (await db.first(
-      sql`SELECT id FROM equipment_templates WHERE code = ${grant.templateCode}`
-    ))?.id ?? 0
-  ) : 0;
-  if (grant.kind === "units" && !templateId) {
-    throw ApiError.internal(`\u0642\u0627\u0644\u0628 \u062A\u062C\u0647\u06CC\u0632\u0627\u062A \u0645\u0648\u062C\u0648\u062F \u0646\u06CC\u0633\u062A (${grant.templateCode}).`);
+  const active = await db.all(
+    sql`SELECT id FROM nation_build_projects WHERE nation_id = ${nation.id}`
+  );
+  const kind = existing ? "upgrade" : "build";
+  const currentLevel = Number(existing?.level ?? 0);
+  if (kind === "upgrade" && currentLevel >= BUILDING_MAX_LEVEL) {
+    throw ApiError.conflict("\u0627\u06CC\u0646 \u0633\u0627\u0632\u0647 \u0628\u0647 \u062D\u062F\u0627\u06A9\u062B\u0631 \u0633\u0637\u062D \u0645\u0645\u06A9\u0646 \u0631\u0633\u06CC\u062F\u0647 \u0627\u0633\u062A.");
   }
+  const sameBuildingActive = await db.first(
+    sql`SELECT COUNT(*) AS c FROM nation_build_projects WHERE nation_id = ${nation.id} AND building_key = ${building.key}`
+  );
+  if (Number(sameBuildingActive?.c ?? 0) > 0) {
+    throw ApiError.conflict("\u0628\u0631\u0627\u06CC \u0627\u06CC\u0646 \u0633\u0627\u0632\u0647 \u0647\u0645\u06CC\u0646 \u062D\u0627\u0644\u0627 \u067E\u0631\u0648\u0698\u0647\u200C\u0627\u06CC \u062F\u0631 \u062D\u0627\u0644 \u0627\u0646\u062C\u0627\u0645 \u0627\u0633\u062A.");
+  }
+  if (active.length >= MAX_CONCURRENT_PROJECTS) {
+    throw ApiError.conflict(`\u062D\u062F\u0627\u06A9\u062B\u0631 ${MAX_CONCURRENT_PROJECTS} \u067E\u0631\u0648\u0698\u0647\u0654 \u0647\u0645\u200C\u0632\u0645\u0627\u0646 \u0645\u06CC\u200C\u062A\u0648\u0627\u0646\u06CC\u062F \u062F\u0627\u0634\u062A\u0647 \u0628\u0627\u0634\u06CC\u062F\u061B \u0635\u0628\u0631 \u06A9\u0646\u06CC\u062F \u062A\u0627 \u06CC\u06A9\u06CC \u062A\u06A9\u0645\u06CC\u0644 \u0634\u0648\u062F.`);
+  }
+  const targetLevel = kind === "build" ? 1 : currentLevel + 1;
+  const cost = kind === "build" ? building.cost : upgradeCost(building.cost, currentLevel);
+  if (nation.treasury < cost) throw ApiError.validation("\u0645\u0648\u062C\u0648\u062F\u06CC \u0646\u0627\u06A9\u0627\u0641\u06CC \u0627\u0633\u062A.");
+  const durationSeconds = Math.max(0, Math.round(building.durationSeconds * speed * (kind === "build" ? 1 : 0.5 + currentLevel * 0.5)));
+  const projectId = uuid();
+  const completesAt = now + durationSeconds;
   const statements = [
-    sql`INSERT INTO nation_buildings (nation_id, building_key, built_at) VALUES (${nation.id}, ${building.key}, ${at})`,
-    sql`UPDATE nations SET treasury = treasury - ${building.cost}, updated_at = ${at} WHERE id = ${nation.id}`,
+    sql`INSERT INTO nation_build_projects (id, nation_id, building_key, kind, level, cost, started_at, completes_at)
+         VALUES (${projectId}, ${nation.id}, ${building.key}, ${kind}, ${targetLevel}, ${cost}, ${now}, ${completesAt})`,
+    sql`UPDATE nations SET treasury = treasury - ${cost}, updated_at = ${now} WHERE id = ${nation.id}`,
     sql`INSERT INTO transactions (uuid, nation_id, type, amount, balance_before, balance_after, currency,
                                   idempotency_key, reference_type, reference_id, reason, meta, created_at)
-         VALUES (${uuid()}, ${nation.id}, 'purchase', ${-building.cost}, ${nation.treasury}, ${nation.treasury - building.cost}, 'coin',
-                 ${`build:${nation.id}:${building.key}`}, 'building', NULL,
-                 ${`\u{1F3D7}\uFE0F \u0633\u0627\u062E\u062A\u200C\u0648\u0633\u0627\u0632: ${building.nameFa}`},
-                 ${JSON.stringify({ buildingKey: building.key, grant })}, ${at})`,
-    sql`UPDATE nation_economy SET total_spent = total_spent + ${building.cost}, updated_at = ${at} WHERE nation_id = ${nation.id}`
+         VALUES (${uuid()}, ${nation.id}, 'purchase', ${-cost}, ${nation.treasury}, ${nation.treasury - cost}, 'coin',
+                 ${projectHash(nation.id, building.key, kind, targetLevel)}, 'building', NULL,
+                 ${kind === "build" ? `\u{1F3D7}\uFE0F \u0633\u0627\u062E\u062A\u200C\u0648\u0633\u0627\u0632: ${building.nameFa}` : `\u23EB \u0627\u0631\u062A\u0642\u0627\u06CC \u0633\u0627\u0632\u0647: ${building.nameFa} \u2192 \u0633\u0637\u062D ${targetLevel}`},
+                 ${JSON.stringify({ buildingKey: building.key, kind, targetLevel, durationSeconds })}, ${now})`,
+    sql`UPDATE nation_economy SET total_spent = total_spent + ${cost}, updated_at = ${now} WHERE nation_id = ${nation.id}`
   ];
-  if (grant.kind === "units" && templateId) {
-    statements.push(
-      sql`INSERT INTO nation_inventory (nation_id, template_id, quantity, created_at, updated_at)
-           VALUES (${nation.id}, ${templateId}, ${grant.quantity}, ${at}, ${at})
-           ON CONFLICT (nation_id, template_id) DO UPDATE SET quantity = quantity + ${grant.quantity}, updated_at = ${at}`
-    );
-  } else if (grant.kind === "fortification") {
-    statements.push(
-      sql`UPDATE nation_settings SET fortification_level = MIN(20, COALESCE(fortification_level, 0) + ${grant.quantity}), updated_at = ${at} WHERE nation_id = ${nation.id}`
-    );
-  }
   try {
     await db.batch(statements);
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
-    if (/UNIQUE constraint failed/i.test(message)) throw ApiError.conflict("\u0627\u06CC\u0646 \u0633\u0627\u0632\u0647 \u0642\u0628\u0644\u0627\u064B \u0633\u0627\u062E\u062A\u0647 \u0634\u062F\u0647 \u0627\u0633\u062A.");
     if (message.toLowerCase().includes("check constraint")) {
       throw ApiError.validation("\u0645\u0648\u062C\u0648\u062F\u06CC \u0646\u0627\u06A9\u0627\u0641\u06CC \u0627\u0633\u062A.");
     }
     throw err;
   }
+  if (durationSeconds === 0) {
+    await sweepBuildProjects(db, nation.id, now);
+  }
+  if (durationSeconds > 0) {
+    await audit(db, {
+      actor: null,
+      action: "build.project_started",
+      targetType: "nation",
+      targetId: nation.id,
+      before: { treasury: nation.treasury },
+      after: { treasury: nation.treasury - cost, building: building.key, kind, targetLevel, durationSeconds },
+      reason: kind === "build" ? `\u0634\u0631\u0648\u0639 \u0633\u0627\u062E\u062A ${building.nameFa}` : `\u0634\u0631\u0648\u0639 \u0627\u0631\u062A\u0642\u0627\u06CC ${building.nameFa}`
+    });
+    await notify(db, {
+      nationId: nation.id,
+      kind: "build",
+      title: kind === "build" ? "\u{1F3D7}\uFE0F \u067E\u0631\u0648\u0698\u0647 \u0633\u0627\u062E\u062A \u0622\u063A\u0627\u0632 \u0634\u062F" : "\u23EB \u0627\u0631\u062A\u0642\u0627\u06CC \u0633\u0627\u0632\u0647 \u0622\u063A\u0627\u0632 \u0634\u062F",
+      body: `${building.emoji} ${building.nameFa} \u2014 \u0622\u0645\u0627\u062F\u0647\u200C\u0633\u0627\u0632\u06CC ${humanDuration(durationSeconds)} \u062F\u06CC\u06AF\u0631. \u0647\u0632\u06CC\u0646\u0647 ${cost.toLocaleString("en-US")} \u0633\u06A9\u0647 \u0627\u0632 \u062E\u0632\u0627\u0646\u0647 \u06A9\u0633\u0631 \u0634\u062F.`
+    });
+  }
   const after = await db.first(sql`SELECT treasury FROM nations WHERE id = ${nation.id}`);
+  return {
+    building: { key: building.key, nameFa: building.nameFa, emoji: building.emoji },
+    kind,
+    level: targetLevel,
+    cost,
+    treasury: Number(after?.treasury ?? nation.treasury - cost),
+    projectId,
+    completesAt: toIso(completesAt),
+    durationSeconds,
+    completed: durationSeconds === 0
+  };
+}
+
+// apps/worker/src/services/industryService.ts
+init_sql();
+init_errors2();
+init_format();
+init_ids();
+init_auditService();
+init_notificationService();
+
+// apps/worker/src/services/coinSpend.ts
+init_sql();
+init_errors2();
+init_format();
+init_ids();
+async function spendTreasury(db, nation, opts) {
+  const amount = Math.max(0, Math.floor(opts.amount));
+  const now = opts.now ?? nowSeconds();
+  if (nation.treasury < amount) throw ApiError.validation("\u0645\u0648\u062C\u0648\u062F\u06CC \u0646\u0627\u06A9\u0627\u0641\u06CC \u0627\u0633\u062A.");
+  const key = `${opts.idempotencyPrefix ?? "spend"}:${nation.id}:${opts.referenceType}:${uuid()}`;
+  try {
+    await db.batch([
+      sql`UPDATE nations SET treasury = treasury - ${amount}, updated_at = ${now} WHERE id = ${nation.id}`,
+      sql`INSERT INTO transactions (uuid, nation_id, type, amount, balance_before, balance_after, currency,
+                                    idempotency_key, reference_type, reference_id, reason, meta, created_at)
+           VALUES (${uuid()}, ${nation.id}, ${amount > 0 ? "purchase" : "revenue"}, ${-amount}, ${nation.treasury}, ${nation.treasury - amount}, 'coin',
+                   ${key}, ${opts.referenceType}, NULL, ${opts.reason},
+                   ${JSON.stringify(opts.meta ?? null)}, ${now})`,
+      sql`UPDATE nation_economy SET total_spent = total_spent + ${amount}, updated_at = ${now} WHERE nation_id = ${nation.id}`
+    ]);
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    if (message.toLowerCase().includes("check constraint")) throw ApiError.validation("\u0645\u0648\u062C\u0648\u062F\u06CC \u0646\u0627\u06A9\u0627\u0641\u06CC \u0627\u0633\u062A.");
+    throw err;
+  }
+  return nation.treasury - amount;
+}
+
+// apps/worker/src/services/industryService.ts
+var PRODUCT_GROUPS = [
+  { key: "aircraft", labelFa: "\u0647\u0648\u0627\u067E\u06CC\u0645\u0627", emoji: "\u2708\uFE0F", categories: ["fighters", "transport_aircraft", "helicopters"] },
+  { key: "missile", labelFa: "\u0645\u0648\u0634\u06A9", emoji: "\u{1F680}", categories: ["missiles"] },
+  { key: "air_defense", labelFa: "\u0633\u0627\u0645\u0627\u0646\u0647 \u067E\u062F\u0627\u0641\u0646\u062F\u06CC", emoji: "\u{1F6E1}\uFE0F", categories: ["ground_air_defense", "air_air_defense", "naval_air_defense"] },
+  { key: "armored", labelFa: "\u062E\u0648\u062F\u0631\u0648\u06CC \u0632\u0631\u0647\u06CC", emoji: "\u{1FA96}", categories: ["tanks", "apc"] },
+  { key: "naval", labelFa: "\u062A\u062C\u0647\u06CC\u0632\u0627\u062A \u062F\u0631\u06CC\u0627\u06CC\u06CC", emoji: "\u{1F6A2}", categories: ["ships", "submarines"] },
+  { key: "ammo", labelFa: "\u0645\u0647\u0645\u0627\u062A", emoji: "\u{1F4A5}", categories: ["artillery", "rockets"] }
+];
+var ALL_PRODUCT_CATEGORIES = [...new Set(PRODUCT_GROUPS.flatMap((g) => g.categories))];
+var PRODUCTION_COST_RATIO = 0.5;
+var PRODUCTION_SECONDS_PER_UNIT = 120;
+var FACTORY_MAX_LEVEL = 10;
+function upgradeCostFor(price, level) {
+  return Math.max(1, Math.ceil(Number(price ?? 2e6) * 0.5 * level));
+}
+async function sweepProductionOrders(db, nationId, now = nowSeconds()) {
+  const res = await db.run(
+    sql`UPDATE nation_production_orders SET status = 'ready'
+         WHERE nation_id = ${nationId} AND status = 'in_progress' AND completes_at <= ${now}`
+  );
+  return Number(res?.changes ?? 0);
+}
+async function factoryRows(db, nationId) {
+  return db.all(
+    sql`SELECT t.id AS template_id, t.code, t.name_fa, i.quantity, t.price, t.income_per_cycle, l.level
+          FROM nation_inventory i
+          JOIN equipment_templates t ON t.id = i.template_id
+          JOIN equipment_categories c ON c.id = t.category_id
+          LEFT JOIN nation_factory_levels l ON l.nation_id = i.nation_id AND l.template_id = t.id
+         WHERE i.nation_id = ${nationId} AND c.key = 'factories'`
+  );
+}
+async function industryState(db, nation, now = nowSeconds()) {
+  await sweepProductionOrders(db, nation.id, now);
+  const rows = await factoryRows(db, nation.id);
+  const factories = rows.map((r) => {
+    const level = Math.max(1, Number(r.level ?? 1));
+    const incomePerCycle = Math.max(0, Number(r.income_per_cycle ?? 0)) * level;
+    const atMaxLevel = level >= FACTORY_MAX_LEVEL;
+    return {
+      templateId: Number(r.template_id),
+      code: r.code,
+      nameFa: r.name_fa,
+      quantity: Number(r.quantity),
+      level,
+      incomePerCycle,
+      incomePerDay: incomePerCycle,
+      statusFa: "\u0641\u0639\u0627\u0644",
+      upgradeCost: atMaxLevel ? null : upgradeCostFor(r.price, level),
+      atMaxLevel
+    };
+  }).sort((a, b) => b.incomePerDay - a.incomePerDay);
+  const factoryCount = factories.reduce((s, f) => s + f.quantity, 0);
+  const productionCapacity = factories.reduce((s, f) => s + f.quantity * f.level, 0);
+  const activeFactories = factories.filter((f) => f.quantity > 0).length;
+  const maxFactoryLevel = factories.reduce((m, f) => Math.max(m, f.level), 1);
+  const orders = await db.all(
+    sql`SELECT o.id, o.product_key, o.template_id, t.name_fa AS template_name, t.category_id, c.key AS category_key,
+               o.quantity, o.total_cost, o.started_at, o.completes_at, o.status
+          FROM nation_production_orders o
+          JOIN equipment_templates t ON t.id = o.template_id
+          JOIN equipment_categories c ON c.id = t.category_id
+         WHERE o.nation_id = ${nation.id} AND o.status IN ('in_progress','ready')
+         ORDER BY o.completes_at ASC`
+  );
+  const inProgress = orders.filter((o) => o.status === "in_progress").map((o) => {
+    const total = Math.max(1, Number(o.completes_at) - Number(o.started_at));
+    const progress = Math.min(100, Math.max(0, Math.floor((now - Number(o.started_at)) / total * 100)));
+    const remaining2 = Math.max(0, Number(o.completes_at) - now);
+    return {
+      id: o.id,
+      productKey: o.product_key,
+      templateId: Number(o.template_id),
+      templateName: o.template_name,
+      quantity: Number(o.quantity),
+      totalCost: Number(o.total_cost),
+      startedAt: toIso(Number(o.started_at)),
+      completesAt: toIso(Number(o.completes_at)),
+      progressPercent: progress,
+      remainingSeconds: remaining2,
+      remainingFa: humanDuration(remaining2)
+    };
+  });
+  const readyToClaim = orders.filter((o) => o.status === "ready").map((o) => ({
+    id: o.id,
+    productKey: o.product_key,
+    templateId: Number(o.template_id),
+    templateName: o.template_name,
+    quantity: Number(o.quantity),
+    totalCost: Number(o.total_cost)
+  }));
+  const available = await db.all(
+    sql`SELECT t.id, t.code, t.name_fa, t.price, c.key AS category_key
+          FROM equipment_templates t
+          JOIN equipment_categories c ON c.id = t.category_id
+         WHERE t.is_active = 1 AND c.key IN (${ALL_PRODUCT_CATEGORIES})`
+  );
+  const byCategory = /* @__PURE__ */ new Map();
+  for (const t of available) {
+    const price = t.price === null ? null : Number(t.price);
+    const unitCost = price === null ? 0 : Math.max(1, Math.floor(price * PRODUCTION_COST_RATIO));
+    const arr = byCategory.get(t.category_key) ?? [];
+    arr.push({ templateId: Number(t.id), code: t.code, nameFa: t.name_fa, price, unitCost });
+    byCategory.set(t.category_key, arr);
+  }
+  return {
+    treasury: nation.treasury,
+    factoryCount,
+    activeFactories,
+    factoryLines: factories.length,
+    productionCapacity,
+    maxFactoryLevel,
+    productionSecondsPerUnit: PRODUCTION_SECONDS_PER_UNIT,
+    productionCostRatio: PRODUCTION_COST_RATIO,
+    factoryUpgradeFactor: 0.5,
+    factories,
+    products: PRODUCT_GROUPS.map((g) => ({
+      key: g.key,
+      labelFa: g.labelFa,
+      emoji: g.emoji,
+      templates: g.categories.flatMap((c) => byCategory.get(c) ?? [])
+    })),
+    inProgress,
+    readyToClaim
+  };
+}
+async function startProduction(db, nation, input, now = nowSeconds()) {
+  await sweepProductionOrders(db, nation.id, now);
+  const factoryRowsNow = await factoryRows(db, nation.id);
+  const factoryCount = factoryRowsNow.reduce((s, r) => s + Number(r.quantity), 0);
+  if (factoryCount < 1) {
+    throw ApiError.conflict("\u0628\u0631\u0627\u06CC \u062A\u0648\u0644\u06CC\u062F \u0628\u0627\u06CC\u062F \u062D\u062F\u0627\u0642\u0644 \u06CC\u06A9 \u06A9\u0627\u0631\u062E\u0627\u0646\u0647 \u062F\u0627\u0634\u062A\u0647 \u0628\u0627\u0634\u06CC\u062F. \u0627\u0632 \xAB\u062E\u0631\u06CC\u062F \u06A9\u0627\u0631\u062E\u0627\u0646\u0647\xBB \u06CC\u0627 \u0633\u0648\u062F\u0627\u06AF\u0631\u0627\u0646 \u06A9\u0627\u0631\u062E\u0627\u0646\u0647 \u0631\u0627 \u0628\u0633\u0627\u0632\u06CC\u062F.");
+  }
+  const maxFactoryLevel = factoryRowsNow.reduce((m, r) => Math.max(m, Math.max(1, Number(r.level ?? 1))), 1);
+  const productionCapacity = factoryRowsNow.reduce((s, r) => s + Number(r.quantity) * Math.max(1, Number(r.level ?? 1)), 0);
+  const quantity = Math.floor(Number(input.quantity));
+  if (!Number.isFinite(quantity) || quantity < 1) throw ApiError.validation("\u062A\u0639\u062F\u0627\u062F \u0628\u0627\u06CC\u062F \u062F\u0633\u062A\u200C\u06A9\u0645 \u06F1 \u0628\u0627\u0634\u062F.");
+  if (quantity > productionCapacity) throw ApiError.validation(`\u0638\u0631\u0641\u06CC\u062A \u062A\u0648\u0644\u06CC\u062F \u0634\u0645\u0627 ${productionCapacity} \u0648\u0627\u062D\u062F \u062F\u0631 \u0647\u0631 \u0633\u0641\u0627\u0631\u0634 \u0627\u0633\u062A (\u06A9\u0627\u0631\u062E\u0627\u0646\u0647\u200C\u0647\u0627 \xD7 \u0633\u0637\u0648\u062D\u0634\u0627\u0646).`);
+  const template = await db.first(
+    sql`SELECT t.id, t.name_fa, t.price, t.is_active, c.key AS category_key
+          FROM equipment_templates t JOIN equipment_categories c ON c.id = t.category_id
+         WHERE t.id = ${Math.floor(Number(input.templateId))}`
+  );
+  if (!template || Number(template.is_active) !== 1) throw ApiError.notFound("\u0627\u06CC\u0646 \u0645\u062D\u0635\u0648\u0644 \u0645\u0639\u062A\u0628\u0631 \u0646\u06CC\u0633\u062A \u06CC\u0627 \u063A\u06CC\u0631\u0641\u0639\u0627\u0644 \u0634\u062F\u0647 \u0627\u0633\u062A.");
+  if (!ALL_PRODUCT_CATEGORIES.includes(template.category_key)) {
+    throw ApiError.validation("\u0627\u06CC\u0646 \u062F\u0633\u062A\u0647 \u0642\u0627\u0628\u0644 \u062A\u0648\u0644\u06CC\u062F \u062F\u0631 \u06A9\u0627\u0631\u062E\u0627\u0646\u0647\u200C\u0647\u0627\u06CC \u06A9\u0634\u0648\u0631 \u0646\u06CC\u0633\u062A.");
+  }
+  const price = template.price === null ? null : Number(template.price);
+  if (price === null || price <= 0) throw ApiError.validation("\u0627\u06CC\u0646 \u0645\u062D\u0635\u0648\u0644 \u0647\u0646\u0648\u0632 \u0642\u06CC\u0645\u062A\u200C\u06AF\u0630\u0627\u0631\u06CC \u0646\u0634\u062F\u0647 \u0627\u0633\u062A.");
+  const unitCost = Math.max(1, Math.floor(price * PRODUCTION_COST_RATIO));
+  const totalCost = unitCost * quantity;
+  const durationSeconds = Math.max(15, Math.ceil(quantity * PRODUCTION_SECONDS_PER_UNIT / (1 + 0.25 * (maxFactoryLevel - 1))));
+  const productGroup = PRODUCT_GROUPS.find((g) => g.categories.includes(template.category_key));
+  const remaining2 = await spendTreasury(db, nation, {
+    amount: totalCost,
+    referenceType: "production",
+    reason: `\u{1F3ED} \u0633\u0641\u0627\u0631\u0634 \u062A\u0648\u0644\u06CC\u062F: ${quantity} \xD7 ${template.name_fa}`,
+    meta: { templateId: template.id, quantity, unitCost, durationSeconds },
+    idempotencyPrefix: "production",
+    now
+  });
+  const orderId = uuid();
+  const completesAt = now + durationSeconds;
+  await db.run(
+    sql`INSERT INTO nation_production_orders (id, nation_id, product_key, template_id, quantity, unit_cost, total_cost, started_at, completes_at, status)
+         VALUES (${orderId}, ${nation.id}, ${productGroup?.key ?? "custom"}, ${template.id}, ${quantity}, ${unitCost}, ${totalCost}, ${now}, ${completesAt}, 'in_progress')`
+  );
   await audit(db, {
     actor: null,
-    action: "build.construct",
+    action: "industry.production_started",
     targetType: "nation",
     targetId: nation.id,
     before: { treasury: nation.treasury },
-    after: { treasury: Number(after?.treasury ?? 0), building: building.key },
-    reason: `\u0633\u0627\u062E\u062A ${building.nameFa}`
+    after: { treasury: remaining2, templateId: template.id, quantity, totalCost, durationSeconds },
+    reason: `\u0634\u0631\u0648\u0639 \u062A\u0648\u0644\u06CC\u062F ${quantity} \xD7 ${template.name_fa}`
   });
   await notify(db, {
     nationId: nation.id,
-    kind: "build",
-    title: "\u{1F3D7}\uFE0F \u0633\u0627\u0632\u0647 \u0633\u0627\u062E\u062A\u0647 \u0634\u062F",
-    body: `${building.emoji} ${building.nameFa} \u0628\u0627 \u0647\u0632\u06CC\u0646\u0647 ${building.cost.toLocaleString("en-US")} \u0633\u06A9\u0647 \u0633\u0627\u062E\u062A\u0647 \u0634\u062F.`
+    kind: "industry",
+    title: "\u{1F3ED} \u0633\u0641\u0627\u0631\u0634 \u062A\u0648\u0644\u06CC\u062F \u062B\u0628\u062A \u0634\u062F",
+    body: `${quantity} \xD7 ${template.name_fa} \u2014 \u062A\u06A9\u0645\u06CC\u0644 \u062F\u0631 ${humanDuration(durationSeconds)} \u062F\u06CC\u06AF\u0631.`
   });
-  return { building: { key: building.key, nameFa: building.nameFa, emoji: building.emoji }, cost: building.cost, treasury: Number(after?.treasury ?? nation.treasury - building.cost) };
+  return {
+    orderId,
+    templateId: Number(template.id),
+    templateName: template.name_fa,
+    quantity,
+    unitCost,
+    totalCost,
+    durationSeconds,
+    completesAt: toIso(completesAt),
+    treasury: remaining2
+  };
+}
+async function claimProduction(db, nation, orderId, now = nowSeconds()) {
+  await sweepProductionOrders(db, nation.id, now);
+  const order2 = await db.first(
+    sql`SELECT o.id, o.template_id, o.quantity, o.status, o.total_cost, t.name_fa
+          FROM nation_production_orders o JOIN equipment_templates t ON t.id = o.template_id
+         WHERE o.id = ${String(orderId)} AND o.nation_id = ${nation.id}`
+  );
+  if (!order2) throw ApiError.notFound("\u0627\u06CC\u0646 \u0633\u0641\u0627\u0631\u0634 \u067E\u06CC\u062F\u0627 \u0646\u0634\u062F.");
+  if (order2.status !== "ready") throw ApiError.conflict("\u0627\u06CC\u0646 \u0633\u0641\u0627\u0631\u0634 \u0647\u0646\u0648\u0632 \u0622\u0645\u0627\u062F\u0647 \u062F\u0631\u06CC\u0627\u0641\u062A \u0646\u06CC\u0633\u062A.");
+  await db.batch([
+    sql`UPDATE nation_production_orders SET status = 'claimed' WHERE id = ${order2.id}`,
+    sql`INSERT INTO nation_inventory (nation_id, template_id, quantity, created_at, updated_at)
+         VALUES (${nation.id}, ${order2.template_id}, ${order2.quantity}, ${now}, ${now})
+         ON CONFLICT (nation_id, template_id) DO UPDATE SET quantity = quantity + ${order2.quantity}, updated_at = ${now}`
+  ]);
+  await audit(db, {
+    actor: null,
+    action: "industry.production_claimed",
+    targetType: "nation",
+    targetId: nation.id,
+    before: null,
+    after: { templateId: Number(order2.template_id), quantity: Number(order2.quantity) },
+    reason: `\u062F\u0631\u06CC\u0627\u0641\u062A \u0633\u0641\u0627\u0631\u0634 \u062A\u0648\u0644\u06CC\u062F: ${order2.quantity} \xD7 ${order2.name_fa}`
+  });
+  return { orderId: order2.id, templateId: Number(order2.template_id), templateName: order2.name_fa, quantity: Number(order2.quantity) };
+}
+async function upgradeFactory(db, nation, templateId, now = nowSeconds()) {
+  const row = await db.first(
+    sql`SELECT t.price, i.quantity, t.name_fa, l.level
+          FROM nation_inventory i
+          JOIN equipment_templates t ON t.id = i.template_id
+          JOIN equipment_categories c ON c.id = t.category_id
+          LEFT JOIN nation_factory_levels l ON l.nation_id = i.nation_id AND l.template_id = t.id
+         WHERE i.nation_id = ${nation.id} AND t.id = ${Math.floor(Number(templateId))} AND c.key = 'factories'`
+  );
+  if (!row) throw ApiError.notFound("\u0627\u06CC\u0646 \u06A9\u0627\u0631\u062E\u0627\u0646\u0647 \u0631\u0627 \u0646\u062F\u0627\u0631\u06CC\u062F.");
+  const level = Math.max(1, Number(row.level ?? 1));
+  if (level >= FACTORY_MAX_LEVEL) throw ApiError.conflict("\u06A9\u0627\u0631\u062E\u0627\u0646\u0647 \u0628\u0647 \u062D\u062F\u0627\u06A9\u062B\u0631 \u0633\u0637\u062D (\u06F1\u06F0) \u0631\u0633\u06CC\u062F\u0647 \u0627\u0633\u062A.");
+  const cost = upgradeCostFor(row.price === null ? null : Number(row.price), level);
+  const remaining2 = await spendTreasury(db, nation, {
+    amount: cost,
+    referenceType: "factory_upgrade",
+    reason: `\u23EB \u0627\u0631\u062A\u0642\u0627\u06CC \u06A9\u0627\u0631\u062E\u0627\u0646\u0647: ${row.name_fa} \u2192 \u0633\u0637\u062D ${level + 1}`,
+    meta: { templateId, fromLevel: level, toLevel: level + 1 },
+    idempotencyPrefix: "factory_upgrade",
+    now
+  });
+  await db.run(
+    sql`INSERT INTO nation_factory_levels (nation_id, template_id, level, updated_at)
+         VALUES (${nation.id}, ${Math.floor(Number(templateId))}, ${level + 1}, ${now})
+         ON CONFLICT (nation_id, template_id) DO UPDATE SET level = ${level + 1}, updated_at = ${now}`
+  );
+  await audit(db, {
+    actor: null,
+    action: "industry.factory_upgraded",
+    targetType: "nation",
+    targetId: nation.id,
+    before: { level, treasury: nation.treasury },
+    after: { level: level + 1, treasury: remaining2 },
+    reason: `\u0627\u0631\u062A\u0642\u0627\u06CC ${row.name_fa} \u0628\u0647 \u0633\u0637\u062D ${level + 1}`
+  });
+  return { templateId: Math.floor(Number(templateId)), level: level + 1, cost, treasury: remaining2 };
+}
+
+// apps/worker/src/services/arsenalService.ts
+init_sql();
+init_errors2();
+init_format();
+init_queries();
+init_auditService();
+var ARSENAL_GROUPS = [
+  { key: "aircraft", labelFa: "\u0647\u0648\u0627\u067E\u06CC\u0645\u0627\u0647\u0627", emoji: "\u2708\uFE0F", categories: ["fighters", "transport_aircraft", "helicopters", "drones"] },
+  { key: "missiles", labelFa: "\u0645\u0648\u0634\u06A9\u200C\u0647\u0627", emoji: "\u{1F680}", categories: ["missiles"] },
+  { key: "air_defense", labelFa: "\u0633\u0627\u0645\u0627\u0646\u0647\u200C\u0647\u0627\u06CC \u067E\u062F\u0627\u0641\u0646\u062F\u06CC", emoji: "\u{1F6E1}\uFE0F", categories: ["ground_air_defense", "air_air_defense", "naval_air_defense", "radars"] },
+  { key: "armored", labelFa: "\u062A\u0627\u0646\u06A9\u200C\u0647\u0627 \u0648 \u062E\u0648\u062F\u0631\u0648\u0647\u0627\u06CC \u0632\u0631\u0647\u06CC", emoji: "\u{1FA96}", categories: ["tanks", "apc"] },
+  { key: "naval", labelFa: "\u062A\u062C\u0647\u06CC\u0632\u0627\u062A \u062F\u0631\u06CC\u0627\u06CC\u06CC", emoji: "\u{1F6A2}", categories: ["ships", "submarines"] },
+  { key: "weapons", labelFa: "\u0633\u0644\u0627\u062D \u0648 \u0645\u0647\u0645\u0627\u062A", emoji: "\u{1F4A5}", categories: ["artillery", "rockets"] },
+  { key: "fuel", labelFa: "\u0633\u0648\u062E\u062A \u0646\u0638\u0627\u0645\u06CC", emoji: "\u26FD", categories: ["fuel"] }
+];
+var ARSENAL_CATEGORY_KEYS = [...new Set(ARSENAL_GROUPS.flatMap((g) => g.categories))];
+var BASE_CAPACITY = 1e3;
+var SHELTER_CAPACITY_PER_LEVEL = 500;
+var NON_STORED_CATEGORIES = ["soldiers"];
+async function arsenalState(db, nation) {
+  const [rows, deployedRows, buildingRow, ext] = await Promise.all([
+    db.all(
+      sql`SELECT t.id AS template_id, t.code, t.name_fa, i.quantity, t.price, t.attack_points, t.defense_points,
+                 t.maintenance_per_unit, c.key AS category_key, c.label_fa AS category_label, t.unit_fa, c.power_weight
+            FROM nation_inventory i
+            JOIN equipment_templates t ON t.id = i.template_id
+            JOIN equipment_categories c ON c.id = t.category_id
+           WHERE i.nation_id = ${nation.id} AND t.is_active = 1
+           ORDER BY c.sort_order, t.name_fa`
+    ),
+    db.all(
+      sql`SELECT template_id, quantity FROM nation_deployed WHERE nation_id = ${nation.id} AND quantity > 0`
+    ),
+    db.first(
+      sql`SELECT COALESCE(level, 1) AS level FROM nation_buildings WHERE nation_id = ${nation.id} AND building_key = 'shelter'`
+    ),
+    ensureNationExt(db, nation.id)
+  ]);
+  const deployed = new Map(deployedRows.map((r) => [Number(r.template_id), Number(r.quantity)]));
+  const shelterLevel = buildingRow ? Math.max(1, Number(buildingRow.level ?? 1)) : 0;
+  const capacity = BASE_CAPACITY + shelterLevel * SHELTER_CAPACITY_PER_LEVEL;
+  const totalItems = rows.reduce((s, r) => s + (NON_STORED_CATEGORIES.includes(r.category_key) ? 0 : Number(r.quantity)), 0);
+  const percent2 = capacity > 0 ? Math.min(100, Math.round(totalItems / capacity * 100)) : 0;
+  const health = Number(ext?.equipment_health ?? 85);
+  const byCategory = /* @__PURE__ */ new Map();
+  for (const r of rows) {
+    const arr = byCategory.get(r.category_key) ?? [];
+    arr.push(r);
+    byCategory.set(r.category_key, arr);
+  }
+  const mapItem = (r) => {
+    const dep = deployed.get(Number(r.template_id)) ?? 0;
+    const total = Number(r.quantity);
+    const stock = Math.max(0, total - dep);
+    const power = Number(r.attack_points ?? 0) + Number(r.defense_points ?? 0);
+    return {
+      templateId: Number(r.template_id),
+      code: r.code,
+      nameFa: r.name_fa,
+      quantity: stock,
+      deployed: dep,
+      total,
+      unitFa: r.unit_fa || "\u0639\u062F\u062F",
+      price: r.price === null ? null : Number(r.price),
+      attackPoints: r.attack_points === null ? null : Number(r.attack_points),
+      defensePoints: r.defense_points === null ? null : Number(r.defense_points),
+      /** امتیاز قدرت مؤثر — اگر قالب امتیاز تخصصی نداشته باشد، وزن دسته اعمال می‌شود */
+      powerPoints: power > 0 ? power : Math.round(total * Number(r.power_weight ?? 0)),
+      statusFa: health >= 60 ? "\u0639\u0645\u0644\u06CC\u0627\u062A\u06CC" : "\u0646\u06CC\u0627\u0632\u0645\u0646\u062F \u062A\u0639\u0645\u06CC\u0631"
+    };
+  };
+  const groups = ARSENAL_GROUPS.map((g) => {
+    const items = g.categories.flatMap((c) => byCategory.get(c) ?? []).map(mapItem);
+    const units = items.reduce((s, i) => s + i.total, 0);
+    return { key: g.key, labelFa: g.labelFa, emoji: g.emoji, units, items };
+  });
+  const deployedUnits = [...deployed.values()].reduce((s, n) => s + n, 0);
+  return {
+    capacity,
+    used: totalItems,
+    available: Math.max(0, capacity - totalItems),
+    percent: percent2,
+    health,
+    shelterLevel,
+    deployedUnits,
+    warehouseUnits: Math.max(0, totalItems - deployedUnits),
+    groups
+  };
+}
+async function getStock(db, nationId, templateId) {
+  const row = await db.first(
+    sql`SELECT COALESCE(SUM(i.quantity), 0) AS quantity FROM nation_inventory i WHERE i.nation_id = ${nationId} AND i.template_id = ${templateId}`
+  );
+  return Number(row?.quantity ?? 0);
+}
+async function getDeployed(db, nationId, templateId) {
+  const row = await db.first(
+    sql`SELECT quantity FROM nation_deployed WHERE nation_id = ${nationId} AND template_id = ${templateId}`
+  );
+  return Number(row?.quantity ?? 0);
+}
+async function deployUnits(db, nation, templateId, quantity, now = nowSeconds()) {
+  const tid = Math.floor(Number(templateId));
+  const qty = Math.floor(Number(quantity));
+  if (!Number.isFinite(tid) || tid <= 0) throw ApiError.validation("\u062A\u062C\u0647\u06CC\u0632 \u0646\u0627\u0645\u0639\u062A\u0628\u0631 \u0627\u0633\u062A.");
+  if (!Number.isFinite(qty) || qty < 1) throw ApiError.validation("\u062A\u0639\u062F\u0627\u062F \u0628\u0627\u06CC\u062F \u062F\u0633\u062A\u200C\u06A9\u0645 \u06F1 \u0628\u0627\u0634\u062F.");
+  const stock = await getStock(db, nation.id, tid);
+  const dep = await getDeployed(db, nation.id, tid);
+  const available = Math.max(0, stock - dep);
+  if (qty > available) throw ApiError.validation(`\u0641\u0642\u0637 ${available} \u0648\u0627\u062D\u062F \u0642\u0627\u0628\u0644 \u0627\u0646\u062A\u0642\u0627\u0644 \u0628\u0647 \u06CC\u06AF\u0627\u0646 \u0627\u0633\u062A.`);
+  await db.run(
+    sql`INSERT INTO nation_deployed (nation_id, template_id, quantity, updated_at)
+         VALUES (${nation.id}, ${tid}, ${qty}, ${now})
+         ON CONFLICT (nation_id, template_id) DO UPDATE SET quantity = quantity + ${qty}, updated_at = ${now}`
+  );
+  await audit(db, {
+    actor: null,
+    action: "arsenal.deployed",
+    targetType: "nation",
+    targetId: nation.id,
+    before: { deployed: dep },
+    after: { deployed: dep + qty },
+    reason: `\u0627\u0646\u062A\u0642\u0627\u0644 ${qty} \u0648\u0627\u062D\u062F \u062A\u062C\u0647\u06CC\u0632 \u0628\u0647 \u06CC\u06AF\u0627\u0646 (\u0642\u0627\u0644\u0628 #${tid})`
+  });
+  return { templateId: tid, deployed: dep + qty, moved: qty };
+}
+async function recallUnits(db, nation, templateId, quantity, now = nowSeconds()) {
+  const tid = Math.floor(Number(templateId));
+  const qty = Math.floor(Number(quantity));
+  if (!Number.isFinite(tid) || tid <= 0) throw ApiError.validation("\u062A\u062C\u0647\u06CC\u0632 \u0646\u0627\u0645\u0639\u062A\u0628\u0631 \u0627\u0633\u062A.");
+  if (!Number.isFinite(qty) || qty < 1) throw ApiError.validation("\u062A\u0639\u062F\u0627\u062F \u0628\u0627\u06CC\u062F \u062F\u0633\u062A\u200C\u06A9\u0645 \u06F1 \u0628\u0627\u0634\u062F.");
+  const dep = await getDeployed(db, nation.id, tid);
+  if (qty > dep) throw ApiError.validation(`\u0641\u0642\u0637 ${dep} \u0648\u0627\u062D\u062F \u062F\u0631 \u06CC\u06AF\u0627\u0646\u200C\u0647\u0627 \u0645\u0633\u062A\u0642\u0631 \u0627\u0633\u062A.`);
+  await db.run(
+    sql`UPDATE nation_deployed SET quantity = quantity - ${qty}, updated_at = ${now} WHERE nation_id = ${nation.id} AND template_id = ${tid}`
+  );
+  await audit(db, {
+    actor: null,
+    action: "arsenal.recalled",
+    targetType: "nation",
+    targetId: nation.id,
+    before: { deployed: dep },
+    after: { deployed: dep - qty },
+    reason: `\u0628\u0627\u0632\u06AF\u0634\u062A ${qty} \u0648\u0627\u062D\u062F \u062A\u062C\u0647\u06CC\u0632 \u0627\u0632 \u06CC\u06AF\u0627\u0646 (\u0642\u0627\u0644\u0628 #${tid})`
+  });
+  return { templateId: tid, deployed: dep - qty, moved: qty };
+}
+
+// apps/worker/src/services/armyService.ts
+init_sql();
+init_errors2();
+init_format();
+init_queries();
+init_auditService();
+var ARMY_SECTIONS = [
+  { key: "ground", labelFa: "\u0646\u06CC\u0631\u0648\u06CC \u0632\u0645\u06CC\u0646\u06CC", emoji: "\u{1FA96}", categories: ["soldiers", "tanks", "apc", "artillery"] },
+  { key: "air", labelFa: "\u0646\u06CC\u0631\u0648\u06CC \u0647\u0648\u0627\u06CC\u06CC", emoji: "\u{1F6EB}", categories: ["fighters", "transport_aircraft", "helicopters", "drones"] },
+  { key: "naval", labelFa: "\u0646\u06CC\u0631\u0648\u06CC \u062F\u0631\u06CC\u0627\u06CC\u06CC", emoji: "\u{1F6A2}", categories: ["ships", "submarines"] },
+  { key: "missile", labelFa: "\u06CC\u06AF\u0627\u0646 \u0645\u0648\u0634\u06A9\u06CC", emoji: "\u{1F680}", categories: ["missiles", "rockets"] },
+  { key: "defense", labelFa: "\u06CC\u06AF\u0627\u0646 \u067E\u062F\u0627\u0641\u0646\u062F\u06CC", emoji: "\u{1F6E1}\uFE0F", categories: ["ground_air_defense", "air_air_defense", "naval_air_defense", "radars"] }
+];
+var REPAIR_BASE_COST = 5e3;
+var REPAIR_VALUE_RATIO = 0.02;
+var SUPPLY_FUEL_COST_PER_UNIT = 3;
+var SUPPLY_AMMO_COST_PER_UNIT = 2;
+async function armyState(db, nation) {
+  const [rows, ext, equipmentValueRow] = await Promise.all([
+    db.all(
+      sql`SELECT c.key AS category_key, SUM(i.quantity) AS quantity,
+                 MAX(t.attack_points) AS ap, MAX(t.defense_points) AS dp, SUM(i.quantity * COALESCE(t.price, 0)) AS price,
+                 MAX(c.power_weight) AS power_weight
+            FROM nation_inventory i
+            JOIN equipment_templates t ON t.id = i.template_id
+            JOIN equipment_categories c ON c.id = t.category_id
+           WHERE i.nation_id = ${nation.id}
+           GROUP BY c.key`
+    ),
+    ensureNationExt(db, nation.id),
+    db.first(
+      sql`SELECT SUM(i.quantity * COALESCE(t.price, 0)) AS value, SUM(i.quantity) AS units
+            FROM nation_inventory i JOIN equipment_templates t ON t.id = i.template_id
+           WHERE i.nation_id = ${nation.id} AND t.price IS NOT NULL`
+    )
+  ]);
+  const qty = (keys) => rows.filter((r) => keys.includes(r.category_key)).reduce((s, r) => s + Number(r.quantity), 0);
+  const points = (keys) => rows.filter((r) => keys.includes(r.category_key)).reduce((s, r) => s + Number(r.quantity) * Number(r.power_weight ?? 0), 0);
+  const troops = qty(["soldiers"]);
+  const sections = ARMY_SECTIONS.map((s) => ({
+    key: s.key,
+    labelFa: s.labelFa,
+    emoji: s.emoji,
+    units: qty(s.categories),
+    points: Math.round(points(s.categories))
+  }));
+  const totalPoints = sections.reduce((s, x) => s + x.points, 0);
+  for (const s of sections) {
+    s.sharePercent = totalPoints > 0 ? Math.round(s.points / totalPoints * 100) : 0;
+  }
+  const health = Number(ext?.equipment_health ?? 85);
+  const fuel = Number(ext?.fuel_level ?? 80);
+  const ammo = Number(ext?.ammo_level ?? 75);
+  const readiness = Math.min(99, Math.max(5, Math.round(40 + health * 0.45 + Math.min(15, troops / 1e3))));
+  const equipmentValue = Number(equipmentValueRow?.value ?? 0);
+  const equipmentUnits = Number(equipmentValueRow?.units ?? 0);
+  const repairCost = Math.max(REPAIR_BASE_COST, Math.round(equipmentValue * REPAIR_VALUE_RATIO));
+  const fuelCost = Math.max(2e3, troops * SUPPLY_FUEL_COST_PER_UNIT + equipmentUnits * 2);
+  const ammoCost = Math.max(2e3, Math.round(troops * SUPPLY_AMMO_COST_PER_UNIT * 1.25 + equipmentUnits));
+  return {
+    troops,
+    readiness,
+    equipmentHealth: health,
+    fuelLevel: fuel,
+    ammoLevel: ammo,
+    sections,
+    equipmentValue,
+    equipmentUnits,
+    repairCost,
+    fuelCost,
+    ammoCost,
+    soldierUpkeepPerDay: troops * 50
+  };
+}
+async function repairEquipment(db, nation, now = nowSeconds()) {
+  const state = await armyState(db, nation);
+  if (state.equipmentHealth >= 99) throw ApiError.conflict("\u062A\u062C\u0647\u06CC\u0632\u0627\u062A \u0647\u0645\u06CC\u0646 \u062D\u0627\u0644\u0627 \u062F\u0631 \u0628\u0647\u062A\u0631\u06CC\u0646 \u0648\u0636\u0639\u06CC\u062A \u0647\u0633\u062A\u0646\u062F.");
+  const remaining2 = await spendTreasury(db, nation, {
+    amount: state.repairCost,
+    referenceType: "army_repair",
+    reason: "\u{1F527} \u062A\u0639\u0645\u06CC\u0631 \u062A\u062C\u0647\u06CC\u0632\u0627\u062A \u06A9\u0634\u0648\u0631",
+    meta: { healthBefore: state.equipmentHealth, cost: state.repairCost },
+    idempotencyPrefix: "repair",
+    now
+  });
+  await db.run(
+    sql`UPDATE nation_state_ext SET equipment_health = 100, updated_at = ${now} WHERE nation_id = ${nation.id}`
+  );
+  await audit(db, {
+    actor: null,
+    action: "army.repair",
+    targetType: "nation",
+    targetId: nation.id,
+    before: { health: state.equipmentHealth, treasury: nation.treasury },
+    after: { health: 100, treasury: remaining2 },
+    reason: "\u062A\u0639\u0645\u06CC\u0631 \u06A9\u0627\u0645\u0644 \u062A\u062C\u0647\u06CC\u0632\u0627\u062A"
+  });
+  return { equipmentHealth: 100, cost: state.repairCost, treasury: remaining2 };
+}
+async function supply(db, nation, kind, now = nowSeconds()) {
+  if (kind !== "fuel" && kind !== "ammo") throw ApiError.validation("\u0646\u0648\u0639 \u062A\u0623\u0645\u06CC\u0646 \u0646\u0627\u0645\u0639\u062A\u0628\u0631 \u0627\u0633\u062A.");
+  const state = await armyState(db, nation);
+  const cost = kind === "fuel" ? state.fuelCost : state.ammoCost;
+  const label = kind === "fuel" ? "\u26FD \u062A\u0623\u0645\u06CC\u0646 \u0633\u0648\u062E\u062A" : "\u{1F9E8} \u062A\u0623\u0645\u06CC\u0646 \u0645\u0647\u0645\u0627\u062A";
+  const remaining2 = await spendTreasury(db, nation, {
+    amount: cost,
+    referenceType: kind === "fuel" ? "army_fuel" : "army_ammo",
+    reason: label,
+    meta: { cost },
+    idempotencyPrefix: kind,
+    now
+  });
+  await db.run(
+    kind === "fuel" ? sql`UPDATE nation_state_ext SET fuel_level = 100, updated_at = ${now} WHERE nation_id = ${nation.id}` : sql`UPDATE nation_state_ext SET ammo_level = 100, updated_at = ${now} WHERE nation_id = ${nation.id}`
+  );
+  await audit(db, {
+    actor: null,
+    action: kind === "fuel" ? "army.supply_fuel" : "army.supply_ammo",
+    targetType: "nation",
+    targetId: nation.id,
+    before: { level: kind === "fuel" ? state.fuelLevel : state.ammoLevel, treasury: nation.treasury },
+    after: { level: 100, treasury: remaining2 },
+    reason: label
+  });
+  return { kind, level: 100, cost, treasury: remaining2 };
+}
+
+// apps/worker/src/services/securityService.ts
+init_sql();
+init_errors2();
+init_format();
+init_queries();
+init_auditService();
+var POLICE_COST = 2500;
+var BORDER_COST_PER_LEVEL = 15e3;
+var INFRA_COST_PER_LEVEL = 25e3;
+var PROTECT_COST = 5e3;
+var SECURITY_MAX_LEVEL = 10;
+async function ownedAssets(db, nationId) {
+  const [factories, mines, buildings] = await Promise.all([
+    db.all(
+      sql`SELECT t.id AS ref, t.name_fa AS name FROM nation_inventory i JOIN equipment_templates t ON t.id = i.template_id
+            JOIN equipment_categories c ON c.id = t.category_id
+           WHERE i.nation_id = ${nationId} AND c.key = 'factories'`
+    ),
+    db.all(
+      sql`SELECT t.id AS ref, t.name_fa AS name FROM nation_inventory i JOIN equipment_templates t ON t.id = i.template_id
+            JOIN equipment_categories c ON c.id = t.category_id
+           WHERE i.nation_id = ${nationId} AND c.key = 'mines'`
+    ),
+    db.all(
+      sql`SELECT b.building_key AS ref, b.building_key AS name FROM nation_buildings b WHERE b.nation_id = ${nationId}`
+    )
+  ]);
+  const BUILDING_NAME = {
+    barracks: "\u067E\u0627\u062F\u06AF\u0627\u0646 \u0646\u0638\u0627\u0645\u06CC",
+    airbase: "\u067E\u0627\u06CC\u06AF\u0627\u0647 \u0647\u0648\u0627\u06CC\u06CC",
+    factory: "\u06A9\u0627\u0631\u062E\u0627\u0646\u0647 \u0646\u0638\u0627\u0645\u06CC",
+    navalbase: "\u067E\u0627\u06CC\u06AF\u0627\u0647 \u062F\u0631\u06CC\u0627\u06CC\u06CC",
+    shelter: "\u067E\u0646\u0627\u0647\u06AF\u0627\u0647 \u0646\u0638\u0627\u0645\u06CC",
+    radar: "\u0645\u0631\u06A9\u0632 \u0631\u0627\u062F\u0627\u0631"
+  };
+  return [
+    ...factories.map((r) => ({ assetType: "factory", assetRef: String(r.ref), assetName: r.name })),
+    ...mines.map((r) => ({ assetType: "mine", assetRef: String(r.ref), assetName: r.name })),
+    ...buildings.map((r) => ({ assetType: "building", assetRef: String(r.ref), assetName: BUILDING_NAME[r.ref] ?? r.ref }))
+  ];
+}
+async function securityState(db, nation) {
+  const ext = await ensureNationExt(db, nation.id);
+  const [protectedRows, assets, factoryCount] = await Promise.all([
+    db.all(
+      sql`SELECT asset_type, asset_ref, asset_name FROM nation_protected_assets WHERE nation_id = ${nation.id} ORDER BY created_at ASC`
+    ),
+    ownedAssets(db, nation.id),
+    db.first(
+      sql`SELECT COUNT(*) AS n FROM (SELECT DISTINCT i.template_id FROM nation_inventory i JOIN equipment_templates t ON t.id = i.template_id JOIN equipment_categories c ON c.id = t.category_id WHERE i.nation_id = ${nation.id} AND c.key = 'factories')`
+    )
+  ]);
+  const protectedSet = new Set(protectedRows.map((r) => `${r.asset_type}:${r.asset_ref}`));
+  const police = Number(ext?.police ?? 0);
+  const border = Number(ext?.border_level ?? 1);
+  const infra = Number(ext?.infra_level ?? 1);
+  const health = Number(ext?.equipment_health ?? 85);
+  const fuel = Number(ext?.fuel_level ?? 80);
+  const ammo = Number(ext?.ammo_level ?? 75);
+  const policeUpkeep = police * POLICE_UPKEEP_PER_DAY;
+  const alerts = [];
+  if (health < 60) {
+    alerts.push({ key: "equipment", severity: "critical", title: "\u062A\u062C\u0647\u06CC\u0632\u0627\u062A \u0622\u0633\u06CC\u0628 \u062F\u06CC\u062F\u0647\u200C\u0627\u0646\u062F", hint: `\u0633\u0644\u0627\u0645\u062A \u062A\u062C\u0647\u06CC\u0632\u0627\u062A ${Math.round(health)}\u066A \u0627\u0633\u062A\u061B \u062A\u0639\u0645\u06CC\u0631 \u0633\u0631\u06CC\u0639 \u0644\u0627\u0632\u0645 \u0627\u0633\u062A.`, actionLabel: "\u062A\u0639\u0645\u06CC\u0631 \u062A\u062C\u0647\u06CC\u0632\u0627\u062A", actionRoute: "/app/army" });
+  }
+  if (fuel < 30 || ammo < 30) {
+    alerts.push({ key: "supplies", severity: "critical", title: "\u0630\u062E\u0627\u06CC\u0631 \u0633\u0648\u062E\u062A \u06CC\u0627 \u0645\u0647\u0645\u0627\u062A \u0631\u0648 \u0628\u0647 \u067E\u0627\u06CC\u0627\u0646", hint: `\u0633\u0648\u062E\u062A ${Math.round(fuel)}\u066A \xB7 \u0645\u0647\u0645\u0627\u062A ${Math.round(ammo)}\u066A`, actionLabel: "\u062A\u0623\u0645\u06CC\u0646 \u0630\u062E\u0627\u06CC\u0631", actionRoute: "/app/army" });
+  }
+  if (border < 3) {
+    alerts.push({ key: "border", severity: "warn", title: "\u062D\u0641\u0627\u0638\u062A \u0645\u0631\u0632 \u0636\u0639\u06CC\u0641 \u0627\u0633\u062A", hint: `\u0633\u0637\u062D \u0641\u0639\u0644\u06CC \u0645\u0631\u0632 ${border} \u0627\u0632 ${SECURITY_MAX_LEVEL}.`, actionLabel: "\u062A\u0642\u0648\u06CC\u062A \u0645\u0631\u0632\u0647\u0627", actionRoute: "/app/security" });
+  }
+  if (infra < 3) {
+    alerts.push({ key: "infra", severity: "warn", title: "\u0632\u06CC\u0631\u0633\u0627\u062E\u062A\u200C\u0647\u0627 \u0622\u0633\u06CC\u0628\u200C\u067E\u0630\u06CC\u0631\u0646\u062F", hint: `\u0633\u0637\u062D \u0632\u06CC\u0631\u0633\u0627\u062E\u062A ${infra}\u061B \u062F\u0631 \u0628\u062D\u0631\u0627\u0646\u200C\u0647\u0627 \u0622\u0633\u06CC\u0628 \u0628\u06CC\u0634\u062A\u0631\u06CC \u0645\u06CC\u200C\u0628\u06CC\u0646\u0646\u062F.`, actionLabel: "\u062A\u0642\u0648\u06CC\u062A \u0632\u06CC\u0631\u0633\u0627\u062E\u062A", actionRoute: "/app/security" });
+  }
+  if (police < 150) {
+    alerts.push({ key: "police", severity: "warn", title: "\u06A9\u0645\u0628\u0648\u062F \u0646\u06CC\u0631\u0648\u06CC \u0627\u0646\u062A\u0638\u0627\u0645\u06CC", hint: `\u0641\u0642\u0637 ${police} \u067E\u0644\u06CC\u0633 \u0641\u0639\u0627\u0644 \u062F\u0627\u0631\u06CC\u062F.`, actionLabel: "\u0627\u0633\u062A\u062E\u062F\u0627\u0645 \u067E\u0644\u06CC\u0633", actionRoute: "/app/security" });
+  }
+  if (protectedRows.length === 0 && assets.length > 0) {
+    alerts.push({ key: "assets", severity: "warn", title: "\u0647\u06CC\u0686 \u0645\u0631\u06A9\u0632 \u0645\u0647\u0645\u06CC \u0645\u062D\u0627\u0641\u0638\u062A \u0646\u0634\u062F\u0647", hint: "\u06A9\u0627\u0631\u062E\u0627\u0646\u0647\u200C\u0647\u0627 \u0648 \u0645\u0639\u0627\u062F\u0646 \u062F\u0631 \u0628\u062D\u0631\u0627\u0646\u200C\u0647\u0627 \u0628\u06CC\u200C\u062F\u0641\u0627\u0639 \u0645\u06CC\u200C\u0645\u0627\u0646\u0646\u062F.", actionLabel: "\u062D\u0641\u0627\u0638\u062A \u0627\u0632 \u0645\u0631\u0627\u06A9\u0632", actionRoute: "/app/security" });
+  }
+  if (nation.treasury < 15e4) {
+    alerts.push({ key: "budget", severity: "warn", title: "\u062E\u0632\u0627\u0646\u0647 \u062F\u0631 \u062A\u0646\u0634 \u0627\u0633\u062A", hint: `\u0645\u0648\u062C\u0648\u062F\u06CC \u062E\u0632\u0627\u0646\u0647 ${nation.treasury.toLocaleString("en-US")} \u0633\u06A9\u0647.`, actionLabel: "\u062F\u0641\u062A\u0631 \u0645\u0627\u0644\u06CC", actionRoute: "/app/economy/treasury" });
+  }
+  const hasCritical = alerts.some((a) => a.severity === "critical");
+  const status = alerts.length === 0 ? "\u0639\u0627\u062F\u06CC" : hasCritical ? "\u0628\u062D\u0631\u0627\u0646\u06CC" : "\u0647\u0634\u062F\u0627\u0631";
+  const statusTone = alerts.length === 0 ? "ok" : hasCritical ? "bad" : "warn";
+  return {
+    status,
+    statusTone,
+    alerts,
+    police,
+    policeUpkeep,
+    policeCost: POLICE_COST,
+    borderLevel: border,
+    borderCost: BORDER_COST_PER_LEVEL * border,
+    infraLevel: infra,
+    infraCost: INFRA_COST_PER_LEVEL * infra,
+    maxLevel: SECURITY_MAX_LEVEL,
+    borderPercent: Math.round(border / SECURITY_MAX_LEVEL * 100),
+    infraPercent: Math.round(infra / SECURITY_MAX_LEVEL * 100),
+    protectedAssets: protectedRows.map((r) => ({ assetType: r.asset_type, assetRef: r.asset_ref, assetName: r.asset_name })),
+    candidates: assets.map((a) => ({ ...a, protected: protectedSet.has(`${a.assetType}:${a.assetRef}`) })),
+    factoryTypes: Number(factoryCount?.n ?? 0),
+    protectCost: PROTECT_COST
+  };
+}
+async function hirePolice(db, nation, quantity, now = nowSeconds()) {
+  const qty = Math.floor(Number(quantity));
+  if (!Number.isFinite(qty) || qty < 1) throw ApiError.validation("\u062A\u0639\u062F\u0627\u062F \u067E\u0644\u06CC\u0633 \u0628\u0627\u06CC\u062F \u062F\u0633\u062A\u200C\u06A9\u0645 \u06F1 \u0628\u0627\u0634\u062F.");
+  if (qty > 500) throw ApiError.validation("\u062D\u062F\u0627\u06A9\u062B\u0631 \u06F5\u06F0\u06F0 \u067E\u0644\u06CC\u0633 \u062F\u0631 \u0647\u0631 \u0627\u0633\u062A\u062E\u062F\u0627\u0645.");
+  const cost = qty * POLICE_COST;
+  const remaining2 = await spendTreasury(db, nation, {
+    amount: cost,
+    referenceType: "security_police",
+    reason: `\u{1F693} \u0627\u0633\u062A\u062E\u062F\u0627\u0645 ${qty} \u0646\u06CC\u0631\u0648\u06CC \u0627\u0646\u062A\u0638\u0627\u0645\u06CC`,
+    meta: { quantity: qty, cost },
+    idempotencyPrefix: "police",
+    now
+  });
+  await ensureNationExt(db, nation.id);
+  const res = await db.first(
+    sql`UPDATE nation_state_ext SET police = police + ${qty}, updated_at = ${now} WHERE nation_id = ${nation.id} RETURNING police`
+  );
+  await audit(db, {
+    actor: null,
+    action: "security.hire_police",
+    targetType: "nation",
+    targetId: nation.id,
+    before: { treasury: nation.treasury },
+    after: { police: Number(res?.police ?? 0), treasury: remaining2 },
+    reason: `\u0627\u0633\u062A\u062E\u062F\u0627\u0645 ${qty} \u067E\u0644\u06CC\u0633`
+  });
+  return { police: Number(res?.police ?? 0), cost, treasury: remaining2 };
+}
+async function levelUp(db, nation, column, costPerLevel, label, now) {
+  const ext = await ensureNationExt(db, nation.id);
+  const current = Number(ext?.[column] ?? 1);
+  if (current >= SECURITY_MAX_LEVEL) throw ApiError.conflict("\u0628\u0647 \u062D\u062F\u0627\u06A9\u062B\u0631 \u0633\u0637\u062D \u0645\u0645\u06A9\u0646 \u0631\u0633\u06CC\u062F\u0647 \u0627\u0633\u062A.");
+  const cost = costPerLevel * current;
+  const remaining2 = await spendTreasury(db, nation, {
+    amount: cost,
+    referenceType: column === "border_level" ? "security_border" : "security_infra",
+    reason: label,
+    meta: { fromLevel: current, toLevel: current + 1 },
+    idempotencyPrefix: column,
+    now
+  });
+  const res = await db.first(
+    column === "border_level" ? sql`UPDATE nation_state_ext SET border_level = border_level + 1, updated_at = ${now} WHERE nation_id = ${nation.id} RETURNING border_level, infra_level` : sql`UPDATE nation_state_ext SET infra_level = infra_level + 1, updated_at = ${now} WHERE nation_id = ${nation.id} RETURNING border_level, infra_level`
+  );
+  await audit(db, {
+    actor: null,
+    action: column === "border_level" ? "security.border_up" : "security.infra_up",
+    targetType: "nation",
+    targetId: nation.id,
+    before: { level: current, treasury: nation.treasury },
+    after: { level: current + 1, treasury: remaining2 },
+    reason: `${label} \u2192 \u0633\u0637\u062D ${current + 1}`
+  });
+  return {
+    level: column === "border_level" ? Number(res?.border_level ?? current + 1) : Number(res?.infra_level ?? current + 1),
+    cost,
+    treasury: remaining2
+  };
+}
+function upgradeBorder(db, nation, now = nowSeconds()) {
+  return levelUp(db, nation, "border_level", BORDER_COST_PER_LEVEL, "\u{1F6E1}\uFE0F \u062A\u0642\u0648\u06CC\u062A \u0645\u0631\u0632", now);
+}
+function upgradeInfra(db, nation, now = nowSeconds()) {
+  return levelUp(db, nation, "infra_level", INFRA_COST_PER_LEVEL, "\u{1F3D7}\uFE0F \u062A\u0642\u0648\u06CC\u062A \u0632\u06CC\u0631\u0633\u0627\u062E\u062A", now);
+}
+async function toggleProtectedAsset(db, nation, input, now = nowSeconds()) {
+  const assetType = input.assetType;
+  if (!["factory", "mine", "building"].includes(assetType)) throw ApiError.validation("\u0646\u0648\u0639 \u0645\u0631\u06A9\u0632 \u0646\u0627\u0645\u0639\u062A\u0628\u0631 \u0627\u0633\u062A.");
+  const assetRef = String(input.assetRef).slice(0, 64);
+  const assetName = String(input.assetName).slice(0, 120);
+  if (!assetRef) throw ApiError.validation("\u0634\u0646\u0627\u0633\u0647\u0654 \u0645\u0631\u06A9\u0632 \u0646\u0627\u0645\u0639\u062A\u0628\u0631 \u0627\u0633\u062A.");
+  const existing = await db.first(
+    sql`SELECT rowid AS id FROM nation_protected_assets WHERE nation_id = ${nation.id} AND asset_type = ${assetType} AND asset_ref = ${assetRef}`
+  );
+  if (existing) {
+    await db.run(
+      sql`DELETE FROM nation_protected_assets WHERE nation_id = ${nation.id} AND asset_type = ${assetType} AND asset_ref = ${assetRef}`
+    );
+    await audit(db, {
+      actor: null,
+      action: "security.unprotect",
+      targetType: "nation",
+      targetId: nation.id,
+      before: { assetType, assetRef, assetName },
+      after: null,
+      reason: `\u062D\u0630\u0641 \u062D\u0641\u0627\u0638\u062A \u0627\u0632 ${assetName}`
+    });
+    return { protected: false, assetType, assetRef, treasury: nation.treasury };
+  }
+  const remaining2 = await spendTreasury(db, nation, {
+    amount: PROTECT_COST,
+    referenceType: "security_protect",
+    reason: `\u{1F6E1}\uFE0F \u062D\u0641\u0627\u0638\u062A \u0627\u0632 ${assetName}`,
+    meta: { assetType, assetRef, assetName },
+    idempotencyPrefix: "protect",
+    now
+  });
+  await db.run(
+    sql`INSERT INTO nation_protected_assets (nation_id, asset_type, asset_ref, asset_name, cost, created_at)
+         VALUES (${nation.id}, ${assetType}, ${assetRef}, ${assetName}, ${PROTECT_COST}, ${now})`
+  );
+  await audit(db, {
+    actor: null,
+    action: "security.protect",
+    targetType: "nation",
+    targetId: nation.id,
+    before: null,
+    after: { assetType, assetRef, assetName, treasury: remaining2 },
+    reason: `\u062D\u0641\u0627\u0638\u062A \u0627\u0632 ${assetName}`
+  });
+  return { protected: true, assetType, assetRef, treasury: remaining2 };
+}
+
+// apps/worker/src/services/populationService.ts
+init_sql();
+init_errors2();
+init_format();
+init_queries();
+init_auditService();
+var POPULATION_MAX_LEVEL = 10;
+var COSTS = { hospital: 4e4, school: 35e3, housing: 3e4 };
+var KIND_LABEL = {
+  hospital: "\u{1F3E5} \u0627\u0631\u062A\u0642\u0627\u06CC \u0628\u06CC\u0645\u0627\u0631\u0633\u062A\u0627\u0646\u200C\u0647\u0627",
+  school: "\u{1F393} \u0627\u0631\u062A\u0642\u0627\u06CC \u0645\u062F\u0627\u0631\u0633",
+  housing: "\u{1F3D7}\uFE0F \u0645\u0633\u06A9\u0646 \u0648 \u0634\u0647\u0631\u0633\u0627\u0632\u06CC"
+};
+var clamp2 = (v, min, max) => Math.min(max, Math.max(min, v));
+var round1 = (v) => Math.round(v * 10) / 10;
+async function factoryAndMineTotals(db, nationId) {
+  const row = await db.first(
+    sql`SELECT
+          COALESCE(SUM(CASE WHEN c.key = 'factories' THEN i.quantity * COALESCE(l.level, 1) ELSE 0 END), 0) AS factory_level_sum,
+          COALESCE(SUM(CASE WHEN c.key = 'mines' THEN i.quantity ELSE 0 END), 0) AS mine_count,
+          COALESCE(SUM(CASE WHEN c.key = 'factories' THEN i.quantity ELSE 0 END), 0) AS factory_count
+          FROM nation_inventory i
+          JOIN equipment_templates t ON t.id = i.template_id
+          JOIN equipment_categories c ON c.id = t.category_id
+          LEFT JOIN nation_factory_levels l ON l.nation_id = i.nation_id AND l.template_id = t.id
+         WHERE i.nation_id = ${nationId}`
+  );
+  return {
+    factoryLevelSum: Number(row?.factory_level_sum ?? 0),
+    mineCount: Number(row?.mine_count ?? 0),
+    factoryCount: Number(row?.factory_count ?? 0)
+  };
+}
+async function populationState(db, nation) {
+  const [ext, totals] = await Promise.all([ensureNationExt(db, nation.id), factoryAndMineTotals(db, nation.id)]);
+  const housing = Math.max(1, Number(ext?.housing_level ?? 1));
+  const hospital = Math.max(1, Number(ext?.hospital_level ?? 1));
+  const education = Math.max(1, Number(ext?.education_level ?? 1));
+  const capacity = 25e5 + housing * 12e5 + hospital * 3e5;
+  const rawTotal = 22e5 + totals.factoryLevelSum * 18e4 + totals.mineCount * 12e4 + housing * 15e4;
+  const total = clamp2(Math.round(rawTotal), 5e5, capacity);
+  const atCapacity = rawTotal >= capacity;
+  const employmentRate = clamp2(0.34 + education * 0.028 + Math.min(0.12, totals.factoryLevelSum * 6e-3), 0.3, 0.78);
+  const employed = Math.floor(total * employmentRate);
+  const unemployed = total - employed;
+  const unemploymentRate = 1 - employmentRate;
+  const birthRate = round1(7.5 + housing * 0.5 + hospital * 0.3);
+  const deathRate = round1(Math.max(2, 7 - hospital * 0.55 - housing * 0.1));
+  let growthRate = round1(birthRate - deathRate + education * 0.15);
+  if (atCapacity) growthRate = Math.min(growthRate, 0.2);
+  const happiness = clamp2(Math.round(52 + (hospital + education + housing) * 5 - unemploymentRate * 100 * 0.6), 5, 99);
+  return {
+    total,
+    capacity,
+    employed,
+    unemployed,
+    unemploymentRate: round1(unemploymentRate * 1e3) / 10,
+    employmentRate: round1(employmentRate * 1e3) / 10,
+    birthRate,
+    deathRate,
+    growthRate,
+    happiness,
+    atCapacity,
+    hospitalLevel: hospital,
+    schoolLevel: education,
+    housingLevel: housing,
+    hospitalCost: COSTS.hospital * hospital,
+    schoolCost: COSTS.school * education,
+    housingCost: COSTS.housing * housing,
+    maxLevel: POPULATION_MAX_LEVEL,
+    factoryCount: totals.factoryCount,
+    mineCount: totals.mineCount
+  };
+}
+async function upgradePopulation(db, nation, kind, now = nowSeconds()) {
+  if (!["hospital", "school", "housing"].includes(kind)) throw ApiError.validation("\u0646\u0648\u0639 \u0627\u0631\u062A\u0642\u0627 \u0646\u0627\u0645\u0639\u062A\u0628\u0631 \u0627\u0633\u062A.");
+  const ext = await ensureNationExt(db, nation.id);
+  const column = kind === "hospital" ? "hospital_level" : kind === "school" ? "education_level" : "housing_level";
+  const current = Math.max(1, Number(ext?.[column] ?? 1));
+  if (current >= POPULATION_MAX_LEVEL) throw ApiError.conflict("\u0627\u06CC\u0646 \u0628\u062E\u0634 \u0628\u0647 \u062D\u062F\u0627\u06A9\u062B\u0631 \u0633\u0637\u062D \u0645\u0645\u06A9\u0646 \u0631\u0633\u06CC\u062F\u0647 \u0627\u0633\u062A.");
+  const cost = COSTS[kind] * current;
+  const remaining2 = await spendTreasury(db, nation, {
+    amount: cost,
+    referenceType: `population_${kind}`,
+    reason: KIND_LABEL[kind],
+    meta: { kind, fromLevel: current, toLevel: current + 1 },
+    idempotencyPrefix: `pop_${kind}`,
+    now
+  });
+  const res = await db.first(
+    column === "hospital_level" ? sql`UPDATE nation_state_ext SET hospital_level = hospital_level + 1, updated_at = ${now} WHERE nation_id = ${nation.id} RETURNING hospital_level, education_level, housing_level` : column === "education_level" ? sql`UPDATE nation_state_ext SET education_level = education_level + 1, updated_at = ${now} WHERE nation_id = ${nation.id} RETURNING hospital_level, education_level, housing_level` : sql`UPDATE nation_state_ext SET housing_level = housing_level + 1, updated_at = ${now} WHERE nation_id = ${nation.id} RETURNING hospital_level, education_level, housing_level`
+  );
+  await audit(db, {
+    actor: null,
+    action: "population.upgrade",
+    targetType: "nation",
+    targetId: nation.id,
+    before: { kind, level: current, treasury: nation.treasury },
+    after: {
+      kind,
+      level: current + 1,
+      treasury: remaining2,
+      hospital: Number(res?.hospital_level ?? 0),
+      education: Number(res?.education_level ?? 0),
+      housing: Number(res?.housing_level ?? 0)
+    },
+    reason: KIND_LABEL[kind]
+  });
+  return { kind, level: current + 1, cost, treasury: remaining2 };
 }
 
 // apps/worker/src/services/resourceService.ts
@@ -15588,8 +16720,75 @@ playerRoutes.get("/buildings", async (c) => {
 playerRoutes.post("/buildings", async (c) => {
   const db = c.get("db");
   const body = parse(external_exports2.object({ buildingKey: external_exports2.string().min(1) }), await parseJson(c));
-  const result = await construct(db, c.get("nation"), body.buildingKey);
+  const result = await construct(db, c.get("nation"), body.buildingKey, nowSeconds(), buildSpeed(c.env));
   return c.json(result);
+});
+playerRoutes.get("/industries", async (c) => {
+  return c.json(await industryState(c.get("db"), c.get("nation")));
+});
+playerRoutes.post("/industries/start", async (c) => {
+  const body = parse(external_exports2.object({ templateId: external_exports2.coerce.number().int().positive(), quantity: external_exports2.coerce.number().int().min(1).max(1e4) }), await parseJson(c));
+  return c.json(await startProduction(c.get("db"), c.get("nation"), body));
+});
+playerRoutes.post("/industries/claim", async (c) => {
+  const body = parse(external_exports2.object({ orderId: external_exports2.string().min(1) }), await parseJson(c));
+  return c.json(await claimProduction(c.get("db"), c.get("nation"), body.orderId));
+});
+playerRoutes.post("/industries/upgrade-factory", async (c) => {
+  const body = parse(external_exports2.object({ templateId: external_exports2.coerce.number().int().positive() }), await parseJson(c));
+  return c.json(await upgradeFactory(c.get("db"), c.get("nation"), body.templateId));
+});
+playerRoutes.get("/arsenal", async (c) => {
+  return c.json(await arsenalState(c.get("db"), c.get("nation")));
+});
+playerRoutes.post("/arsenal/deploy", async (c) => {
+  const body = parse(external_exports2.object({ templateId: external_exports2.coerce.number().int().positive(), quantity: external_exports2.coerce.number().int().min(1).max(1e6) }), await parseJson(c));
+  return c.json(await deployUnits(c.get("db"), c.get("nation"), body.templateId, body.quantity));
+});
+playerRoutes.post("/arsenal/recall", async (c) => {
+  const body = parse(external_exports2.object({ templateId: external_exports2.coerce.number().int().positive(), quantity: external_exports2.coerce.number().int().min(1).max(1e6) }), await parseJson(c));
+  return c.json(await recallUnits(c.get("db"), c.get("nation"), body.templateId, body.quantity));
+});
+playerRoutes.get("/army", async (c) => {
+  return c.json(await armyState(c.get("db"), c.get("nation")));
+});
+playerRoutes.post("/army/repair", async (c) => {
+  return c.json(await repairEquipment(c.get("db"), c.get("nation")));
+});
+playerRoutes.post("/army/supply", async (c) => {
+  const body = parse(external_exports2.object({ kind: external_exports2.enum(["fuel", "ammo"]) }), await parseJson(c));
+  return c.json(await supply(c.get("db"), c.get("nation"), body.kind));
+});
+playerRoutes.get("/security", async (c) => {
+  return c.json(await securityState(c.get("db"), c.get("nation")));
+});
+playerRoutes.post("/security/police", async (c) => {
+  const body = parse(external_exports2.object({ quantity: external_exports2.coerce.number().int().min(1).max(500) }), await parseJson(c));
+  return c.json(await hirePolice(c.get("db"), c.get("nation"), body.quantity));
+});
+playerRoutes.post("/security/border", async (c) => {
+  return c.json(await upgradeBorder(c.get("db"), c.get("nation")));
+});
+playerRoutes.post("/security/infra", async (c) => {
+  return c.json(await upgradeInfra(c.get("db"), c.get("nation")));
+});
+playerRoutes.post("/security/protect", async (c) => {
+  const body = parse(
+    external_exports2.object({
+      assetType: external_exports2.enum(["factory", "mine", "building"]),
+      assetRef: external_exports2.string().min(1).max(64),
+      assetName: external_exports2.string().min(1).max(120)
+    }),
+    await parseJson(c)
+  );
+  return c.json(await toggleProtectedAsset(c.get("db"), c.get("nation"), body));
+});
+playerRoutes.get("/population", async (c) => {
+  return c.json(await populationState(c.get("db"), c.get("nation")));
+});
+playerRoutes.post("/population/upgrade", async (c) => {
+  const body = parse(external_exports2.object({ kind: external_exports2.enum(["hospital", "school", "housing"]) }), await parseJson(c));
+  return c.json(await upgradePopulation(c.get("db"), c.get("nation"), body.kind));
 });
 playerRoutes.get("/notifications", async (c) => {
   const db = c.get("db");
@@ -17102,6 +18301,67 @@ async function triggerJobsManually(env, db, jobs) {
 
 // apps/worker/src/api/routes/admin.ts
 init_warService();
+
+// apps/worker/src/services/assignCountryService.ts
+init_sql();
+init_errors2();
+init_format();
+init_queries();
+init_auditService();
+init_queries();
+async function determineCountry(db, actor, input, settings, now = nowSeconds()) {
+  const telegramId = Math.floor(Number(input.telegramId));
+  if (!Number.isFinite(telegramId) || telegramId <= 0) throw ApiError.validation("\u0622\u06CC\u062F\u06CC \u0639\u062F\u062F\u06CC \u0646\u0627\u0645\u0639\u062A\u0628\u0631 \u0627\u0633\u062A.");
+  const countryName = String(input.countryName ?? "").trim();
+  if (countryName.length < 3) throw ApiError.validation("\u0646\u0627\u0645 \u06A9\u0634\u0648\u0631 \u0628\u0627\u06CC\u062F \u062F\u0633\u062A\u200C\u06A9\u0645 \u06F3 \u0646\u0648\u06CC\u0633\u0647 \u0628\u0627\u0634\u062F.");
+  if (countryName.length > 30) throw ApiError.validation("\u0646\u0627\u0645 \u06A9\u0634\u0648\u0631 \u062D\u062F\u0627\u06A9\u062B\u0631 \u06F3\u06F0 \u0646\u0648\u06CC\u0633\u0647 \u0645\u06CC\u200C\u062A\u0648\u0627\u0646\u062F \u0628\u0627\u0634\u062F.");
+  const user = await db.first(
+    sql`SELECT id, telegram_user_id, first_name, username FROM users WHERE telegram_user_id = ${telegramId}`
+  );
+  if (!user) throw ApiError.notFound("\u0628\u0627\u0632\u06CC\u06A9\u0646\u06CC \u0628\u0627 \u0627\u06CC\u0646 \u0622\u06CC\u062F\u06CC \u06CC\u0627\u0641\u062A \u0646\u0634\u062F.");
+  const owned = await loadNationOwnedBy(db, user.id);
+  const dup = await db.first(
+    sql`SELECT id, owner_user_id FROM nations WHERE name = ${countryName} COLLATE NOCASE`
+  );
+  if (dup && (!owned || Number(dup.id) !== Number(owned.id))) {
+    throw ApiError.conflict("\u0627\u06CC\u0646 \u0646\u0627\u0645 \u06A9\u0634\u0648\u0631 \u0642\u0628\u0644\u0627\u064B \u062B\u0628\u062A \u0634\u062F\u0647 \u0627\u0633\u062A.");
+  }
+  let nationId;
+  let created = false;
+  if (owned) {
+    if (owned.name !== countryName) {
+      await db.run(sql`UPDATE nations SET name = ${countryName}, updated_at = ${now} WHERE id = ${owned.id}`);
+      await refreshNationStats(db, { ...owned, name: countryName }, settings).catch(() => void 0);
+    }
+    nationId = owned.id;
+  } else {
+    const result = await createNation(
+      db,
+      { userId: user.id, telegramId: Number(user.telegram_user_id) },
+      { name: countryName, leaderName: (user.first_name ?? "").trim() || "\u0641\u0631\u0645\u0627\u0646\u062F\u0647", flag: "\u{1F3F3}\uFE0F" },
+      settings
+    );
+    nationId = result.nationId;
+    created = true;
+  }
+  await audit(db, {
+    actor,
+    action: "admin.assign_country",
+    targetType: "nation",
+    targetId: nationId,
+    before: { telegramId, previousName: owned?.name ?? null },
+    after: { telegramId, name: countryName, created },
+    reason: `\u062A\u0639\u06CC\u06CC\u0646 \u06A9\u0634\u0648\u0631 \u0628\u0627\u0632\u06CC\u06A9\u0646 \u062A\u0648\u0633\u0637 \u0627\u062F\u0645\u06CC\u0646: ${countryName}`
+  });
+  return {
+    nationId,
+    nationName: countryName,
+    created,
+    user: { id: Number(user.id), telegramId, firstName: user.first_name, username: user.username }
+  };
+}
+
+// apps/worker/src/api/routes/admin.ts
 var adminRoutes = new Hono3();
 adminRoutes.use(requireUser);
 function parse5(schema, body) {
@@ -17161,6 +18421,15 @@ adminRoutes.get("/users/:id", requireAdmin("users"), async (c) => {
     transactions: tx.rows,
     permissions: await getPermissions(db, id)
   });
+});
+adminRoutes.post("/determine-country", write("users"), async (c) => {
+  const body = parse5(
+    external_exports2.object({ telegramId: external_exports2.coerce.number().int().positive(), countryName: external_exports2.string().trim().min(3).max(30) }),
+    await parseJson(c)
+  );
+  const settings = await settingsFor(c);
+  const result = await determineCountry(c.get("db"), adminActorOf(c.get("user")), body, settings);
+  return c.json(result);
 });
 adminRoutes.post("/users/:id/status", write("users"), async (c) => {
   const body = parse5(external_exports2.object({ status: external_exports2.enum(["active", "blocked", "disabled"]), reason: external_exports2.string().trim().min(3).max(200) }), await parseJson(c));
@@ -18385,19 +19654,20 @@ async function handleCallback(ctx, cb, updateId) {
         if (sub === "go") {
           const key = String(rest[1] ?? "");
           try {
-            const res = await construct(ctx.db, nation, key);
+            const res = await construct(ctx.db, nation, key, nowSeconds(), buildSpeed(ctx.env));
+            const doneLine = res.completed ? res.kind === "build" ? `\u{1F3D7}\uFE0F <b>${escapeHtml(res.building.nameFa)}</b> \u0633\u0627\u062E\u062A\u0647 \u0634\u062F!` : `\u23EB <b>${escapeHtml(res.building.nameFa)}</b> \u0628\u0647 \u0633\u0637\u062D ${res.level} \u0627\u0631\u062A\u0642\u0627 \u06CC\u0627\u0641\u062A!` : res.kind === "build" ? `\u{1F6A7} \u067E\u0631\u0648\u0698\u0647\u0654 \u0633\u0627\u062E\u062A <b>${escapeHtml(res.building.nameFa)}</b> \u0622\u063A\u0627\u0632 \u0634\u062F` : `\u{1F6A7} \u067E\u0631\u0648\u0698\u0647\u0654 \u0627\u0631\u062A\u0642\u0627\u06CC <b>${escapeHtml(res.building.nameFa)}</b> \u0628\u0647 \u0633\u0637\u062D ${res.level} \u0622\u063A\u0627\u0632 \u0634\u062F`;
             await ctx.tg.editMessageText(
               chatId,
               messageId,
               [
-                `\u{1F3D7}\uFE0F <b>${escapeHtml(res.building.nameFa)}</b> \u0633\u0627\u062E\u062A\u0647 \u0634\u062F!`,
+                doneLine,
                 "",
                 `\u0647\u0632\u06CC\u0646\u0647: <b>${formatNumber(res.cost)} \u0633\u06A9\u0647</b>`,
                 `\u0645\u0648\u062C\u0648\u062F\u06CC \u062E\u0632\u0627\u0646\u0647: <b>${formatNumber(res.treasury)} \u0633\u06A9\u0647</b>`
               ].join("\n"),
               [[{ text: "\u2B05\uFE0F \u0628\u0627\u0632\u06AF\u0634\u062A \u0628\u0647 \u0633\u0627\u062E\u062A\u200C\u0648\u0633\u0627\u0632", callback_data: "build:home" }]]
             );
-            await answer("\u0633\u0627\u0632\u0647 \u0633\u0627\u062E\u062A\u0647 \u0634\u062F \u{1F3D7}\uFE0F");
+            await answer(res.completed ? "\u0627\u0646\u062C\u0627\u0645 \u0634\u062F \u{1F3D7}\uFE0F" : "\u067E\u0631\u0648\u0698\u0647 \u0622\u063A\u0627\u0632 \u0634\u062F \u{1F6A7}");
             return { handled: "build:go" };
           } catch (err) {
             const message = err instanceof Error ? err.message : "\u062E\u0637\u0627\u06CC\u06CC \u0631\u062E \u062F\u0627\u062F.";
@@ -19416,22 +20686,24 @@ async function editBankLoan(ctx, chatId, messageId, nation) {
   await ctx.tg.editMessageText(chatId, messageId, bankLoanLines(state), bankLoanRows(state));
 }
 function buildingsScreenText(state) {
+  const projectLines = state.projects.length ? ["", "\u{1F6A7} <b>\u067E\u0631\u0648\u0698\u0647\u200C\u0647\u0627\u06CC \u062F\u0631 \u062D\u0627\u0644 \u0633\u0627\u062E\u062A:</b>", ...state.projects.map((p) => `${p.emoji} ${escapeHtml(p.nameFa)} \u2014 ${p.kind === "build" ? "\u0633\u0627\u062E\u062A" : "\u0627\u0631\u062A\u0642\u0627 \u0628\u0647 \u0633\u0637\u062D " + p.targetLevel} \xB7 ${p.progressPercent}\u066A \xB7 ${escapeHtml(p.remainingFa)} \u0628\u0627\u0642\u06CC\u200C\u0645\u0627\u0646\u062F\u0647`)] : [];
   return [
     "\u{1F3D7}\uFE0F <b>\u0648\u0632\u0627\u0631\u062A \u0633\u0627\u062E\u062A\u200C\u0648\u0633\u0627\u0632</b>",
     "",
     "\u0641\u0631\u0645\u0627\u0646\u062F\u0647\u060C \u0628\u0631\u0627\u06CC \u062A\u0648\u0633\u0639\u0647 \u06A9\u0634\u0648\u0631 \u062E\u0648\u062F \u0633\u0627\u0632\u0647\u200C\u0647\u0627\u06CC \u062C\u062F\u06CC\u062F \u0628\u0633\u0627\u0632.",
     "",
     `\u{1F4B0} \u0645\u0648\u062C\u0648\u062F\u06CC \u062E\u0632\u0627\u0646\u0647: <b>${formatNumber(state.treasury)} \u0633\u06A9\u0647</b>`,
-    `\u0633\u0627\u0632\u0647\u200C\u0647\u0627\u06CC \u0633\u0627\u062E\u062A\u0647\u200C\u0634\u062F\u0647: <b>${state.builtCount}</b> \u0627\u0632 ${state.totalCount}`,
+    `\u0633\u0627\u0632\u0647\u200C\u0647\u0627\u06CC \u0633\u0627\u062E\u062A\u0647\u200C\u0634\u062F\u0647: <b>${state.builtCount}</b> \u0627\u0632 ${state.totalCount} \xB7 \u067E\u0631\u0648\u0698\u0647\u200C\u0647\u0627\u06CC \u0628\u0627\u0632: <b>${state.activeProjectCount}</b> \u0627\u0632 ${state.maxConcurrent}`,
+    ...projectLines,
     "",
-    "\u0628\u0631\u0627\u06CC \u0633\u0627\u062E\u062A \u06CC\u06A9 \u0633\u0627\u0632\u0647\u060C \u062F\u06A9\u0645\u0647\u0654 \u0622\u0646 \u0631\u0627 \u0628\u0632\u0646\u06CC\u062F:"
+    "\u0628\u0631\u0627\u06CC \u0633\u0627\u062E\u062A \u06CC\u0627 \u0627\u0631\u062A\u0642\u0627\u06CC \u06CC\u06A9 \u0633\u0627\u0632\u0647\u060C \u062F\u06A9\u0645\u0647\u0654 \u0622\u0646 \u0631\u0627 \u0628\u0632\u0646\u06CC\u062F:"
   ].join("\n");
 }
 function buildingsRows(state) {
   const rows = state.buildings.map((b) => [
-    {
-      text: b.built ? `${b.emoji} ${b.nameFa} \u2705 \u0633\u0627\u062E\u062A\u0647 \u0634\u062F` : `${b.emoji} ${b.nameFa} \u2014 ${formatNumber(b.cost)} \u0633\u06A9\u0647`,
-      callback_data: b.built ? "noop" : `build:ask:${b.key}`
+    b.activeProjectId ? { text: `${b.emoji} ${b.nameFa} \u2014 \u{1F6A7} \u062F\u0631 \u062D\u0627\u0644 \u0633\u0627\u062E\u062A`, callback_data: "noop" } : {
+      text: b.built ? b.nextAction === "upgrade" ? `${b.emoji} ${b.nameFa} \u2705 \u0633\u0637\u062D ${b.level} \u2014 \u0627\u0631\u062A\u0642\u0627 ${formatNumber(b.nextCost)} \u0633\u06A9\u0647` : `${b.emoji} ${b.nameFa} \u2705 \u062D\u062F\u0627\u06A9\u062B\u0631 \u0633\u0637\u062D` : `${b.emoji} ${b.nameFa} \u2014 ${formatNumber(b.cost)} \u0633\u06A9\u0647`,
+      callback_data: b.nextAction === "max" ? "noop" : `build:ask:${b.key}`
     }
   ]);
   rows.push([{ text: "\u0628\u0627\u0632\u06AF\u0634\u062A \u0628\u0647 \u0645\u0646\u0648\u06CC \u0627\u0635\u0644\u06CC \u2B05 BACK", callback_data: "m" }]);

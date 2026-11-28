@@ -54,6 +54,10 @@ export interface EconomyRow {
   total_spent: number;
   total_tax: number;
   war_loss_total: number;
+  starter_factory_template_income?: number;
+  starter_mine_template_income?: number;
+  starter_flat_factories?: number | null;
+  starter_flat_mines?: number | null;
 }
 
 export async function loadNation(db: Db, nationId: number): Promise<NationRow> {
@@ -119,7 +123,9 @@ export async function loadEconomyRow(db: Db, nationId: number) {
   return db.first<EconomyRow>(
     sql`SELECT nation_id, factory_income, mine_income, starter_factory_count, starter_mine_count,
                upkeep_base, gross_income, maintenance_cost, tax_cost, net_income,
-               total_income, total_spent, total_tax, war_loss_total
+               total_income, total_spent, total_tax, war_loss_total,
+               starter_factory_template_income, starter_mine_template_income,
+               starter_flat_factories, starter_flat_mines
           FROM nation_economy WHERE nation_id = ${nationId}`,
   );
 }
@@ -128,6 +134,58 @@ export async function loadSettingsForNation(db: Db, nationId: number) {
   return db.first<{ income_cycle_seconds: number | null; tax_rate_override: number | null; defense_mode: string; fortification_level: number }>(
     sql`SELECT income_cycle_seconds, tax_rate_override, defense_mode, fortification_level FROM nation_settings WHERE nation_id = ${nationId}`,
   );
+}
+
+export const POLICE_UPKEEP_PER_DAY = 150;
+
+/** nation_state_ext is created lazily with defaults; safe to call from every read path */
+export async function ensureNationExt(db: Db, nationId: number) {
+  await db.run(
+    sql`INSERT OR IGNORE INTO nation_state_ext (nation_id) VALUES (${nationId})`,
+  );
+  return db.first<{
+    nation_id: number;
+    police: number;
+    border_level: number;
+    infra_level: number;
+    education_level: number;
+    housing_level: number;
+    hospital_level: number;
+    fuel_level: number;
+    ammo_level: number;
+    equipment_health: number;
+  }>(
+    sql`SELECT nation_id, police, border_level, infra_level, education_level, housing_level, hospital_level,
+               fuel_level, ammo_level, equipment_health
+          FROM nation_state_ext WHERE nation_id = ${nationId}`,
+  );
+}
+
+/** per-template incomes (factories honor nation_factory_levels) + null-income counts for the flat starter rate */
+export async function templateIncomeSums(db: Db, nationId: number) {
+  const factories = await db.first<{ tpl: number | null; flat: number | null }>(
+    sql`SELECT COALESCE(SUM(t.income_per_cycle * COALESCE(l.level, 1) * i.quantity), 0) AS tpl,
+               COALESCE(SUM(CASE WHEN t.income_per_cycle IS NULL THEN i.quantity ELSE 0 END), 0) AS flat
+          FROM nation_inventory i
+          JOIN equipment_templates t ON t.id = i.template_id
+          JOIN equipment_categories c ON c.id = t.category_id
+          LEFT JOIN nation_factory_levels l ON l.nation_id = i.nation_id AND l.template_id = t.id
+         WHERE i.nation_id = ${nationId} AND c.key = 'factories'`,
+  );
+  const mines = await db.first<{ tpl: number | null; flat: number | null }>(
+    sql`SELECT COALESCE(SUM(t.income_per_cycle * i.quantity), 0) AS tpl,
+               COALESCE(SUM(CASE WHEN t.income_per_cycle IS NULL THEN i.quantity ELSE 0 END), 0) AS flat
+          FROM nation_inventory i
+          JOIN equipment_templates t ON t.id = i.template_id
+          JOIN equipment_categories c ON c.id = t.category_id
+         WHERE i.nation_id = ${nationId} AND c.key = 'mines'`,
+  );
+  return {
+    templateFactoryIncome: Number(factories?.tpl ?? 0),
+    templateMineIncome: Number(mines?.tpl ?? 0),
+    nullIncomeFactories: Number(factories?.flat ?? 0),
+    nullIncomeMines: Number(mines?.flat ?? 0),
+  };
 }
 
 /** Inventory category -> quantity (skips soldiers? no: includes everything). */
@@ -171,6 +229,8 @@ export async function computeNation(db: Db, nation: NationRow, settings: Setting
   const factoryCount = inventory.filter((i) => i.categoryKey === 'factories').reduce((s, i) => s + i.quantity, 0);
   const mineCount = inventory.filter((i) => i.categoryKey === 'mines').reduce((s, i) => s + i.quantity, 0);
   const perUnit = opts.forceZeroMaintenance ? 0 : await perUnitMaintenance(db, nation.id, settings.economy);
+  const tplIncome = await templateIncomeSums(db, nation.id);
+  const ext = await ensureNationExt(db, nation.id);
 
   const snap: EconomySnapshot = {
     factoryIncome: Number(economyRow?.factory_income ?? 0),
@@ -183,6 +243,13 @@ export async function computeNation(db: Db, nation: NationRow, settings: Setting
     perUnitMaintenance: perUnit,
     taxRateOverride: nationSettings?.tax_rate_override ?? null,
     cycleSecondsOverride: nationSettings?.income_cycle_seconds ?? null,
+    templateFactoryIncome: Math.max(0, tplIncome.templateFactoryIncome - Number(economyRow?.starter_factory_template_income ?? 0)),
+    templateMineIncome: Math.max(0, tplIncome.templateMineIncome - Number(economyRow?.starter_mine_template_income ?? 0)),
+    nullIncomeFactories: tplIncome.nullIncomeFactories,
+    nullIncomeMines: tplIncome.nullIncomeMines,
+    policeUpkeep: Math.max(0, Number(ext?.police ?? 0) * POLICE_UPKEEP_PER_DAY),
+    starterFlatFactories: economyRow?.starter_flat_factories ?? null,
+    starterFlatMines: economyRow?.starter_flat_mines ?? null,
   };
   const income = computeCycleIncome(snap, settings.economy);
   const power = computePower(inventory, weights, {

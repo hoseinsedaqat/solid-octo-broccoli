@@ -41,7 +41,27 @@ export const EQUIPMENT_CATEGORIES: readonly CategoryDef[] = [
   { key: 'transport_aircraft', labelFa: 'هواپیماهای ترابری', shopLabelFa: 'خرید هواپیمای ترابری', emoji: '✈️', role: 'support' },
   { key: 'fighters', labelFa: 'جنگنده‌ها', shopLabelFa: 'خرید جنگنده', emoji: '🛫', role: 'offense' },
   { key: 'missiles', labelFa: 'موشک‌ها', shopLabelFa: 'خرید موشک', emoji: '🚀', role: 'offense' },
+  { key: 'fuel', labelFa: 'سوخت نظامی', shopLabelFa: 'خرید سوخت نظامی', emoji: '⛽', role: 'support' },
 ] as const;
+
+/** فهرست دسته‌های نظامی که زیر یک «خرید تجهیزات نظامی» در فروشگاه گروه‌بندی می‌شوند (هواپیماهای ترابری و موشک‌ها و …) */
+export const MILITARY_CATEGORY_KEYS: readonly string[] = [
+  'fighters',
+  'transport_aircraft',
+  'missiles',
+  'ships',
+  'tanks',
+  'artillery',
+  'ground_air_defense',
+  'naval_air_defense',
+  'air_air_defense',
+  'drones',
+  'submarines',
+  'radars',
+  'rockets',
+  'soldiers',
+  'fuel',
+];
 
 export interface ItemDef {
   code: string;
@@ -243,13 +263,17 @@ export const BUDGET_POTS = [
 
 /** وزارت ساخت‌وساز: سازه‌های یک‌بارساخت — ارقام و جوایز اینجا تغییر می‌کنند (عددها با پادگان/نیروی هوایی توازن داده می‌شوند؛ در صورت تغییر نظام، همین‌جا عوض کنید) */
 export const BUILDINGS = [
-  { key: 'barracks', emoji: '🪖', nameFa: 'پادگان نظامی', descFa: 'آموزش و جذب سرباز', cost: 10_000, grant: { kind: 'units', templateCode: 'rangers', quantity: 1000 } },
-  { key: 'airbase', emoji: '🛩️', nameFa: 'پایگاه هوایی', descFa: 'استقرار جنگنده‌ها', cost: 20_000, grant: { kind: 'units', templateCode: 'su57', quantity: 3 } },
-  { key: 'factory', emoji: '🏭', nameFa: 'کارخانه نظامی', descFa: 'تولید تجهیزات نظامی', cost: 30_000, grant: { kind: 'units', templateCode: 'leopard_2a7', quantity: 25 } },
-  { key: 'navalbase', emoji: '⚓', nameFa: 'پایگاه دریایی', descFa: 'استقرار ناوها و زیردریایی‌ها', cost: 25_000, grant: { kind: 'units', templateCode: 'nimitz', quantity: 1 } },
-  { key: 'shelter', emoji: '🛡️', nameFa: 'پناهگاه نظامی', descFa: 'افزایش مقاومت کشور', cost: 15_000, grant: { kind: 'fortification', quantity: 2 } },
-  { key: 'radar', emoji: '📡', nameFa: 'مرکز رادار', descFa: 'افزایش شناسایی تهدیدها', cost: 13_000, grant: { kind: 'units', templateCode: 'an_spy6', quantity: 3 } },
+  { key: 'barracks', emoji: '🪖', nameFa: 'پادگان نظامی', descFa: 'آموزش و جذب سرباز', cost: 10_000, durationSeconds: 7_200, grant: { kind: 'units', templateCode: 'rangers', quantity: 1000 } },
+  { key: 'airbase', emoji: '🛩️', nameFa: 'پایگاه هوایی', descFa: 'استقرار جنگنده‌ها', cost: 20_000, durationSeconds: 10_800, grant: { kind: 'units', templateCode: 'su57', quantity: 3 } },
+  { key: 'factory', emoji: '🏭', nameFa: 'کارخانه نظامی', descFa: 'تولید تجهیزات نظامی', cost: 30_000, durationSeconds: 9_000, grant: { kind: 'units', templateCode: 'leopard_2a7', quantity: 25 } },
+  { key: 'navalbase', emoji: '⚓', nameFa: 'پایگاه دریایی', descFa: 'استقرار ناوها و زیردریایی‌ها', cost: 25_000, durationSeconds: 10_800, grant: { kind: 'units', templateCode: 'nimitz', quantity: 1 } },
+  { key: 'shelter', emoji: '🛡️', nameFa: 'پناهگاه نظامی', descFa: 'افزایش مقاومت کشور', cost: 15_000, durationSeconds: 7_200, grant: { kind: 'fortification', quantity: 2 } },
+  { key: 'radar', emoji: '📡', nameFa: 'مرکز رادار', descFa: 'افزایش شناسایی تهدیدها', cost: 13_000, durationSeconds: 5_400, grant: { kind: 'units', templateCode: 'an_spy6', quantity: 3 } },
 ] as const;
+/** سطح ارتقای یک ساختمان بعدی — هزینه = ۶۰٪ هزینه پایهٔ ساخت × سطح فعلی */
+export const BUILDING_UPGRADE_COST_FACTOR = 0.6;
+export const BUILDING_MAX_LEVEL = 10;
+export const MAX_CONCURRENT_PROJECTS = 3;
 export type BuildingKey = (typeof BUILDINGS)[number]['key'];
 
 export const BUILDING_KEYS: readonly string[] = BUILDINGS.map((b) => b.key);

@@ -35,7 +35,31 @@ export interface StarterTemplate {
   factory_income: number;
   mine_income: number;
   income_cycle_seconds: number;
-  items: { equipment_template_id: number; quantity: number }[];
+  items: { equipment_template_id: number; quantity: number; income_per_cycle: number | null; category_key: string }[];
+}
+
+/** count of null-income (flat-rate) starter units, per section */
+function starterFlatUnits(items: StarterTemplate['items']) {
+  let factory = 0, mine = 0;
+  for (const it of items) {
+    const flat = !it.income_per_cycle || Number(it.income_per_cycle) <= 0;
+    if (!flat) continue;
+    const qty = Math.max(0, Number(it.quantity) || 0);
+    if (it.category_key === 'factories') factory += qty;
+    else if (it.category_key === 'mines') mine += qty;
+  }
+  return { factory, mine };
+}
+
+/** sum of catalog incomes inside the starter pack — new nations keep the design-doc starter income and are not double-paid */
+function starterTemplateIncomes(items: StarterTemplate['items']) {
+  let factory = 0, mine = 0;
+  for (const it of items) {
+    const inc = Math.max(0, Number(it.income_per_cycle ?? 0)) * Math.max(0, Number(it.quantity) || 0);
+    if (it.category_key === 'factories') factory += inc;
+    else if (it.category_key === 'mines') mine += inc;
+  }
+  return { factory, mine };
 }
 
 /** the admin-editable starter pack that new nations are seeded from */
@@ -47,8 +71,12 @@ export async function getDefaultStarterTemplate(db: Db): Promise<StarterTemplate
   if (!head) {
     throw ApiError.internal('بسته اولیه کشور در دیتابیس نیست. seed را اجرا کنید: npm run db:seed:local / db:seed:remote');
   }
-  const items = await db.all<{ equipment_template_id: number; quantity: number }>(
-    sql`SELECT equipment_template_id, quantity FROM starter_template_items WHERE starter_template_id = ${head.id}`,
+  const items = await db.all<{ equipment_template_id: number; quantity: number; income_per_cycle: number | null; category_key: string }>(
+    sql`SELECT ti.equipment_template_id, ti.quantity, t.income_per_cycle, c.key AS category_key
+          FROM starter_template_items ti
+          JOIN equipment_templates t ON t.id = ti.equipment_template_id
+          JOIN equipment_categories c ON c.id = t.category_id
+         WHERE ti.starter_template_id = ${head.id}`,
   );
   return { ...head, items };
 }
@@ -83,6 +111,8 @@ export async function createNation(
 
   const starter = await getDefaultStarterTemplate(db);
   const gross = starter.factory_income + starter.mine_income;
+  const starterTpi = starterTemplateIncomes(starter.items);
+  const starterFlat = starterFlatUnits(starter.items);
   const now = nowSeconds();
 
   const nationRow = await db.first<{ id: number }>(
@@ -99,7 +129,8 @@ export async function createNation(
   await db.batch([
     ...invStmts,
     sql`INSERT INTO nation_economy (nation_id, factory_income, mine_income, starter_factory_count, starter_mine_count,
-                                    gross_income, net_income, total_income, updated_at)
+                                    gross_income, net_income, total_income, starter_factory_template_income, starter_mine_template_income,
+                                    starter_flat_factories, starter_flat_mines, updated_at)
          VALUES (${nationId}, ${starter.factory_income}, ${starter.mine_income},
                  (SELECT COALESCE(SUM(i.quantity), 0) FROM nation_inventory i
                     JOIN equipment_templates t ON t.id = i.template_id
@@ -109,7 +140,7 @@ export async function createNation(
                     JOIN equipment_templates t ON t.id = i.template_id
                     JOIN equipment_categories c ON c.id = t.category_id
                    WHERE i.nation_id = ${nationId} AND c.key = 'mines'),
-                 ${gross}, ${gross}, ${starter.treasury}, ${now})`,
+                 ${gross}, ${gross}, ${starter.treasury}, ${starterTpi.factory}, ${starterTpi.mine}, ${starterFlat.factory}, ${starterFlat.mine}, ${now})`,
     sql`INSERT INTO nation_settings (nation_id, defense_mode, fortification_level, notify_enabled, updated_at)
          VALUES (${nationId}, 'standard', 0, 1, ${now})`,
     sql`INSERT INTO transactions (uuid, nation_id, type, amount, balance_before, balance_after, currency,
