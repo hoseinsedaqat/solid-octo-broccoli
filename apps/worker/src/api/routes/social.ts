@@ -1,7 +1,7 @@
 import { Hono } from 'hono';
 import { RANKING_METRICS } from '@ww/shared';
 import { requireUser, settingsFor } from '../middleware';
-import { feed, listRankings } from '../../services/newsService';
+import { listRankings } from '../../services/newsService';
 import { listNations } from '../../services/warService';
 import { listAlliances, myAlliance } from '../../services/diplomacyService';
 import type { HonoEnv } from '../../types';
@@ -9,29 +9,16 @@ import type { HonoEnv } from '../../types';
 export const socialRoutes = new Hono<HonoEnv>();
 socialRoutes.use(requireUser);
 
-/** global news: statements, war results, alliances, admin announcements */
-socialRoutes.get('/news', async (c) => {
-  const db = c.get('db');
-  const user = c.get('user');
-  const res = await feed(db, {
-    nationIds: user.nationIds,
-    limit: Number(c.req.query('limit') ?? 20),
-    offset: Number(c.req.query('offset') ?? 0),
-    kind: c.req.query('kind') ?? null,
-  });
-  return c.json(res);
-});
-
 /** leaderboard; ?metric= switches the sorted column, weights come from settings */
 socialRoutes.get('/rankings', async (c) => {
   const db = c.get('db');
   const settings = await settingsFor(c);
   const metric = c.req.query('metric') ?? 'total';
-  const safeMetric = (RANKING_METRICS as readonly string[]).includes(metric) || metric === 'total' ? metric : 'total';
+  const safeMetric = (RANKING_METRICS as readonly string[]).includes(metric) || metric === 'total' || metric === 'development' ? metric : 'total';
   return c.json({
     metric: safeMetric,
     weights: settings.rankingWeights,
-    available: ['total', ...RANKING_METRICS],
+    available: ['total', ...RANKING_METRICS, 'development'],
     rows: await listRankings(db, settings, { metric: safeMetric === 'total' ? undefined : safeMetric, limit: Number(c.req.query('limit') ?? 20) }),
   });
 });

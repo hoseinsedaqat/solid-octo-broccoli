@@ -39,13 +39,15 @@ const PLAYER_ROUTES: { pattern: string; Comp: Page }[] = [
   { pattern: '/app/shop/:categoryKey', Comp: player('ShopPage') },
   { pattern: '/app/military', Comp: player('MilitaryPage') },
   { pattern: '/app/defense', Comp: player('DefensePage') },
+  { pattern: '/app/rewards', Comp: player('RewardsPage') },
   { pattern: '/app/wars', Comp: player('WarRoomPage') },
   { pattern: '/app/war/:id', Comp: player('WarRoomPage') },
   { pattern: '/app/ranking', Comp: player('RankingPage') },
+  { pattern: '/app/build', Comp: player('BuildingsPage') },
+  { pattern: '/app/bank', Comp: player('BankPage') },
   { pattern: '/app/friends', Comp: player('FriendsPage') },
   { pattern: '/app/statements', Comp: player('StatementsPage') },
   { pattern: '/app/profile', Comp: player('ProfilePage') },
-  { pattern: '/app/log', Comp: player('LogPage') },
 ];
 
 const ADMIN_ROUTES: { pattern: string; Comp: Page }[] = [

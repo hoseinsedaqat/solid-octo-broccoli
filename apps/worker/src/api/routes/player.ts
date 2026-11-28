@@ -9,6 +9,10 @@ import { buildDefenseView, buildNationView, updateNationProfile, type NationRow 
 import { inventoryView } from '../../services/shopService';
 import { listTransactions, treasuryHistory } from '../../services/financeService';
 import { listNotifications, markRead, unreadCount } from '../../services/notificationService';
+import { DEFENSE_ARRANGEMENT_KEYS, DEFENSE_ARRANGEMENT } from '@ww/shared';
+import { claimDailyPrize, prizeState, publicPrizes } from '../../services/dailyPrizeService';
+import { bankState, claimIncome, repayLoan, takeLoan } from '../../services/bankService';
+import { buildState, construct } from '../../services/buildService';
 import type { HonoEnv } from '../../types';
 
 export const playerRoutes = new Hono<HonoEnv>();
@@ -85,6 +89,102 @@ playerRoutes.get('/defense', async (c) => {
   return c.json(await buildDefenseView(db, c.get('nation'), settings));
 });
 
+/** آرایش دفاعی کشور: NULL => everybody defends; array => committed subset */
+playerRoutes.get('/defense-plan', async (c) => {
+  const db = c.get('db');
+  const ns = await db.first<{ defense_plan: string | null }>(
+    sql`SELECT defense_plan FROM nation_settings WHERE nation_id = ${c.get('nation').id}`,
+  );
+  let plan: string[] | null = null;
+  try {
+    const parsed = ns?.defense_plan ? (JSON.parse(ns.defense_plan) as unknown) : null;
+    plan = Array.isArray(parsed) ? parsed.filter((k): k is string => typeof k === 'string') : null;
+  } catch {
+    plan = null;
+  }
+  return c.json({ plan, tiles: DEFENSE_ARRANGEMENT });
+});
+
+playerRoutes.put('/defense-plan', async (c) => {
+  const db = c.get('db');
+  const body = parse(z.object({ categories: z.array(z.string()).max(DEFENSE_ARRANGEMENT.length).nullable() }), await parseJson(c));
+  let value: string | null = null;
+  if (body.categories !== null) {
+    const unique = [...new Set(body.categories)];
+    const invalid = unique.filter((k) => !DEFENSE_ARRANGEMENT_KEYS.includes(k));
+    if (invalid.length) throw ApiError.validation(`دسته نامعتبر: ${invalid.join('، ')}`);
+    value = JSON.stringify(unique);
+  }
+  await db.run(
+    sql`INSERT INTO nation_settings (nation_id, defense_plan, updated_at) VALUES (${c.get('nation').id}, ${value}, ${nowSeconds()})
+        ON CONFLICT (nation_id) DO UPDATE SET defense_plan = excluded.defense_plan, updated_at = excluded.updated_at`,
+  );
+  return c.json({ plan: value === null ? null : JSON.parse(value) });
+});
+
+/** جایزه شانسی روزانه — state (shown list + today's status) */
+playerRoutes.get('/daily-prize', async (c) => {
+  const db = c.get('db');
+  const state = await prizeState(db, c.get('nation').id);
+  return c.json({ ...state, prizes: publicPrizes() });
+});
+
+/** دریافت جایزه شانسی — idempotent per UTC day, atomic with the grant */
+playerRoutes.post('/daily-prize/claim', async (c) => {
+  const db = c.get('db');
+  const settings = await settingsFor(c);
+  const result = await claimDailyPrize(db, c.get('nation'), settings, { botToken: c.env.BOT_TOKEN });
+  return c.json(result);
+});
+
+/* ---------------------------- بانک مرکزی ---------------------------- */
+
+/** موجودی خزانه + درآمد آماده دریافت + وضعیت وام فعال */
+playerRoutes.get('/bank', async (c) => {
+  const db = c.get('db');
+  const settings = await settingsFor(c);
+  return c.json(await bankState(db, c.get('nation'), settings));
+});
+
+/** «دریافت درآمد» — همهٔ دوره‌های تکمیل‌شدهٔ پرداخت‌نشده را یک‌جا واریز می‌کند */
+playerRoutes.post('/bank/income-claim', async (c) => {
+  const db = c.get('db');
+  const settings = await settingsFor(c);
+  const result = await claimIncome(db, c.get('nation'), settings);
+  return c.json(result);
+});
+
+/** دریافت وام بانکی: ۵٬۰۰۰ / ۱۰٬۰۰۰ / ۲۰٬۰۰۰ — سود ۱۰٪ — بازپرداخت طی ۷ روز — فقط یک وام فعال */
+playerRoutes.post('/bank/loan', async (c) => {
+  const db = c.get('db');
+  const body = parse(z.object({ principal: z.number().int().positive() }), await parseJson(c));
+  const nation = c.get('nation');
+  const result = await takeLoan(db, nation, body.principal);
+  return c.json(result);
+});
+
+/** بازپرداخت (تسویه) وام فعال — زودتر از موعد هم مجاز است */
+playerRoutes.post('/bank/loan/repay', async (c) => {
+  const db = c.get('db');
+  const result = await repayLoan(db, c.get('nation'));
+  return c.json(result);
+});
+
+/* --------------------------- وزارت ساخت‌وساز --------------------------- */
+
+playerRoutes.get('/buildings', async (c) => {
+  const db = c.get('db');
+  return c.json(await buildState(db, c.get('nation')));
+});
+
+/** ساخت یک سازه — هزینه از خزانه و جایزهٔ آن در همان تراکنش */
+playerRoutes.post('/buildings', async (c) => {
+  const db = c.get('db');
+  const body = parse(z.object({ buildingKey: z.string().min(1) }), await parseJson(c));
+  const result = await construct(db, c.get('nation'), body.buildingKey);
+  return c.json(result);
+});
+
 playerRoutes.get('/notifications', async (c) => {
   const db = c.get('db');
   const rows = await listNotifications(db, c.get('nation').id, Number(c.req.query('limit') ?? 30));
@@ -115,6 +215,15 @@ playerRoutes.post('/settings/notifications', async (c) => {
     sql`UPDATE nation_settings SET notify_enabled = ${body.enabled ? 1 : 0}, updated_at = ${nowSeconds()} WHERE nation_id = ${c.get('nation').id}`,
   );
   return c.json({ enabled: body.enabled });
+});
+
+/** بستن همهٔ نشست‌های Mini App — همان کاری که دکمهٔ «🔒 بستن نشست‌های Mini App» در ربات انجام می‌دهد */
+playerRoutes.post('/sessions/revoke-all', async (c) => {
+  const db = c.get('db');
+  const user = c.get('user');
+  const at = nowSeconds();
+  await db.run(sql`UPDATE sessions SET revoked_at = ${at} WHERE user_id = ${user.userId} AND revoked_at IS NULL`);
+  return c.json({ ok: true });
 });
 
 /** one nation of the player becomes the active one for the whole session UI */

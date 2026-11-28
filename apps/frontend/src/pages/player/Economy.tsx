@@ -3,15 +3,32 @@ import { Area, AreaChart, CartesianGrid, Line, LineChart, ResponsiveContainer, T
 import { useApi } from '../../auth';
 import { useRouter } from '../../router';
 import { Badge, Btn, Card, Empty, ErrorBox, Grid, Loading, Stat, Tabs, fa, faDateTime, faDuration, faMoney } from '../../ui';
+import { api } from '../../api';
 import { ECONOMY_NOTE, NAV_TITLES, TX_TONES } from './meta';
 
 export function EconomyPage() {
   const [tab, setTab] = useState<'chart' | 'ledger'>('chart');
+  const [claimBusy, setClaimBusy] = useState(false);
+  const [claimMsg, setClaimMsg] = useState<string | null>(null);
   const eco = useApi<{
     economy: Record<string, number>;
     history: { day: string; treasury: number; income: number; power: number; equipment: number }[];
   }>('/player/economy');
   const econ = (eco.data?.economy ?? {}) as Record<string, number>;
+  const pending = Number(econ.pendingIncome ?? 0);
+  const claimIncome = async () => {
+    setClaimBusy(true);
+    setClaimMsg(null);
+    try {
+      const r = await api.post<{ cycles: number; total: number }>('/player/bank/income-claim', {});
+      setClaimMsg(r.cycles > 0 ? `${faMoney(r.total)} سکه از درآمد به خزانه واریز شد. ✅` : 'درآمدی برای دریافت نیست.');
+      eco.reload();
+    } catch (e: any) {
+      setClaimMsg(e?.message ?? 'خطایی رخ داد.');
+    } finally {
+      setClaimBusy(false);
+    }
+  };
 
   return (
     <div className="space-y-3">
@@ -39,9 +56,15 @@ export function EconomyPage() {
         </div>
         <div className="mt-2 flex items-center justify-between rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-[11px] text-slate-400">
           <span>طول چرخه: {faDuration(econ.cycleSeconds)}</span>
-          <span>پرداخت بعدی: {faDuration(econ.nextIncomeIn)}</span>
-          <span>آخرین پرداخت: {faDateTime(econ.lastIncomeAt ? new Date(Number(econ.lastIncomeAt) * 1000).toISOString() : null)}</span>
+          <span>درآمد آماده دریافت: {faMoney(pending)} سکه</span>
+          <span>آخرین دریافت: {faDateTime(econ.lastIncomeAt ? new Date(Number(econ.lastIncomeAt) * 1000).toISOString() : null)}</span>
         </div>
+        {pending > 0 ? (
+          <Btn variant="primary" className="mt-2 w-full" onClick={claimIncome} disabled={claimBusy}>
+            {claimBusy ? 'در حال واریز…' : `دریافت ${faMoney(pending)} سکه درآمد 💵`}
+          </Btn>
+        ) : null}
+        {claimMsg ? <p className="mt-1 text-[11px] text-emerald-300">{claimMsg}</p> : null}
         <p className="mt-2 text-[11px] leading-5 text-slate-500">{ECONOMY_NOTE}</p>
       </Card>
 

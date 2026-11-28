@@ -197,6 +197,26 @@ export type Role = (typeof ROLES)[number];
 export const NATIONALITY_STATUS = ['active', 'frozen', 'banned', 'at_war', 'in_alliance'] as const;
 export type NationStatus = (typeof NATIONALITY_STATUS)[number];
 
+/** وزارت ساخت‌وساز: سازه‌های یک‌بارساخت — ارقام و جوایز اینجا تغییر می‌کنند (عددها با پادگان/نیروی هوایی توازن داده می‌شوند؛ در صورت تغییر نظام، همین‌جا عوض کنید) */
+export const BUILDINGS = [
+  { key: 'barracks', emoji: '🪖', nameFa: 'پادگان نظامی', descFa: 'آموزش و جذب سرباز', cost: 10_000, grant: { kind: 'units', templateCode: 'rangers', quantity: 1000 } },
+  { key: 'airbase', emoji: '🛩️', nameFa: 'پایگاه هوایی', descFa: 'استقرار جنگنده‌ها', cost: 20_000, grant: { kind: 'units', templateCode: 'su57', quantity: 3 } },
+  { key: 'factory', emoji: '🏭', nameFa: 'کارخانه نظامی', descFa: 'تولید تجهیزات نظامی', cost: 30_000, grant: { kind: 'units', templateCode: 'leopard_2a7', quantity: 25 } },
+  { key: 'navalbase', emoji: '⚓', nameFa: 'پایگاه دریایی', descFa: 'استقرار ناوها و زیردریایی‌ها', cost: 25_000, grant: { kind: 'units', templateCode: 'nimitz', quantity: 1 } },
+  { key: 'shelter', emoji: '🛡️', nameFa: 'پناهگاه نظامی', descFa: 'افزایش مقاومت کشور', cost: 15_000, grant: { kind: 'fortification', quantity: 2 } },
+  { key: 'radar', emoji: '📡', nameFa: 'مرکز رادار', descFa: 'افزایش شناسایی تهدیدها', cost: 13_000, grant: { kind: 'units', templateCode: 'an_spy6', quantity: 3 } },
+] as const;
+export type BuildingKey = (typeof BUILDINGS)[number]['key'];
+
+export const BUILDING_KEYS: readonly string[] = BUILDINGS.map((b) => b.key);
+
+/** بانک مرکزی: وام بانکی — ارقام روی صفحه‌های ربات؛ تغییر فقط اینجا */
+export const BANK_LOAN = {
+  options: [5000, 10000, 20000] as const,
+  interestRate: 0.10,
+  termDays: 7,
+} as const;
+
 export const TRANSACTION_TYPES = [
   'starter_grant',
   'revenue',
@@ -209,6 +229,9 @@ export const TRANSACTION_TYPES = [
   'tax',
   'maintenance',
   'battle_loss_compensation',
+  'prize',
+  'loan_disbursement',
+  'loan_repayment',
 ] as const;
 export type TransactionType = (typeof TRANSACTION_TYPES)[number];
 
@@ -224,6 +247,9 @@ export const TRANSACTION_TYPE_LABELS_FA: Record<TransactionType, string> = {
   tax: 'مالیات',
   maintenance: 'هزینه نگهداری',
   battle_loss_compensation: 'جبران خسارت',
+  prize: 'جایزه شانسی روزانه',
+  loan_disbursement: 'دریافت وام بانکی',
+  loan_repayment: 'تسویه وام بانکی',
 };
 
 export const WAR_STATUS = ['proposed', 'accepted', 'active', 'peace_requested', 'ended', 'cancelled', 'stopped_by_admin'] as const;
@@ -430,7 +456,7 @@ export const ROUTES = {
 
 export const PLAYER_PAGES = [
   'dashboard', 'economy', 'military', 'marketplace', 'country', 'war',
-  'defense', 'diplomacy', 'statements', 'news', 'rankings', 'settings',
+  'defense', 'diplomacy', 'statements', 'rankings', 'settings',
 ] as const;
 export type PlayerPage = (typeof PLAYER_PAGES)[number];
 
@@ -444,7 +470,6 @@ export const PLAYER_PAGE_META: Record<PlayerPage, { labelFa: string; emoji: stri
   defense: { labelFa: 'دفاع', emoji: '🛡️' },
   diplomacy: { labelFa: 'دیپلماسی', emoji: '🌐' },
   statements: { labelFa: 'بیانیه‌ها', emoji: '📜' },
-  news: { labelFa: 'اخبار', emoji: '📰' },
   rankings: { labelFa: 'رتبه‌بندی', emoji: '📊' },
   settings: { labelFa: 'تنظیمات', emoji: '⚙️' },
 };
@@ -481,3 +506,40 @@ export type AdminSection = (typeof ADMIN_SECTIONS)[number];
 
 export const MAX_STATEMENT_CHARS = 1200;
 export const MIN_STATEMENT_CHARS = 10;
+
+/* ----------------- آرایش دفاعی (مرکز فرماندهی دفاع) ----------------- */
+/**
+ * The 12 tiles of the defense-arrangement screen. 'fortification' is a special token:
+ * it commits the nation's fortification-level bonus (nation_settings.fortification_level)
+ * rather than a unit category.
+ */
+export const DEFENSE_ARRANGEMENT = [
+  { key: 'tanks', labelFa: 'تانک', emoji: '🚜' },
+  { key: 'soldiers', labelFa: 'سرباز', emoji: '🪖' },
+  { key: 'ground_air_defense', labelFa: 'پدافند زمینی', emoji: '🛡️' },
+  { key: 'apc', labelFa: 'نفربر', emoji: '🚛' },
+  { key: 'air_air_defense', labelFa: 'پدافند هوایی', emoji: '🛡️' },
+  { key: 'missiles', labelFa: 'موشک دفاعی', emoji: '🚀' },
+  { key: 'helicopters', labelFa: 'هلیکوپتر', emoji: '🚁' },
+  { key: 'fighters', labelFa: 'جنگنده', emoji: '✈️' },
+  { key: 'naval_air_defense', labelFa: 'پدافند دریایی', emoji: '⚓' },
+  { key: 'ships', labelFa: 'ناو جنگی', emoji: '🚢' },
+  { key: 'fortification', labelFa: 'استحکامات دفاعی', emoji: '🏰' },
+  { key: 'radars', labelFa: 'رادار', emoji: '📡' },
+] as const;
+export type DefenseArrangementKey = (typeof DEFENSE_ARRANGEMENT)[number]['key'];
+export const DEFENSE_ARRANGEMENT_KEYS: readonly string[] = DEFENSE_ARRANGEMENT.map((d) => d.key);
+export const DEFENSE_FORTIFICATION_TOKEN = 'fortification';
+
+/* ----------------- جایزه شانسی روزانه ----------------- */
+/** display catalogue (shared by the Mini App and the bot); weights live server-side */
+export const DAILY_PRIZES = [
+  { key: 'aster30_10', emoji: '🛡️', labelFa: '۱۰ پدافند Aster 30', kind: 'equipment' },
+  { key: 'soldiers_500', emoji: '🪖', labelFa: '۵۰۰ سرباز تکاور', kind: 'equipment' },
+  { key: 'su57_5', emoji: '✈️', labelFa: '۵ جنگنده SU-57', kind: 'equipment' },
+  { key: 'nimitz_1', emoji: '🚢', labelFa: '۱ ناو هواپیمابر Nimitz', kind: 'equipment' },
+  { key: 'df41_2', emoji: '🚀', labelFa: '۲ موشک DF-41', kind: 'equipment' },
+  { key: 'coins_5000', emoji: '💰', labelFa: '۵۰۰۰ سکه', kind: 'coins' },
+  { key: 'coins_800', emoji: '💰', labelFa: '۸۰۰ سکه', kind: 'coins' },
+] as const;
+export type DailyPrizeKey = (typeof DAILY_PRIZES)[number]['key'];

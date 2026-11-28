@@ -1,5 +1,5 @@
 import { useApi, useAuth } from '../../auth';
-import { useCountdown, useRouter } from '../../router';
+import { useRouter } from '../../router';
 import { Badge, Card, Empty, ErrorBox, Grid, Loading, Row, Stat, fa, faDateTime, faDuration, faMoney } from '../../ui';
 import { ECONOMY_NOTE, categoryLabel } from './meta';
 
@@ -12,33 +12,32 @@ export function PlayerHome() {
   const { navigate } = useRouter();
   const view = me?.view;
   const eco = useApi<{ economy: Record<string, number>; history: { day: string; treasury: number; income: number }[] }>('/player/economy');
-  const news = useApi<{ items: any[] }>('/social/news?limit=5');
   const wars = useApi<{ wars: any[] }>('/war/wars');
   const reqs = useApi<{ incoming: any[] }>('/diplomacy/requests');
 
   const econ = { ...(view?.economy ?? {}), ...(eco.data?.economy ?? {}) } as Record<string, number>;
-  const nextIn = useCountdown(econ.nextIncomeIn);
   const nation = view?.nation;
-  const activeWars = (wars.data?.wars ?? []).filter((w: any) => ['active', 'proposed', 'peace_requested'].includes(String(w.status)));
+  const activeWars = (wars.data?.wars ?? []).filter((w: any) => ['active', 'peace_requested'].includes(String(w.status)));
 
   if (!view || !nation) return <Empty text="برای شروع، کشور خود را از ربات بسازید." />;
 
   return (
     <div className="space-y-3">
-      <Card>
-        <div className="flex items-start justify-between gap-2">
-          <div className="min-w-0">
-            <div className="flex items-center gap-2">
-              <span className="text-3xl">{nation.flag}</span>
-              <h1 className="truncate text-lg font-extrabold">{nation.name}</h1>
+      <Card className="relative overflow-hidden border-gold/20 bg-gradient-to-l from-gold/10 via-ink-800/80 to-ink-900/80">
+        <div aria-hidden className="pointer-events-none absolute -left-5 -top-6 select-none text-8xl opacity-[0.07]">{nation.flag}</div>
+        <div className="relative flex items-start justify-between gap-2">
+          <div className="flex min-w-0 items-center gap-3">
+            <span className="grid h-14 w-14 shrink-0 place-items-center rounded-2xl border border-white/10 bg-white/5 text-3xl">{nation.flag}</span>
+            <div className="min-w-0">
+              <h1 className="truncate text-lg font-black tracking-tight text-slate-50">{nation.name}</h1>
+              <p className="mt-0.5 text-[11px] text-slate-400">
+                رهبر {nation.leaderName} · از {faDateTime(nation.createdAt)}
+              </p>
             </div>
-            <p className="mt-1 text-xs text-slate-400">
-              رهبر {nation.leaderName} · از {faDateTime(nation.createdAt)}
-            </p>
           </div>
-          <div className="shrink-0 text-left">
-            <div className="text-[11px] text-slate-400">رتبه جهانی</div>
-            <div className="text-2xl font-black text-gold-soft">{fa(nation.worldRank)}</div>
+          <div className="shrink-0 rounded-2xl border border-gold/25 bg-gold/10 px-3 py-1.5 text-center">
+            <div className="text-[9px] font-bold uppercase tracking-widest text-gold-soft/80">رتبه جهانی</div>
+            <div className="text-2xl font-black leading-7 text-gold-soft">{fa(nation.worldRank)}</div>
           </div>
         </div>
 
@@ -49,13 +48,14 @@ export function PlayerHome() {
           <Stat label="سرباز" value={fa(nation.troopsCount)} />
         </Grid>
 
-        <div className="mt-3 flex items-center justify-between rounded-xl border border-gold/20 bg-gold/5 px-3 py-2">
-          <span className="text-xs text-slate-300">درآمد بعدی</span>
-          <span className="text-sm font-bold text-gold-soft">
+        <button onClick={() => navigate('/app/bank')} className="group mt-3 flex w-full items-center justify-between rounded-2xl border border-gold/25 bg-gold/10 px-3 py-2.5 text-right transition hover:border-gold/40 hover:bg-gold/15 active:scale-[0.99]">
+          <span className="text-xs text-slate-300">🏦 درآمد آماده دریافت</span>
+          <span className="text-sm font-black text-gold-soft">
+            {faMoney(Number(econ.pendingIncome ?? 0))} سکه
             {econ.cycleSeconds ? <span className="ml-1 text-[11px] font-normal text-slate-400">هر {faDuration(econ.cycleSeconds)}</span> : null}
-            {faDuration(nextIn)}
+            <span className="mr-1 inline-block transition-transform group-hover:-translate-x-0.5">⬅</span>
           </span>
-        </div>
+        </button>
       </Card>
 
       {activeWars.length > 0 || (reqs.data?.incoming ?? []).length > 0 ? (
@@ -118,9 +118,9 @@ export function PlayerHome() {
             { p: '/app/wars', t: '⚔️ اتاق جنگ' },
             { p: '/app/ranking', t: '🏆 رتبه‌ها' },
             { p: '/app/friends', t: '🕊️ دیپلماسی' },
-            { p: '/app/statements', t: '📣 بیانیه' },
-            { p: '/app/defense', t: '🛰️ پدافند' },
-            { p: '/app/profile', t: '👤 کشور من' },
+            { p: '/app/bank', t: '🏦 بانک' },
+            { p: '/app/build', t: '🏗️ ساخت‌وساز' },
+            { p: '/app/ranking', t: '🏆 رتبه‌بندی' },
           ].map((b) => (
             <button key={b.p} className="ww-btn justify-center py-3" onClick={() => navigate(b.p)}>
               {b.t}
@@ -129,32 +129,9 @@ export function PlayerHome() {
         </div>
       </Card>
 
-      <Card title="اخبار جهان" emoji="🌐" right={<button className="ww-btn ww-btn-ghost text-xs" onClick={() => navigate('/app/log')}>همه اخبار</button>}>
-        {news.loading ? <Loading /> : null}
-        {news.error ? <ErrorBox message={news.error} onRetry={news.reload} /> : null}
-        <div className="space-y-2">
-          {(news.data?.items ?? []).map((n: any) => (
-            <Row key={n.id}>
-              <span className="min-w-0 text-xs leading-6">
-                <Badge tone={n.kind === 'war' ? 'bad' : n.kind === 'announcement' ? 'warn' : 'info'}>{kindFa(n.kind)}</Badge>
-                <span className="mr-2">{n.title}</span>
-              </span>
-              <span className="shrink-0 text-[11px] text-slate-500">{faDateTime(n.createdAt)}</span>
-            </Row>
-          ))}
-          {!news.loading && (news.data?.items ?? []).length === 0 ? <Empty text="هنوز خبری منتشر نشده است." /> : null}
-        </div>
-      </Card>
-
       <p className="px-1 text-[11px] leading-6 text-slate-500">🧾 {ECONOMY_NOTE}</p>
     </div>
   );
-}
-
-function kindFa(kind: string) {
-  return (
-    { war: 'جنگ', peace: 'صلح', alliance: 'پیمان', statement: 'بیانیه', announcement: 'اطلاعیه', economy: 'اقتصاد', system: 'سیستم' } as Record<string, string>
-  )[kind] ?? kind;
 }
 
 function categoryShare(part: number | undefined, total: number | undefined): number {

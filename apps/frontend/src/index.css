@@ -14,7 +14,11 @@ body,
 
 body {
   margin: 0;
-  background: radial-gradient(1200px 600px at 50% -10%, #16203a 0%, #070a12 60%);
+  background:
+    radial-gradient(900px 500px at 85% -10%, rgba(240, 180, 41, 0.10), transparent 55%),
+    radial-gradient(900px 500px at 15% -10%, rgba(94, 234, 212, 0.08), transparent 55%),
+    radial-gradient(1200px 600px at 50% -10%, #16203a 0%, #070a12 60%);
+  background-attachment: fixed;
   -webkit-tap-highlight-color: transparent;
 }
 
@@ -26,13 +30,16 @@ body {
 
 @layer components {
   .ww-card {
-    @apply rounded-2xl border border-white/10 bg-ink-800/80 shadow-card backdrop-blur;
+    @apply rounded-2xl border border-white/10 bg-ink-800/80 shadow-card backdrop-blur transition-shadow;
+  }
+  .ww-card-hero {
+    @apply rounded-3xl border border-gold/25 bg-ink-800/80 shadow-card;
   }
   .ww-btn {
-    @apply inline-flex items-center justify-center gap-1 rounded-xl border border-white/10 bg-ink-700 px-3 py-2 text-sm font-semibold text-slate-100 transition active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-40;
+    @apply inline-flex items-center justify-center gap-1 rounded-xl border border-white/10 bg-ink-700 px-3 py-2 text-sm font-semibold text-slate-100 shadow-[0_1px_0_0_rgba(255,255,255,0.06)_inset] transition hover:border-white/20 active:scale-[0.97] disabled:cursor-not-allowed disabled:opacity-40;
   }
   .ww-btn-primary {
-    @apply border-gold/40 bg-gold/15 text-gold-soft hover:bg-gold/25;
+    @apply border-gold/40 bg-gradient-to-b from-gold/25 to-gold/10 text-gold-soft hover:from-gold/35 hover:to-gold/15;
   }
   .ww-btn-danger {
     @apply border-danger/40 bg-danger/10 text-danger hover:bg-danger/20;
@@ -50,7 +57,21 @@ body {
     @apply whitespace-nowrap rounded-lg px-3 py-1.5 text-xs font-semibold text-slate-300;
   }
   .ww-tab-active {
-    @apply bg-gold/20 text-gold-soft;
+    @apply bg-gold/20 text-gold-soft shadow-[0_0_0_1px_rgba(240,180,41,0.35),0_4px_14px_-6px_rgba(240,180,41,0.45)];
+  }
+  .ww-nav-active {
+    @apply bg-gradient-to-b from-gold/25 to-gold/10 text-gold-soft;
+    box-shadow: 0 0 0 1px rgba(240, 180, 41, 0.35), 0 6px 18px -8px rgba(240, 180, 41, 0.5);
+  }
+  .ww-text-gradient {
+    background: linear-gradient(120deg, #ffd66b 0%, #f0b429 40%, #fff3c4 60%, #f0b429 100%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
+  .ww-focus:focus-visible {
+    outline: 2px solid rgba(240, 180, 41, 0.6);
+    outline-offset: 2px;
   }
 }
 

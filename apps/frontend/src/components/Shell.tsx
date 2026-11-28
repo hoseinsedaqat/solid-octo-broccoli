@@ -9,7 +9,10 @@ const PLAYER_NAV: { path: string; label: string; emoji: string }[] = [
   { path: '/app/shop', label: 'فروشگاه', emoji: '🛒' },
   { path: '/app/military', label: 'نظامی', emoji: '🛡️' },
   { path: '/app/wars', label: 'جنگ', emoji: '⚔️' },
-  { path: '/app/ranking', label: 'رتبه', emoji: '🏆' },
+  { path: '/app/build', label: 'ساخت‌وساز', emoji: '🏗️' },
+  { path: '/app/ranking', label: 'رتبه‌', emoji: '🏆' },
+  { path: '/app/bank', label: 'بانک', emoji: '🏦' },
+  { path: '/app/rewards', label: 'جوایز', emoji: '🎁' },
   { path: '/app/friends', label: 'دیپلماسی', emoji: '🕊️' },
   { path: '/app/statements', label: 'بیانیه', emoji: '📣' },
   { path: '/app/profile', label: 'پروفایل', emoji: '👤' },
@@ -50,15 +53,18 @@ export function Shell({ children }: { children: ReactNode }) {
     <div className="mx-auto flex min-h-full w-full max-w-3xl flex-col">
       <header className="sticky top-0 z-30 border-b border-white/10 bg-ink-950/85 backdrop-blur">
         <div className="flex items-center justify-between gap-2 px-3 py-2">
-          <div className="flex min-w-0 items-center gap-2">
-            <span className="text-lg">🌍</span>
-            <span className="truncate text-sm font-extrabold text-gold-soft">{me.branding?.gameName ?? 'World War'}</span>
+          <div className="flex min-w-0 items-center gap-2.5">
+            <span className="grid h-9 w-9 shrink-0 place-items-center rounded-2xl border border-gold/30 bg-gradient-to-br from-gold/25 to-amber-700/20 text-lg shadow-[0_0_18px_-4px_rgba(240,180,41,0.5)]">🌍</span>
+            <div className="min-w-0 leading-tight">
+              <span className="ww-text-gradient block truncate text-[15px] font-black tracking-tight">{me.branding?.gameName ?? 'World War'}</span>
+              <span className="block text-[9px] font-semibold uppercase tracking-[0.2em] text-slate-500">strategic command</span>
+            </div>
             {isAdmin ? <Badge tone="warn">مدیر</Badge> : null}
           </div>
           <div className="flex items-center gap-1">
             {active ? (
-              <button className="ww-btn ww-btn-ghost" onClick={() => navigate('/app/player/nation')}>
-                <span>{view?.flag ?? '🏳️'}</span>
+              <button className="ww-btn ww-focus border-gold/20 bg-gold/10 text-gold-soft" onClick={() => navigate('/app/player/nation')}>
+                <span className="text-base leading-none">{view?.flag ?? '🏳️'}</span>
                 <span className="max-w-24 truncate">{view?.name ?? 'کشور'}</span>
               </button>
             ) : null}
@@ -89,9 +95,6 @@ export function Shell({ children }: { children: ReactNode }) {
                   🔄 تغییر کشور
                 </button>
               ) : null}
-              <button className="ww-btn" onClick={() => navigate('/app/log')}>
-                📜 رویدادها
-              </button>
               <button className="ww-btn" onClick={() => navigate('/app/profile')}>
                 ⚙️ کشور من
               </button>
@@ -108,12 +111,12 @@ export function Shell({ children }: { children: ReactNode }) {
         ) : null}
       </header>
 
-      <nav className="sticky top-[44px] z-20 overflow-x-auto border-b border-white/10 bg-ink-900/70 px-2 py-1.5 backdrop-blur">
+      <nav className="sticky top-[52px] z-20 overflow-x-auto border-b border-white/5 bg-ink-900/80 px-2 py-2 backdrop-blur" style={{ scrollbarWidth: 'none' }}>
         <div className="flex gap-1">
           {nav.map((item) => {
             const isActive = item.path === path || (item.path !== '/app/player' && item.path !== '/app/admin' && path.startsWith(item.path));
             return (
-              <button key={item.path} className={`ww-tab ${isActive ? 'ww-tab ww-tab-active' : 'ww-tab hover:bg-white/5'}`} onClick={() => navigate(item.path)}>
+              <button key={item.path} className={`ww-tab ww-focus ${isActive ? 'ww-nav-active' : 'hover:bg-white/5'}`} onClick={() => navigate(item.path)} aria-current={isActive ? 'page' : undefined}>
                 <span className="ml-1">{item.emoji}</span>
                 {item.label}
               </button>

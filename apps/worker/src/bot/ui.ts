@@ -5,9 +5,9 @@ import { escapeHtml } from './telegram';
 export const REPLY_MENU: KeyboardRow<ReplyKeyboardButton>[] = [
   [{ text: '🛡️ مدیریت کشور' }, { text: '💰 دارایی' }],
   [{ text: '🛒 خرید تجهیزات' }, { text: '⚔️ حمله' }],
-  [{ text: '🛡️ دفاع' }, { text: '🌐 دیپلماسی' }],
-  [{ text: '📜 بیانیه‌ها' }, { text: '📊 آمار و اطلاعات' }],
-  [{ text: '🌍 اخبار جهانی' }, { text: '⚙️ تنظیمات' }],
+  [{ text: '🛡️ دفاع' }, { text: '🎁 جوایز روزانه' }],
+  [{ text: '📜 بیانیه‌ها' }, { text: '🏗️ ساخت و ساز' }],
+  [{ text: '🏦 بانک مرکزی' }, { text: '🏆 رتبه‌بندی کشورها' }],
 ];
 
 export const REPLY_TO_LABEL: Record<string, PlayerPage | 'menu'> = {
@@ -18,9 +18,6 @@ export const REPLY_TO_LABEL: Record<string, PlayerPage | 'menu'> = {
   '🛡️ دفاع': 'defense',
   '🌐 دیپلماسی': 'diplomacy',
   '📜 بیانیه‌ها': 'statements',
-  '📊 آمار و اطلاعات': 'rankings',
-  '🌍 اخبار جهانی': 'news',
-  '⚙️ تنظیمات': 'settings',
 };
 
 /**

@@ -2,69 +2,120 @@ import { useState } from 'react';
 import { api, type ApiError } from '../../api';
 import { useApi, useAuth } from '../../auth';
 import { Badge, Btn, Card, Empty, ErrorBox, Grid, Loading, Modal, Row, Stat, Tabs, fa, faDateTime, faMoney, useToast } from '../../ui';
+import { useRouter } from '../../router';
 import { NationSearchSelect } from '../../components/nations';
 import { DIPLOMACY_KIND_LABELS_FA, MAX_STATEMENT_CHARS, MIN_STATEMENT_CHARS, NAV_TITLES, RANKING_LABELS_FA, RELATION_LABELS_FA, STATEMENT_STATUS_LABELS_FA } from './meta';
 
 /* -------------------------------- ranking -------------------------------- */
 
+type RankingTab = 'military' | 'economic' | 'global' | 'development';
+
+const RANKING_TABS: { key: RankingTab; label: string; metric: string; scoreLabel: string }[] = [
+  { key: 'military', label: '⚔️ رتبه‌بندی قدرت نظامی', metric: 'military_power', scoreLabel: 'قدرت نظامی' },
+  { key: 'economic', label: '💰 رتبه‌بندی اقتصادی', metric: 'economic_score', scoreLabel: 'امتیاز اقتصادی' },
+  { key: 'global', label: '🌍 رتبه‌بندی قدرت جهانی', metric: 'total', scoreLabel: 'امتیاز کل' },
+  { key: 'development', label: '🏭 رتبه‌بندی توسعه کشورها', metric: 'development', scoreLabel: 'سازه‌های ساخته‌شده' },
+];
+const RANK_MEDALS = ['🥇', '🥈', '🥉', '4️⃣', '5️⃣'];
+const RANK_WORDS = ['اول', 'دوم', 'سوم', 'چهارم', 'پنجم'];
+
+/** «🏆 رده‌بندی قدرت‌های جهان» — برترین کشورهای جهان بر اساس عملکرد و قدرت (داده‌های واقعی بازی) */
 export function RankingPage() {
   const { me } = useAuth();
-  const [metric, setMetric] = useState('total');
-  const rank = useApi<{ metric: string; rows: any[]; available: string[]; weights: Record<string, number> }>(`/social/rankings?limit=50&metric=${metric}`, [metric]);
+  const { navigate } = useRouter();
+  const [tab, setTab] = useState<RankingTab>('global');
+  const active = RANKING_TABS.find((t) => t.key === tab) ?? RANKING_TABS[2]!;
+  const rank = useApi<{ metric: string; rows: any[]; available: string[] }>(`/social/rankings?limit=5&metric=${active.metric}`, [active.metric]);
   const mine = me?.activeNationId ?? null;
   const rows = rank.data?.rows ?? [];
-  const podium = rows.slice(0, 3);
+  const top = rows[0];
+  const myRow = rows.find((r: any) => r.nationId === mine);
 
   return (
-    <div className="space-y-3">
-      <h1 className="text-base font-extrabold">{NAV_TITLES.rankings}</h1>
-
-      <Card title="پودیوم" emoji="🥇">
-        <Grid cols={3}>
-          {podium.map((r: any, i: number) => (
-            <Stat
-              key={r.nationId}
-              label={`${['🥇', '🥈', '🥉'][i]} رتبه ${fa(r.rank)}`}
-              value={`${r.flag} ${r.name}`}
-              hint={`امتیاز ${fa(r.score)}`}
-              tone={i === 0 ? 'ok' : undefined}
-            />
-          ))}
-          {podium.length === 0 ? <Empty text="هنوز رتبه‌ای محاسبه نشده است." /> : null}
-        </Grid>
-      </Card>
-
-      <div className="flex gap-1 overflow-x-auto pb-1">
-        {(rank.data?.available ?? ['total', ...Object.keys(RANKING_LABELS_FA)]).map((m) => (
-          <button key={m} className={`ww-tab ${metric === m ? 'ww-tab ww-tab-active' : 'ww-tab hover:bg-white/5'}`} onClick={() => setMetric(m)}>
-            {m === 'total' ? 'مجموع' : (RANKING_LABELS_FA as Record<string, string>)[m] ?? m}
-            {rank.data?.weights?.[m] !== undefined ? <span className="mr-1 text-[10px] text-slate-500">وزن {fa(rank.data.weights[m])}</span> : null}
-          </button>
-        ))}
+    <div className="mx-auto w-full max-w-lg space-y-4">
+      {/* hero */}
+      <div className="relative overflow-hidden rounded-3xl border border-gold/25 bg-gradient-to-l from-gold/15 via-ink-800 to-ink-900 p-5 text-center shadow-card">
+        <div aria-hidden className="pointer-events-none absolute -right-6 -top-8 select-none text-8xl opacity-10">🏆</div>
+        <div aria-hidden className="pointer-events-none absolute -left-4 bottom-2 select-none text-6xl opacity-10">🌍</div>
+        <div className="relative">
+          <div className="text-4xl">🏆</div>
+          <h1 className="mt-1 text-lg font-black tracking-tight text-gold-soft">رده‌بندی قدرت‌های جهان</h1>
+          <p className="mt-1 text-[11px] leading-6 text-slate-400">برترین کشورهای جهان بر اساس عملکرد و قدرت</p>
+        </div>
       </div>
 
-      <Card title="جدول جهانی" emoji="🌍">
-        {rank.loading ? <Loading /> : null}
-        {rank.error ? <ErrorBox message={rank.error} onRetry={rank.reload} /> : null}
-        <div className="space-y-1">
-          {rows.map((r: any) => (
+      {/* دسته‌بندی رتبه‌بندی */}
+      <div>
+        <div className="mb-1.5 px-1 text-[11px] font-bold text-slate-400">دسته‌بندی رتبه‌بندی</div>
+        <div className="grid gap-2">
+          {RANKING_TABS.map((t) => (
+            <button
+              key={t.key}
+              onClick={() => setTab(t.key)}
+              className={`rounded-2xl border px-4 py-3 text-right text-[13px] font-extrabold transition active:scale-[0.99] ${
+                tab === t.key ? 'border-gold/40 bg-gold/15 text-gold-soft shadow-card' : 'border-white/10 bg-black/60 text-slate-100 hover:border-white/20'
+              }`}
+            >
+              <span className="flex items-center justify-between gap-2">
+                <span>{t.label}</span>
+                {tab === t.key ? <span className="text-gold-soft">✅</span> : null}
+              </span>
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {rank.loading ? <Loading label="در حال دریافت رده‌بندی…" /> : null}
+      {rank.error ? <ErrorBox message={rank.error} onRetry={rank.reload} /> : null}
+
+      {/* برترین کشور */}
+      {top ? (
+        <div className="relative overflow-hidden rounded-3xl border border-gold/40 bg-gradient-to-b from-gold/20 via-ink-800 to-ink-900 p-5 text-center shadow-card">
+          <div aria-hidden className="pointer-events-none absolute left-1/2 top-2 -translate-x-1/2 select-none text-8xl opacity-[0.07]">🥇</div>
+          <div className="relative">
+            <div className="text-[11px] font-bold uppercase tracking-widest text-gold-soft">🥇 رتبه اول</div>
+            <span className="mt-2 inline-flex items-center gap-1 rounded-full border border-emerald-400/40 bg-emerald-500/15 px-3 py-0.5 text-[10px] font-black text-emerald-300">ابرقدرت ★</span>
+            <div className="mt-3 flex items-center justify-center gap-3">
+              <span className="text-5xl">{top.flag}</span>
+              <span className="max-w-[13rem] truncate text-xl font-black text-slate-50">{top.name}</span>
+            </div>
+            <div className="mt-3 inline-flex items-baseline gap-2 rounded-2xl border border-white/10 bg-black/40 px-4 py-1.5">
+              <span className="text-[11px] text-slate-400">{active.scoreLabel}:</span>
+              <b className="text-lg tabular-nums text-gold-soft">{fa(top.score)}</b>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {/* رتبه‌های دوم تا پنجم */}
+      {rows.length > 1 ? (
+        <div className="space-y-1.5">
+          {rows.slice(1, 5).map((r: any, i: number) => (
             <Row key={r.nationId} active={mine === r.nationId}>
               <span className="flex min-w-0 items-center gap-2 text-xs">
-                <span className="w-8 shrink-0 text-slate-400">{fa(r.rank)}</span>
-                <span className="shrink-0">{r.flag}</span>
-                <span className="truncate font-semibold">{r.name}</span>
+                <span className="w-7 shrink-0 text-base leading-none">{RANK_MEDALS[i + 1]}</span>
+                <span className="shrink-0 text-xl leading-none">{r.flag}</span>
+                <span className="min-w-0">
+                  <span className="block truncate font-bold text-slate-100">رتبه {RANK_WORDS[i + 1]} {r.name}</span>
+                  <span className="block text-[10px] text-slate-500">{r.leaderName}</span>
+                </span>
                 {mine === r.nationId ? <Badge tone="ok">شما</Badge> : null}
               </span>
-              <span className="shrink-0 text-[11px] text-slate-400">
-                {fa(r.score)} · {metric === 'total' ? 'امتیاز کل' : (RANKING_LABELS_FA as Record<string, string>)[metric] ?? metric}
-              </span>
+              <span className="shrink-0 text-[12px] font-bold tabular-nums text-slate-300">{fa(r.score)}</span>
             </Row>
           ))}
         </div>
-        <p className="mt-2 text-[11px] leading-5 text-slate-500">
-          رتبه‌ها در کران پس‌زمینه (rankingJob) بازنویسی می‌شوند؛ اعداد اینجا دقیقاً همان مقدار ذخیره‌شده در nations.total_score / world_rank است.
-        </p>
-      </Card>
+      ) : null}
+      {!rank.loading && rows.length === 0 ? <Empty text="هنوز کشوری در این دسته‌بندی رتبه‌بندی نشده است." /> : null}
+
+      {myRow ? (
+        <div className="rounded-2xl border border-gold/30 bg-gold/10 px-4 py-2 text-center text-[12px] text-gold-soft">
+          رتبهٔ کشور شما: <b>#{fa(myRow.rank)}</b> · {fa(myRow.score)} {active.scoreLabel}
+        </div>
+      ) : null}
+
+      <p className="px-1 text-[10px] leading-6 text-slate-500">* امتیازها و نام کشورها بر اساس داده‌های واقعی بازی به‌روزرسانی می‌شوند.</p>
+      <Btn variant="ghost" className="w-full" onClick={() => navigate('/app/player')}>⬅ بازگشت BACK</Btn>
     </div>
   );
 }

@@ -3,7 +3,6 @@ import { sql } from '../core/sql';
 import { nowSeconds } from '../core/format';
 import { loadSettings, type SettingsBundle } from '../core/settings';
 import { recomputeRankings } from '../db/queries';
-import { completedCycleIndex, creditCycle } from '../services/financeService';
 import { expireProposal, finalizeWar, listDueWars, listExpiredProposals, listOverdueWars, resolveRound } from '../services/warService';
 import { expireRequests } from '../services/diplomacyService';
 import { purgeExpiredSessions } from '../services/authService';
@@ -68,7 +67,7 @@ export async function runScheduled(env: Env, db: Db, eventCron?: string, now = n
   const settings = await loadSettings(db, { force: true });
   const paused = await isCronPaused(db, settings);
 
-  await run('revenue', () => revenueJob(db, settings, now, paused));
+  // income is claim-based («دریافت درآمد» in بانک مرکزی) — no auto-credit cron
   await run('wars', () => warJob(db, settings, now));
   await run('war_expiry', () => warExpiryJob(db, settings, now));
   if (paused) {
@@ -84,59 +83,6 @@ export async function runScheduled(env: Env, db: Db, eventCron?: string, now = n
   await snapshotQuota(db, settings);
   await flushQuota(db);
   return { startedAt, finishedAt: nowSeconds(), jobs, ...({ cron: eventCron ?? null } as object) };
-}
-
-/**
- * Credits due income cycles. One cycle per nation per run (plus a bounded
- * catch-up), 40 nations per batch, cursor kept in job_checkpoints.
- */
-async function revenueJob(db: Db, settings: SettingsBundle, now: number, paused: boolean): Promise<JobOutput> {
-  if (paused) return { processed: 0, detail: 'skipped:quota-guard' };
-  const state = await db.first<{ cursor: number }>(sql`SELECT cursor FROM job_checkpoints WHERE job_key = 'revenue'`);
-  let cursor = Number(state?.cursor ?? 0);
-  const pageSize = 40;
-  const maxPages = 10; // hard bound per cron run => at most 400 nations, always inside the CPU budget
-  let credited = 0;
-  let skipped = 0;
-  let visited = 0;
-  let pages = 0;
-
-  for (let page = 0; page < maxPages; page++) {
-    const nations = await db.all<Record<string, unknown>>(
-      sql`SELECT id, owner_user_id, name, flag, leader_name, status, treasury, military_power, economic_score, total_score,
-                 world_rank, allies_count, enemies_count, wars_count, wins_count, losses_count, equipment_count, troops_count,
-                 income_anchor_at, last_income_cycle, last_income_at, last_rename_at, last_leader_rename_at, last_flag_change_at,
-                 starter_template_id, created_at, updated_at
-            FROM nations WHERE status IN ('active','at_war') AND id > ${cursor} ORDER BY id LIMIT ${pageSize}`,
-    );
-    pages++;
-    if (nations.length === 0) {
-      cursor = 0; // wrapped: the whole world was swept, start from the beginning next run
-      break;
-    }
-    visited += nations.length;
-    for (const raw of nations) {
-      const nation = raw as never as import('../services/nationService').NationRow;
-      const maxCatchup = Math.max(1, settings.economy.maxCatchupCycles);
-      for (let i = 0; i < maxCatchup; i++) {
-        const result = await creditCycle(db, nation, settings, now);
-        if (result.status === 'credited') credited++;
-        else if (result.status === 'no_change' || result.status === 'skipped') skipped++;
-        if (result.status === 'not_due' || result.status === 'no_change') break;
-        const due = completedCycleIndex(nation.income_anchor_at, settings.economy.incomeCycleSeconds, now);
-        if (result.cycleIndex >= due) break;
-      }
-    }
-    cursor = Number((nations[nations.length - 1] as { id: number }).id);
-    // a short page means the sweep is finished - reset immediately so no run is wasted
-    if (nations.length < pageSize) {
-      cursor = 0;
-      break;
-    }
-  }
-
-  await markJob(db, 'revenue', { cursor, rowsProcessed: credited });
-  return { processed: credited, cursor, detail: `credited=${credited} skipped=${skipped} nations=${visited} pages=${pages}` };
 }
 
 /** executes every war round that is due (capped per run) */
@@ -223,9 +169,6 @@ export async function triggerJobsManually(env: Env, db: Db, jobs: string[]): Pro
   };
   for (const job of jobs) {
     switch (job) {
-      case 'revenue':
-        await runOne(job, () => revenueJob(db, settings, now, false));
-        break;
       case 'wars':
         await runOne(job, () => warJob(db, settings, now));
         break;

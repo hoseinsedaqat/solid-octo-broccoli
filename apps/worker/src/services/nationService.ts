@@ -18,6 +18,7 @@ import {
   type NationRow,
 } from '../db/queries';
 import { audit } from './auditService';
+import { completedCycleIndex } from './financeService';
 
 export type { NationRow } from '../db/queries';
 
@@ -223,6 +224,9 @@ export interface NationView {
     cycleSeconds: number;
     nextIncomeIn: number;
     nextIncomeAt: string | null;
+    /** درآمد انباشته و دریافت‌نشده (claim-based economy) */
+    pendingIncome: number;
+    pendingIncomeCycles: number;
     lastIncomeAt: string | null;
     totalIncome: number;
     totalSpent: number;
@@ -257,6 +261,20 @@ export async function buildNationView(
 ): Promise<NationView> {
   const [economyRow, rel] = await Promise.all([loadEconomyRow(db, nation.id), relationCounts(db, nation.id)]);
   const computed = await computeNation(db, nation, settings);
+  // درآمد آماده دریافت (claim-based) — محاسبه روی همان snapshot، بدون computeNation اضافه
+  const dueCycle = completedCycleIndex(nation.income_anchor_at, computed.income.cycleSeconds, nowSeconds());
+  const pendingCycles = Math.max(0, dueCycle - Number(nation.last_income_cycle ?? -1));
+  let pendingAmount = 0;
+  {
+    let sim = nation.treasury;
+    for (let i = 0; i < pendingCycles; i++) {
+      let net = computed.income.netIncome;
+      if (net < 0) net = -Math.min(-net, sim);
+      sim += net;
+      pendingAmount += net;
+    }
+  }
+  const pending = { cycles: pendingCycles, amount: pendingAmount };
   const cycleSeconds = computed.income.cycleSeconds;
   const elapsed = nowSeconds() - nation.income_anchor_at;
   const completed = Math.max(0, Math.floor(elapsed / cycleSeconds));
@@ -275,6 +293,8 @@ export async function buildNationView(
       cycleSeconds,
       nextIncomeIn,
       nextIncomeAt: toIso(nowSeconds() + nextIncomeIn),
+      pendingIncome: pending.amount,
+      pendingIncomeCycles: pending.cycles,
       lastIncomeAt: toIso(nation.last_income_at),
       totalIncome: Number(economyRow?.total_income ?? 0),
       totalSpent: Number(economyRow?.total_spent ?? 0),
