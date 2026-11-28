@@ -23,6 +23,7 @@ const ADMIN_NAV: { path: string; label: string; emoji: string }[] = [
   { path: '/app/admin', label: 'داشبورد', emoji: '📊' },
   { path: '/app/admin/nations', label: 'کشورها', emoji: '🌍' },
   { path: '/app/admin/users', label: 'کاربران', emoji: '👥' },
+  { path: '/app/admin/determine-country', label: 'تعیین کشور', emoji: '🚩' },
   { path: '/app/admin/equipment', label: 'تجهیزات', emoji: '🔧' },
   { path: '/app/admin/starter', label: 'بسته اولیه', emoji: '📦' },
   { path: '/app/admin/economy', label: 'اقتصاد', emoji: '💰' },
@@ -115,7 +116,7 @@ export function Shell({ children }: { children: ReactNode }) {
       <nav className="sticky top-[52px] z-20 overflow-x-auto border-b border-white/5 bg-ink-900/80 px-2 py-2 backdrop-blur" style={{ scrollbarWidth: 'none' }}>
         <div className="flex gap-1">
           {nav.map((item) => {
-            const MANAGE_PREFIXES = ['/app/manage', '/app/soon', '/app/resources', '/app/market', '/app/trade', '/app/contracts', '/app/economy-hub', '/app/economy'];
+            const MANAGE_PREFIXES = ['/app/manage', '/app/soon', '/app/resources', '/app/market', '/app/trade', '/app/contracts', '/app/economy-hub', '/app/economy', '/app/industries', '/app/arsenal', '/app/army', '/app/security', '/app/population'];
             const isActive = item.path === path || (item.path !== '/app/player' && item.path !== '/app/admin' && path.startsWith(item.path)) || (item.path === '/app/manage' && MANAGE_PREFIXES.some((pre) => path.startsWith(pre)));
             return (
               <button key={item.path} className={`ww-tab ww-focus ${isActive ? 'ww-nav-active' : 'hover:bg-white/5'}`} onClick={() => navigate(item.path)} aria-current={isActive ? 'page' : undefined}>

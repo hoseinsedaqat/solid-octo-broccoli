@@ -6,6 +6,11 @@ export { WarRoomPage } from './War';
 export { RankingPage, FriendsPage, StatementsPage } from './Social';
 export { BankPage } from './Bank';
 export { BuildingsPage } from './Buildings';
+export { IndustriesPage } from './Industries';
+export { ArsenalPage } from './Arsenal';
+export { ArmyPage } from './Army';
+export { SecurityPage } from './Security';
+export { PopulationPage } from './Population';
 export { ManagePage, SoonPage } from './Manage';
 export {
   ResourcesPage,
