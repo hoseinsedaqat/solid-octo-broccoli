@@ -5041,6 +5041,7 @@ __export(authService_exports, {
   parseAdminIds: () => parseAdminIds,
   purgeExpiredSessions: () => purgeExpiredSessions,
   revokeSession: () => revokeSession,
+  setActiveNation: () => setActiveNation,
   upsertTelegramUser: () => upsertTelegramUser
 });
 function parseAdminIds(env) {
@@ -5107,10 +5108,9 @@ async function loadSessionUser(db, token) {
   const now = nowSeconds();
   const row = await db.first(
     sql`SELECT s.id AS session_id, s.expires_at, u.id AS user_id, u.telegram_user_id, u.role, u.status, u.username,
-               u.is_primary_admin, n.id AS active_nation_id
+               u.is_primary_admin, s.active_nation_id AS session_active_nation_id
           FROM sessions s
           JOIN users u ON u.id = s.user_id
-          LEFT JOIN nations n ON n.owner_user_id = u.id AND n.status <> 'dissolved'
          WHERE s.token_hash = ${tokenHash} AND s.revoked_at IS NULL`
   );
   if (!row) return null;
@@ -5131,7 +5131,7 @@ async function loadSessionUser(db, token) {
     status: row.status,
     permissions,
     nationIds: nations.map((n) => n.id),
-    activeNationId: activeNation(nations.map((n) => n.id), row.active_nation_id),
+    activeNationId: activeNation(nations.map((n) => n.id), row.session_active_nation_id),
     sessionId: Number(row.session_id),
     isPrimaryAdmin: Number(row.is_primary_admin) === 1
   };
@@ -5149,6 +5149,11 @@ async function loadPermissions(db, userId, role) {
   const out = {};
   for (const r of rows) out[r.resource] = { read: r.can_read === 1, write: r.can_write === 1 };
   return out;
+}
+async function setActiveNation(db, userId, sessionId, nationId, nationIds) {
+  if (!nationIds.includes(nationId)) throw ApiError.forbidden("\u0627\u06CC\u0646 \u06A9\u0634\u0648\u0631 \u0645\u062A\u0639\u0644\u0642 \u0628\u0647 \u0634\u0645\u0627 \u0646\u06CC\u0633\u062A.");
+  await db.run(sql`UPDATE sessions SET active_nation_id = ${nationId} WHERE id = ${sessionId} AND user_id = ${userId}`);
+  return { activeNationId: nationId };
 }
 async function revokeSession(db, userId, sessionId) {
   const now = nowSeconds();
@@ -5182,6 +5187,12 @@ var init_authService = __esm({
 });
 
 // apps/worker/src/game-engine/scoring.ts
+var scoring_exports = {};
+__export(scoring_exports, {
+  computeEconomicScore: () => computeEconomicScore,
+  computePower: () => computePower,
+  roleOf: () => roleOf
+});
 function roleOf(categoryKey, fallback = "offense") {
   return ROLE_BY_CATEGORY[categoryKey] ?? fallback;
 }
@@ -5820,11 +5831,14 @@ __export(warService_exports, {
   listNations: () => listNations,
   listOverdueWars: () => listOverdueWars,
   mapWar: () => mapWar,
+  normalizeAttackPlan: () => normalizeAttackPlan,
   proposeWar: () => proposeWar,
   requestPeace: () => requestPeace,
+  resolveAttackPlan: () => resolveAttackPlan,
   resolveRound: () => resolveRound,
   respondPeace: () => respondPeace,
-  respondToWar: () => respondToWar
+  respondToWar: () => respondToWar,
+  validateAttackPlan: () => validateAttackPlan
 });
 async function loadWar(db, warId) {
   const row = await db.first(
@@ -5836,6 +5850,129 @@ async function loadWar(db, warId) {
   );
   if (!row) throw ApiError.notFound("\u062C\u0646\u06AF \u06CC\u0627\u0641\u062A \u0646\u0634\u062F.");
   return row;
+}
+function normalizeAttackPlan(raw2) {
+  if (raw2 === null || raw2 === void 0) return null;
+  const list = Array.isArray(raw2) ? raw2 : [];
+  const merged = /* @__PURE__ */ new Map();
+  for (const item of list) {
+    const templateId = Number(item?.templateId);
+    const quantity = Number(item?.quantity);
+    if (!Number.isFinite(templateId) || !Number.isFinite(quantity)) throw ApiError.validation("\u0622\u0631\u0627\u06CC\u0634 \u062D\u0645\u0644\u0647 \u0646\u0627\u0645\u0639\u062A\u0628\u0631 \u0627\u0633\u062A.");
+    if (templateId <= 0 || quantity <= 0) throw ApiError.validation("\u0622\u0631\u0627\u06CC\u0634 \u062D\u0645\u0644\u0647 \u0646\u0627\u0645\u0639\u062A\u0628\u0631 \u0627\u0633\u062A.");
+    const qty = Math.floor(quantity);
+    merged.set(Math.floor(templateId), (merged.get(Math.floor(templateId)) ?? 0) + qty);
+  }
+  const entries = [...merged.entries()].map(([templateId, quantity]) => ({ templateId, quantity }));
+  if (entries.length === 0) return null;
+  if (entries.length > 40 || entries.reduce((n, e) => n + e.quantity, 0) > 1e5) {
+    throw ApiError.validation("\u0622\u0631\u0627\u06CC\u0634 \u062D\u0645\u0644\u0647 \u0628\u06CC\u0634 \u0627\u0632 \u062D\u062F \u0628\u0632\u0631\u06AF \u0627\u0633\u062A.");
+  }
+  return entries;
+}
+async function validateAttackPlan(db, nationId, plan) {
+  const inventory = await loadInventory(db, nationId);
+  const byId = new Map(inventory.map((i) => [i.templateId, i]));
+  for (const e of plan) {
+    const have = byId.get(e.templateId);
+    if (!have || have.quantity < e.quantity) {
+      throw ApiError.validation("\u062A\u0639\u062F\u0627\u062F \u0627\u0646\u062A\u062E\u0627\u0628\u200C\u0634\u062F\u0647 \u0627\u0632 \u0645\u0648\u062C\u0648\u062F\u06CC \u06A9\u0634\u0648\u0631 \u0634\u0645\u0627 \u0628\u06CC\u0634\u062A\u0631 \u0627\u0633\u062A.", { templateId: e.templateId });
+    }
+  }
+  return byId;
+}
+async function committedCombatantOf(db, nation, settings, plan) {
+  const inventory = await loadInventory(db, nation.id);
+  const committed = plan.map((e) => {
+    const inv = inventory.find((i) => i.templateId === e.templateId);
+    if (!inv) return null;
+    return {
+      templateId: e.templateId,
+      categoryKey: inv.categoryKey,
+      quantity: Math.min(e.quantity, inv.quantity),
+      attackPoints: inv.attackPoints,
+      defensePoints: inv.defensePoints
+    };
+  }).filter((r) => r !== null && r.quantity > 0);
+  if (committed.length === 0) {
+    return { nationId: nation.id, attackPower: 0, defensePower: 0, troopsCount: 0, equipmentCount: 0, treasury: nation.treasury, allianceSupport: 0, fortificationLevel: 0, morale: 1, categories: {} };
+  }
+  const weights = await loadCategoryWeights(db);
+  const power = computePower(committed, weights, { manpowerFactor: settings.battle.manpowerFactor, fortificationLevel: 0 });
+  const categories = {};
+  for (const r of committed) categories[r.categoryKey] = (categories[r.categoryKey] ?? 0) + r.quantity;
+  return {
+    nationId: nation.id,
+    attackPower: power.attackPower,
+    defensePower: power.defensePower,
+    troopsCount: power.troopsCount,
+    equipmentCount: power.equipmentCount,
+    treasury: nation.treasury,
+    allianceSupport: 0,
+    fortificationLevel: 0,
+    morale: 1,
+    categories
+  };
+}
+function parseAttackPlan(raw2) {
+  if (!raw2) return null;
+  try {
+    const parsed = JSON.parse(raw2);
+    if (Array.isArray(parsed) && parsed.length === 0) return [];
+    return normalizeAttackPlan(parsed);
+  } catch {
+    return null;
+  }
+}
+async function resolveAttackPlan(db, plan) {
+  const out = [];
+  for (const e of plan) {
+    const t = await db.first(
+      sql`SELECT t.name_fa, c.emoji AS emoji, c.key AS categoryKey
+            FROM equipment_templates t JOIN equipment_categories c ON c.id = t.category_id WHERE t.id = ${e.templateId}`
+    );
+    out.push({ templateId: e.templateId, quantity: e.quantity, categoryKey: t?.categoryKey ?? "", nameFa: t?.name_fa ?? `#${e.templateId}`, emoji: t?.emoji ?? "\u{1F396}\uFE0F" });
+  }
+  return out;
+}
+async function applyCommittedLosses(db, nationId, plan, lossesByCategory, at) {
+  const inventory = await loadInventory(db, nationId);
+  const invByTemplate = new Map(inventory.map((i) => [i.templateId, i]));
+  const byCat = /* @__PURE__ */ new Map();
+  for (const entry of plan) {
+    const inv = invByTemplate.get(entry.templateId);
+    if (!inv) continue;
+    const list = byCat.get(inv.categoryKey) ?? [];
+    list.push(entry);
+    byCat.set(inv.categoryKey, list);
+  }
+  const stmts = [];
+  const remaining2 = [];
+  for (const [cat, entries] of byCat) {
+    const available = entries.map((e) => Math.min(e.quantity, invByTemplate.get(e.templateId).quantity));
+    const availTotal = available.reduce((a, b) => a + b, 0);
+    const want = Math.min(availTotal, Math.max(0, Math.floor(Number(lossesByCategory[cat] ?? 0))));
+    if (want <= 0) {
+      for (const e of entries) if (e.quantity > 0) remaining2.push({ templateId: e.templateId, quantity: e.quantity });
+      continue;
+    }
+    const raw2 = available.map((a) => availTotal > 0 ? want * a / availTotal : 0);
+    const alloc = raw2.map(Math.floor);
+    const leftover = want - alloc.reduce((a, b) => a + b, 0);
+    [...raw2.keys()].map((i) => [raw2[i] - alloc[i], i]).sort((a, b) => b[0] - a[0]).slice(0, leftover).forEach(([, i]) => alloc[i] = alloc[i] + 1);
+    for (let i = 0; i < entries.length; i++) {
+      const entry = entries[i];
+      const inv = invByTemplate.get(entry.templateId);
+      const lost = Math.min(alloc[i] ?? 0, entry.quantity, inv.quantity);
+      const left = Math.max(0, entry.quantity - lost);
+      if (lost > 0) {
+        stmts.push(sql`UPDATE nation_inventory SET quantity = MAX(0, quantity - ${lost}), updated_at = ${at} WHERE id = ${inv.id}`);
+      }
+      if (left > 0) remaining2.push({ templateId: entry.templateId, quantity: left });
+    }
+  }
+  if (stmts.length) await db.batch(stmts);
+  return remaining2;
 }
 async function combatantOf(db, nation, settings, side) {
   const computed = await computeNation(db, nation, settings);
@@ -5921,7 +6058,7 @@ async function listNations(db, opts = {}) {
     createdAt: toIso(Number(r.created_at))
   }));
 }
-async function proposeWar(db, attacker, targetNationId, indemnityOffered, settings, actor, botToken) {
+async function proposeWar(db, attacker, targetNationId, indemnityOffered, settings, actor, botToken, attackPlan) {
   if (!settings.features.warEnabled) throw ApiError.disabled("\u062C\u0646\u06AF");
   if (attacker.id === targetNationId) throw ApiError.forbidden("\u062D\u0645\u0644\u0647 \u0628\u0647 \u06A9\u0634\u0648\u0631 \u062E\u0648\u062F \u0627\u0645\u06A9\u0627\u0646\u200C\u067E\u0630\u06CC\u0631 \u0646\u06CC\u0633\u062A.");
   if (attacker.status !== "active") throw ApiError.forbidden("\u0648\u0636\u0639\u06CC\u062A \u06A9\u0634\u0648\u0631 \u0634\u0645\u0627 \u0627\u062C\u0627\u0632\u0647 \u0627\u0639\u0644\u0627\u0645 \u062C\u0646\u06AF \u0646\u062F\u0627\u0631\u062F.");
@@ -5958,7 +6095,9 @@ async function proposeWar(db, attacker, targetNationId, indemnityOffered, settin
     const left = settings.battle.warCooldownSeconds - (nowSeconds() - lastEnded.ended_at);
     if (left > 0) throw ApiError.conflict(`\u0628\u0631\u0627\u06CC \u062D\u0645\u0644\u0647 \u0628\u0639\u062F\u06CC ${humanDuration(left)} \u0628\u0627\u06CC\u062F \u0635\u0628\u0631 \u06A9\u0646\u06CC\u062F.`);
   }
-  const att = await combatantOf(db, attacker, settings, "attacker");
+  const plan = normalizeAttackPlan(attackPlan);
+  if (plan) await validateAttackPlan(db, attacker.id, plan);
+  const att = plan ? await committedCombatantOf(db, attacker, settings, plan) : await combatantOf(db, attacker, settings, "attacker");
   const def = await combatantOf(db, target, settings, "defender");
   const preview = previewBattle(att, def, settings.battle);
   const indemnity = Math.max(0, Math.min(indemnityOffered || 0, attacker.treasury));
@@ -5966,9 +6105,10 @@ async function proposeWar(db, attacker, targetNationId, indemnityOffered, settin
   const seed = seedFromString(`war:${attacker.id}:${targetNationId}:${at}`);
   const war = await db.first(
     sql`INSERT INTO wars (attacker_nation_id, defender_nation_id, status, initiated_by, attacker_power, defender_power,
-                          attacker_win_chance, max_rounds, entry_cost, indemnity_offered, seed, proposed_at, ends_at)
+                          attacker_win_chance, max_rounds, entry_cost, indemnity_offered, seed, proposed_at, ends_at, attack_plan, attack_plan_remaining)
          VALUES (${attacker.id}, ${targetNationId}, 'proposed', 'attacker', ${att.attackPower}, ${def.defensePower},
-                 ${preview.attackerWinChance}, ${settings.battle.maxRounds}, ${preview.entryCost}, ${indemnity}, ${seed}, ${at}, ${at + settings.battle.minWarDurationSeconds * settings.battle.maxRounds})
+                 ${preview.attackerWinChance}, ${settings.battle.maxRounds}, ${preview.entryCost}, ${indemnity}, ${seed}, ${at}, ${at + settings.battle.minWarDurationSeconds * settings.battle.maxRounds},
+                 ${plan ? JSON.stringify(plan) : null}, ${plan ? JSON.stringify(plan) : null})
          RETURNING id`
   );
   const warId = Number(war?.id ?? 0);
@@ -5985,14 +6125,7 @@ async function proposeWar(db, attacker, targetNationId, indemnityOffered, settin
          VALUES (${targetNationId}, ${attacker.id}, 'enemy', ${at}, ${at})
          ON CONFLICT (nation_id, other_nation_id) DO UPDATE SET status = 'enemy', updated_at = ${at}`
   ]);
-  await notify(db, {
-    nationId: targetNationId,
-    kind: "war_proposal",
-    title: "\u2694\uFE0F \u062F\u0631\u062E\u0648\u0627\u0633\u062A \u062C\u0646\u06AF \u062F\u0631\u06CC\u0627\u0641\u062A \u06A9\u0631\u062F\u06CC\u062F",
-    body: `${attacker.flag} ${attacker.name} \u0628\u0647 \u0634\u0645\u0627 \u0627\u0639\u0644\u0627\u0645 \u062C\u0646\u06AF \u06A9\u0631\u062F. \u0627\u062D\u062A\u0645\u0627\u0644 \u067E\u06CC\u0631\u0648\u0632\u06CC \u0645\u0647\u0627\u062C\u0645: ${Math.round(preview.attackerWinChance * 100)}\u066A`,
-    data: { warId },
-    telegram: botToken ? { botToken, chatId: target.owner_user_id, text: `\u2694\uFE0F ${attacker.name} \u0628\u0647 ${target.name} \u0627\u0639\u0644\u0627\u0645 \u062C\u0646\u06AF \u062F\u0627\u062F!` } : null
-  });
+  await sendWarWarning(db, target, botToken, attacker, `${Math.round(preview.attackerWinChance * 100)}`, warId, plan);
   await audit(db, { actor, action: "war.propose", targetType: "war", targetId: warId, after: { targetNationId, indemnity } });
   return { warId, preview: { ...preview, indemnity }, status: "proposed" };
 }
@@ -6003,7 +6136,7 @@ async function respondToWar(db, warId, accept, nation, settings, botToken) {
   const at = nowSeconds();
   if (!accept) {
     await db.batch([
-      sql`UPDATE wars SET status = 'cancelled', ended_at = ${at} WHERE id = ${warId}`,
+      sql`UPDATE wars SET status = 'cancelled', ended_at = ${at}, attack_plan_remaining = NULL WHERE id = ${warId}`,
       sql`UPDATE diplomatic_requests SET status = 'rejected', handled_at = ${at} WHERE kind = 'war' AND from_nation_id = ${war.defender_nation_id} AND to_nation_id = ${war.attacker_nation_id} AND status = 'pending'`,
       sql`INSERT INTO announcements (kind, title, body, audience, nation_id, created_at)
            VALUES ('war', 'رد درخواست جنگ', ${`${nation.flag} ${nation.name} \u062F\u0631\u062E\u0648\u0627\u0633\u062A \u062C\u0646\u06AF \u0631\u0627 \u0631\u062F \u06A9\u0631\u062F.`}, 'global', ${nation.id}, ${at})`
@@ -6013,7 +6146,8 @@ async function respondToWar(db, warId, accept, nation, settings, botToken) {
   }
   const attacker = await db.first(sql`SELECT * FROM nations WHERE id = ${war.attacker_nation_id}`);
   if (!attacker) throw ApiError.notFound("\u06A9\u0634\u0648\u0631 \u0645\u0647\u0627\u062C\u0645 \u06CC\u0627\u0641\u062A \u0646\u0634\u062F.");
-  const att = await combatantOf(db, attacker, settings, "attacker");
+  const plan = parseAttackPlan(war.attack_plan);
+  const att = plan ? await committedCombatantOf(db, attacker, settings, plan) : await combatantOf(db, attacker, settings, "attacker");
   const def = await combatantOf(db, nation, settings, "defender");
   const preview = previewBattle(att, def, settings.battle);
   const entryCost = war.entry_cost || preview.entryCost;
@@ -6043,17 +6177,89 @@ async function respondToWar(db, warId, accept, nation, settings, botToken) {
     body: "\u062F\u0641\u0627\u0639 \u0627\u0632 \u06A9\u0634\u0648\u0631 \u062F\u0631\u062E\u0648\u0627\u0633\u062A \u062C\u0646\u06AF \u0631\u0627 \u067E\u0630\u06CC\u0631\u0641\u062A. \u0646\u0648\u0628\u062A\u200C\u0647\u0627\u06CC \u0646\u0628\u0631\u062F \u062A\u0648\u0633\u0637 \u0632\u0645\u0627\u0646\u200C\u0628\u0646\u062F \u0627\u062C\u0631\u0627 \u0645\u06CC\u200C\u0634\u0648\u062F.",
     data: { warId }
   });
+  await sendDefenseMobilized(db, nation, botToken, attacker.name, warId);
   return { status: "active", preview };
 }
+async function ownerTelegramId(db, nationId) {
+  const row = await db.first(
+    sql`SELECT u.telegram_user_id FROM nations n JOIN users u ON u.id = n.owner_user_id WHERE n.id = ${nationId}`
+  );
+  return row ? Number(row.telegram_user_id) : null;
+}
+async function defenseTally(db, nationId) {
+  const rows = await db.all(
+    sql`SELECT c.key AS key, COALESCE(SUM(i.quantity), 0) AS qty
+          FROM nation_inventory i
+          JOIN equipment_templates t ON t.id = i.template_id
+          JOIN equipment_categories c ON c.id = t.category_id
+         WHERE i.nation_id = ${nationId} AND c.key IN ('fighters', 'missiles', 'ground_air_defense', 'air_air_defense', 'naval_air_defense')
+         GROUP BY c.key`
+  );
+  const get = (k) => Number(rows.find((r) => r.key === k)?.qty ?? 0);
+  return { fighters: get("fighters"), missiles: get("missiles"), airDefense: get("ground_air_defense") + get("air_air_defense") + get("naval_air_defense") };
+}
+async function sendWarWarning(db, defender, botToken, attacker, winChancePercent, warId, plan) {
+  const tally = await defenseTally(db, defender.id);
+  const resolved = plan ? await resolveAttackPlan(db, plan) : [];
+  const commitLine = resolved.length ? `\u0646\u06CC\u0631\u0648\u0647\u0627\u06CC \u0627\u0639\u0632\u0627\u0645\u200C\u0634\u062F\u0647 \u0645\u0647\u0627\u062C\u0645: ${resolved.map((r) => `${r.quantity}\xD7 ${r.nameFa}`).join("\u060C ")}` : null;
+  const body = [
+    "\u0647\u0634\u062F\u0627\u0631 \u0648\u0636\u0639\u06CC\u062A \u062C\u0646\u06AF\u06CC!",
+    "\u06A9\u0634\u0648\u0631 \u0634\u0645\u0627 \u0645\u0648\u0631\u062F \u062D\u0645\u0644\u0647 \u0646\u0638\u0627\u0645\u06CC \u0642\u0631\u0627\u0631 \u06AF\u0631\u0641\u062A!",
+    "",
+    `\u06A9\u0634\u0648\u0631 \u0645\u0647\u0627\u062C\u0645: ${attacker.name}`,
+    `\u06A9\u0634\u0648\u0631 \u0645\u062F\u0627\u0641\u0639: ${defender.name}`,
+    "",
+    "\u0646\u06CC\u0631\u0648\u0647\u0627\u06CC \u062F\u0634\u0645\u0646 \u062F\u0631 \u062D\u0627\u0644 \u067E\u06CC\u0634\u0631\u0648\u06CC \u0647\u0633\u062A\u0646\u062F!",
+    "\u0646\u06CC\u0631\u0648\u0647\u0627\u06CC \u062F\u0641\u0627\u0639\u06CC \u0634\u0645\u0627 \u0628\u0647 \u062D\u0627\u0644\u062A \u0622\u0645\u0627\u062F\u0647\u200C\u0628\u0627\u0634 \u062F\u0631\u0622\u0645\u062F\u0647\u200C\u0627\u0646\u062F.",
+    `\u062C\u0646\u06AF\u0646\u062F\u0647\u200C\u0647\u0627: ${tally.fighters}`,
+    `\u0645\u0648\u0634\u06A9\u200C\u0647\u0627: ${tally.missiles}`,
+    `\u067E\u062F\u0627\u0641\u0646\u062F: ${tally.airDefense}`,
+    ...commitLine ? ["", commitLine] : [],
+    "",
+    "\u0633\u0631\u0646\u0648\u0634\u062A \u0627\u06CC\u0646 \u0646\u0628\u0631\u062F \u0628\u0647 \u0622\u0631\u0627\u06CC\u0634 \u062F\u0641\u0627\u0639\u06CC \u0634\u0645\u0627 \u0628\u0633\u062A\u06AF\u06CC \u062F\u0627\u0631\u062F.",
+    "\u0639\u0645\u0644\u06CC\u0627\u062A \u062F\u0641\u0627\u0639 \u0627\u0632 \u06A9\u0634\u0648\u0631 \u0622\u063A\u0627\u0632 \u0634\u062F!"
+  ].join("\n");
+  const chatId = await ownerTelegramId(db, defender.id);
+  await notify(db, {
+    nationId: defender.id,
+    kind: "war_warning",
+    title: "\u{1F6A8} \u0647\u0634\u062F\u0627\u0631 \u0648\u0636\u0639\u06CC\u062A \u062C\u0646\u06AF\u06CC!",
+    body,
+    data: { warId, attackerNationId: attacker.id },
+    telegram: botToken && chatId ? { botToken, chatId, text: body } : null
+  });
+}
+async function sendDefenseMobilized(db, defender, botToken, attackerName, warId) {
+  const tally = await defenseTally(db, defender.id);
+  const body = [
+    "\u{1F6E1}\uFE0F \u0639\u0645\u0644\u06CC\u0627\u062A \u062F\u0641\u0627\u0639 \u0627\u0632 \u06A9\u0634\u0648\u0631 \u0622\u063A\u0627\u0632 \u0634\u062F!",
+    "",
+    `\u06A9\u0634\u0648\u0631 \u0645\u0647\u0627\u062C\u0645: ${attackerName}`,
+    `\u06A9\u0634\u0648\u0631 \u0645\u062F\u0627\u0641\u0639: ${defender.name}`,
+    "",
+    `\u062C\u0646\u06AF\u0646\u062F\u0647\u200C\u0647\u0627: ${tally.fighters}`,
+    `\u0645\u0648\u0634\u06A9\u200C\u0647\u0627: ${tally.missiles}`,
+    `\u067E\u062F\u0627\u0641\u0646\u062F: ${tally.airDefense}`
+  ].join("\n");
+  const chatId = await ownerTelegramId(db, defender.id);
+  await notify(db, {
+    nationId: defender.id,
+    kind: "war_defense",
+    title: "\u{1F6E1}\uFE0F \u0633\u067E\u0631 \u06A9\u0634\u0648\u0631 \u0641\u0639\u0627\u0644 \u0634\u062F",
+    body,
+    data: { warId },
+    telegram: botToken && chatId ? { botToken, chatId, text: body } : null
+  });
+}
 async function notifyAttacker(db, war, title, body, botToken) {
-  const attacker = await db.first(sql`SELECT owner_user_id FROM nations WHERE id = ${war.attacker_nation_id}`);
+  const chatId = await ownerTelegramId(db, war.attacker_nation_id);
   await notify(db, {
     nationId: war.attacker_nation_id,
     kind: "war",
     title,
     body,
     data: { warId: war.id },
-    telegram: botToken && attacker ? { botToken, chatId: attacker.owner_user_id, text: `${title}
+    telegram: botToken && chatId ? { botToken, chatId, text: `${title}
 ${body}` } : null
   });
 }
@@ -6067,7 +6273,8 @@ async function resolveRound(db, warId, settings, opts = {}) {
   const attacker = await db.first(sql`SELECT * FROM nations WHERE id = ${war.attacker_nation_id}`);
   const defender = await db.first(sql`SELECT * FROM nations WHERE id = ${war.defender_nation_id}`);
   if (!attacker || !defender) throw ApiError.notFound("\u06A9\u0634\u0648\u0631\u0647\u0627\u06CC \u062F\u0631\u06AF\u06CC\u0631 \u06CC\u0627\u0641\u062A \u0646\u0634\u062F\u0646\u062F.");
-  const att = await combatantOf(db, attacker, settings, "attacker");
+  const plan = parseAttackPlan(war.attack_plan_remaining ?? war.attack_plan);
+  const att = plan ? await committedCombatantOf(db, attacker, settings, plan) : await combatantOf(db, attacker, settings, "attacker");
   const def = await combatantOf(db, defender, settings, "defender");
   const roundsLeft = Math.max(1, settings.battle.maxRounds - war.rounds_played);
   const outcome = simulateBattle({
@@ -6099,7 +6306,12 @@ async function resolveRound(db, warId, settings, opts = {}) {
                        ends_at = ${at + settings.battle.minWarDurationSeconds * Math.max(1, settings.battle.maxRounds - nextRound)}
            WHERE id = ${warId}`
   ]);
-  await applyLosses(db, attacker.id, outcome.attackerLossesByCategory, at);
+  if (plan) {
+    const remaining2 = await applyCommittedLosses(db, attacker.id, plan, outcome.attackerLossesByCategory, at);
+    await db.run(sql`UPDATE wars SET attack_plan_remaining = ${remaining2.length ? JSON.stringify(remaining2) : "[]"} WHERE id = ${warId}`);
+  } else {
+    await applyLosses(db, attacker.id, outcome.attackerLossesByCategory, at);
+  }
   await applyLosses(db, defender.id, outcome.defenderLossesByCategory, at);
   if (finished) await finalizeWar(db, warId, settings, at);
   return { round: nextRound, finished, outcome };
@@ -6144,7 +6356,7 @@ async function finalizeWar(db, warId, settings, at = nowSeconds()) {
   await applyResidualLosses(db, attacker.id, defender.id, {
     attackerRatio: attStart > 0 ? Math.min(1, (attStart - attRemaining) / attStart) : 0,
     defenderRatio: defStart > 0 ? Math.min(1, (defStart - defRemaining) / defStart) : 0
-  }, at);
+  }, at, war);
   const stmts = [
     sql`UPDATE wars SET status = 'ended', ended_at = ${at}, winner_nation_id = ${winnerSide === "draw" ? null : winner.id},
                        indemnity_paid = ${indemnity}, attacker_power = ${attRemaining}, defender_power = ${defRemaining},
@@ -6184,19 +6396,26 @@ async function finalizeWar(db, warId, settings, at = nowSeconds()) {
   await refreshAfterWar(db, defender.id, settings);
   return { status: "ended", winnerNationId: winner.id, indemnity, winnerSide };
 }
-async function applyResidualLosses(db, attackerId, defenderId, ratios, at) {
-  for (const [nationId, ratio] of [
-    [attackerId, ratios.attackerRatio],
-    [defenderId, ratios.defenderRatio]
+async function applyResidualLosses(db, attackerId, defenderId, ratios, at, war) {
+  const attackerPlan = parseAttackPlan(war.attack_plan_remaining ?? war.attack_plan);
+  for (const [nationId, ratio, plan] of [
+    [attackerId, ratios.attackerRatio, attackerPlan],
+    [defenderId, ratios.defenderRatio, null]
   ]) {
     if (ratio <= 0.05) continue;
     const effective = Math.min(0.5, ratio * 0.5);
     const inventory = await loadInventory(db, nationId);
-    const stmts = inventory.filter((i) => i.categoryKey !== "factories" && i.categoryKey !== "mines" && i.quantity > 1).map((row) => {
+    let rows = inventory.filter((i) => i.categoryKey !== "factories" && i.categoryKey !== "mines" && i.quantity > 1);
+    if (plan) {
+      const remainingMap = new Map(plan.map((e) => [e.templateId, e.quantity]));
+      rows = rows.filter((r) => (remainingMap.get(r.templateId) ?? 0) > 0).map((r) => ({ ...r, quantity: Math.min(r.quantity, remainingMap.get(r.templateId) ?? 0) }));
+    }
+    const stmts = rows.map((row) => {
       const decrement = Math.floor(row.quantity * effective);
       return sql`UPDATE nation_inventory SET quantity = MAX(0, quantity - ${decrement}), updated_at = ${at} WHERE id = ${row.id} AND quantity >= ${decrement}`;
     }).filter((_, idx) => idx < 40);
     if (stmts.length) await db.batch(stmts);
+    if (plan) await db.run(sql`UPDATE wars SET attack_plan_remaining = NULL WHERE id = ${war.id}`);
   }
 }
 async function refreshAfterWar(db, nationId, settings) {
@@ -6326,8 +6545,12 @@ async function getWarDetail(db, warId, viewerNationIds, isAdmin) {
           FROM battle_reports br JOIN battles b ON b.id = br.battle_id
          WHERE br.war_id = ${warId} ORDER BY b.round_no DESC LIMIT 30`
   );
+  const plan = parseAttackPlan(war.attack_plan);
+  const remaining2 = parseAttackPlan(war.attack_plan_remaining ?? war.attack_plan);
   return {
     war: mapWar(war),
+    attackPlan: plan ? await resolveAttackPlan(db, plan) : null,
+    attackPlanRemaining: remaining2 ? await resolveAttackPlan(db, remaining2) : null,
     reports: reports.map((r) => ({
       id: Number(r.id),
       roundNo: Number(r.round_no),
@@ -6396,6 +6619,7 @@ var init_warService = __esm({
     init_format();
     init_ids();
     init_queries();
+    init_scoring();
     init_battle();
     init_auditService();
     init_notificationService();
@@ -6772,10 +6996,30 @@ async function sendRequestFriendly(db, from, toNationId, kind, settings) {
     throw err;
   }
 }
-async function previewForWarTarget(db, attacker, targetId, settings) {
+async function previewForWarTarget(db, attacker, targetId, settings, attackPlan) {
   if (attacker.id === targetId) throw ApiError.forbidden("\u062D\u0645\u0644\u0647 \u0628\u0647 \u06A9\u0634\u0648\u0631 \u062E\u0648\u062F \u0627\u0645\u06A9\u0627\u0646\u200C\u067E\u0630\u06CC\u0631 \u0646\u06CC\u0633\u062A.");
   const target = await loadNation(db, targetId);
-  const att = await combatant(db, attacker, settings, "attacker");
+  let att;
+  if (attackPlan) {
+    const { normalizeAttackPlan: normalizeAttackPlan2, validateAttackPlan: validateAttackPlan2 } = await Promise.resolve().then(() => (init_warService(), warService_exports));
+    const plan = normalizeAttackPlan2(attackPlan);
+    if (plan) {
+      await validateAttackPlan2(db, attacker.id, plan);
+      const { loadInventory: loadInventory2, loadCategoryWeights: loadCategoryWeights2 } = await Promise.resolve().then(() => (init_queries(), queries_exports));
+      const { computePower: computePower2 } = await Promise.resolve().then(() => (init_scoring(), scoring_exports));
+      const inventory = await loadInventory2(db, attacker.id);
+      const committed = plan.map((e) => {
+        const inv = inventory.find((i) => i.templateId === e.templateId);
+        return { templateId: e.templateId, categoryKey: inv.categoryKey, quantity: Math.min(e.quantity, inv.quantity), attackPoints: inv.attackPoints, defensePoints: inv.defensePoints };
+      });
+      const power = computePower2(committed, await loadCategoryWeights2(db), { manpowerFactor: settings.battle.manpowerFactor, fortificationLevel: 0 });
+      att = { nationId: attacker.id, attackPower: power.attackPower, defensePower: power.defensePower, troopsCount: power.troopsCount, equipmentCount: power.equipmentCount, treasury: attacker.treasury, allianceSupport: 0, fortificationLevel: 0, morale: 1 };
+    } else {
+      att = await combatant(db, attacker, settings, "attacker");
+    }
+  } else {
+    att = await combatant(db, attacker, settings, "attacker");
+  }
   const def = await combatant(db, target, settings, "defender");
   const p = previewBattle(att, def, settings.battle);
   return {
@@ -13480,6 +13724,7 @@ authRoutes.post("/session", async (c) => {
 });
 authRoutes.use("/me", requireUser);
 authRoutes.use("/logout", requireUser);
+authRoutes.use("/switch-nation", requireUser);
 authRoutes.get("/me", async (c) => {
   const db = c.get("db");
   const user = c.get("user");
@@ -13502,6 +13747,16 @@ authRoutes.get("/me", async (c) => {
     branding: { gameName: settings.branding.gameName, welcomeTitle: settings.branding.welcomeTitle },
     view
   });
+});
+authRoutes.post("/switch-nation", async (c) => {
+  const user = c.get("user");
+  const body = await c.req.json().catch(() => null);
+  const parsed = external_exports2.object({ nationId: external_exports2.coerce.number().int().positive() }).safeParse(body);
+  if (!parsed.success) {
+    const e = formatZodError(parsed.error);
+    throw ApiError.validation(e.message, e.fields);
+  }
+  return c.json(await setActiveNation(c.get("db"), user.userId, user.sessionId, parsed.data.nationId, user.nationIds));
 });
 authRoutes.post("/logout", async (c) => {
   const user = c.get("user");
@@ -14107,7 +14362,9 @@ playerRoutes.get("/transactions", async (c) => {
   const res = await listTransactions(db, c.get("nation").id, { limit, offset, type: c.req.query("type") ?? null });
   return c.json(res);
 });
-playerRoutes.get("/inventory", async (c) => {
+playerRoutes.get("/inventory", async (c) => inventoryHandler(c));
+playerRoutes.get("/military", async (c) => inventoryHandler(c));
+async function inventoryHandler(c) {
   const db = c.get("db");
   const settings = await settingsFor(c);
   const groups = await inventoryView(db, c.get("nation").id, settings);
@@ -14119,7 +14376,7 @@ playerRoutes.get("/inventory", async (c) => {
     out = out.map((g) => ({ ...g, items: g.items.filter((i) => i.nameFa.toLowerCase().includes(search) || String(i.code).toLowerCase().includes(search)) })).filter((g) => g.items.length > 0);
   }
   return c.json({ groups: out, totalCategories: groups.length });
-});
+}
 playerRoutes.get("/defense", async (c) => {
   const db = c.get("db");
   const settings = await settingsFor(c);
@@ -14157,8 +14414,8 @@ playerRoutes.post("/settings/notifications", async (c) => {
 playerRoutes.post("/settings/active-nation", async (c) => {
   const user = c.get("user");
   const body = parse(external_exports2.object({ nationId: external_exports2.coerce.number().int().positive() }), await parseJson(c));
-  if (!user.nationIds.includes(body.nationId)) throw ApiError.forbidden("\u0627\u06CC\u0646 \u06A9\u0634\u0648\u0631 \u0645\u062A\u0639\u0644\u0642 \u0628\u0647 \u0634\u0645\u0627 \u0646\u06CC\u0633\u062A.");
-  return c.json({ activeNationId: body.nationId });
+  const { setActiveNation: setActiveNation2 } = await Promise.resolve().then(() => (init_authService(), authService_exports));
+  return c.json(await setActiveNation2(c.get("db"), user.userId, user.sessionId, body.nationId, user.nationIds));
 });
 function mountPlayer(app2) {
   app2.route("/api/player", playerRoutes);
@@ -14274,12 +14531,16 @@ warRoutes.post("/propose", async (c) => {
   const db = c.get("db");
   const settings = await settingsFor(c);
   const body = parse2(
-    external_exports2.object({ targetNationId: external_exports2.coerce.number().int().positive(), indemnityOffered: external_exports2.coerce.number().int().min(0).max(1e9).optional().default(0) }),
+    external_exports2.object({
+      targetNationId: external_exports2.coerce.number().int().positive(),
+      indemnityOffered: external_exports2.coerce.number().int().min(0).max(1e9).optional().default(0),
+      attackPlan: external_exports2.array(external_exports2.object({ templateId: external_exports2.coerce.number().int().positive(), quantity: external_exports2.coerce.number().int().min(1).max(1e6) })).max(40).optional()
+    }),
     await parseJson(c)
   );
   await enforceRateLimit(db, `war:${c.get("user").userId}`, 10, 3600, { durable: true });
   const { proposeWar: proposeWar2 } = await Promise.resolve().then(() => (init_warService(), warService_exports));
-  const res = await proposeWar2(db, c.get("nation"), body.targetNationId, body.indemnityOffered ?? 0, settings, actorOf(c.get("user")), c.env.BOT_TOKEN);
+  const res = await proposeWar2(db, c.get("nation"), body.targetNationId, body.indemnityOffered ?? 0, settings, actorOf(c.get("user")), c.env.BOT_TOKEN, body.attackPlan);
   return c.json(res);
 });
 function warIdOf(raw2) {
@@ -14316,9 +14577,15 @@ warRoutes.post("/peace/:id/respond", async (c) => {
 warRoutes.post("/preview", async (c) => {
   const db = c.get("db");
   const settings = await settingsFor(c);
-  const body = parse2(external_exports2.object({ targetNationId: external_exports2.coerce.number().int().positive() }), await parseJson(c));
+  const body = parse2(
+    external_exports2.object({
+      targetNationId: external_exports2.coerce.number().int().positive(),
+      attackPlan: external_exports2.array(external_exports2.object({ templateId: external_exports2.coerce.number().int().positive(), quantity: external_exports2.coerce.number().int().min(1).max(1e6) })).max(40).optional()
+    }),
+    await parseJson(c)
+  );
   const { previewForWarTarget: previewForWarTarget2 } = await Promise.resolve().then(() => (init_botActions(), botActions_exports));
-  return c.json(await previewForWarTarget2(db, c.get("nation"), body.targetNationId, settings));
+  return c.json(await previewForWarTarget2(db, c.get("nation"), body.targetNationId, settings, body.attackPlan));
 });
 function mountShop(app2) {
   app2.route("/api/shop", shopRoutes);
@@ -16671,17 +16938,28 @@ async function handleCallback(ctx, cb, updateId) {
         const nation = await currentNation(ctx, identity.userId);
         if (!nation) throw ApiError.forbidden("\u0627\u0628\u062A\u062F\u0627 \u06A9\u0634\u0648\u0631 \u0628\u0633\u0627\u0632\u06CC\u062F.");
         if (rest[0] === "ask") {
-          await renderWarPreview(ctx, chatId, messageId, nation, Number(rest[1]));
+          await renderAttackPlanPicker(ctx, chatId, messageId, identity.userId, nation, Number(rest[1]));
           await answer();
           return { handled: "war:ask" };
         }
         if (rest[0] === "go") {
-          const res = await proposeWar(ctx.db, nation, Number(rest[1]), 0, ctx.settings, { userId: identity.userId, telegramId: from.id }, ctx.env.BOT_TOKEN);
+          const targetIdNum = Number(rest[1]);
+          const draft = await loadAttackDraft(ctx.db, identity.userId);
+          const planArr = draft && draft.targetNationId === targetIdNum ? draft.plan : [];
+          if (planArr.length === 0) {
+            await answer("\u0627\u0628\u062A\u062F\u0627 \u0622\u0631\u0627\u06CC\u0634 \u062D\u0645\u0644\u0647 \u0631\u0627 \u0627\u0646\u062A\u062E\u0627\u0628 \u06A9\u0646\u06CC\u062F.", true);
+            await renderAttackPlanPicker(ctx, chatId, messageId, identity.userId, nation, targetIdNum);
+            return { handled: "war:go:plan_required" };
+          }
+          const res = await proposeWar(ctx.db, nation, targetIdNum, 0, ctx.settings, { userId: identity.userId, telegramId: from.id }, ctx.env.BOT_TOKEN, planArr);
+          await clearFlow(ctx.db, identity.userId);
+          const committed = planArr.reduce((sum, e) => sum + e.quantity, 0);
           await ctx.tg.editMessageText(
             chatId,
             messageId,
             `\u2694\uFE0F \u062F\u0631\u062E\u0648\u0627\u0633\u062A \u062C\u0646\u06AF \u0627\u0631\u0633\u0627\u0644 \u0634\u062F.
 \u0634\u0646\u0627\u0633\u0647 \u062C\u0646\u06AF: <b>${res.warId}</b>
+\u0646\u06CC\u0631\u0648\u0647\u0627\u06CC \u0645\u062A\u0639\u0647\u062F: <b>${committed.toLocaleString("en-US")} \u0648\u0627\u062D\u062F</b>
 \u0627\u062D\u062A\u0645\u0627\u0644 \u067E\u06CC\u0631\u0648\u0632\u06CC \u0645\u0647\u0627\u062C\u0645: ${percent(res.preview.attackerWinChance)}
 
 \u062D\u0627\u0644\u0627 \u0628\u0627\u06CC\u062F \u06A9\u0634\u0648\u0631 \u0645\u0642\u0627\u0628\u0644 \u067E\u0627\u0633\u062E \u062F\u0647\u062F.`,
@@ -16696,6 +16974,73 @@ async function handleCallback(ctx, cb, updateId) {
         }
         await answer("\u062F\u0633\u062A\u0648\u0631 \u0646\u0627\u0634\u0646\u0627\u062E\u062A\u0647", true);
         return { handled: "war:unknown" };
+      }
+      case "atk": {
+        const nation = await currentNation(ctx, identity.userId);
+        if (!nation) throw ApiError.forbidden("\u0627\u0628\u062A\u062F\u0627 \u06A9\u0634\u0648\u0631 \u0628\u0633\u0627\u0632\u06CC\u062F.");
+        const sub = rest[0];
+        const targetId = Number(rest[1]);
+        if (!Number.isFinite(targetId) || targetId <= 0) {
+          await answer("\u0647\u062F\u0641 \u0646\u0627\u0645\u0639\u062A\u0628\u0631 \u0627\u0633\u062A.", true);
+          return { handled: "atk:bad_target" };
+        }
+        if (sub === "back") {
+          await renderAttackPlanPicker(ctx, chatId, messageId, identity.userId, nation, targetId);
+          await answer();
+          return { handled: "atk:back" };
+        }
+        if (sub === "cat") {
+          await renderAttackPlanCategory(ctx, chatId, messageId, nation, targetId, String(rest[2] ?? ""));
+          await answer();
+          return { handled: "atk:cat" };
+        }
+        if (sub === "tpl") {
+          await renderAttackPlanItem(ctx, chatId, messageId, identity.userId, nation, targetId, Number(rest[2]));
+          await answer();
+          return { handled: "atk:tpl" };
+        }
+        if (sub === "qty") {
+          const templateId = Number(rest[2]);
+          const qtyRaw = Number(rest[3]);
+          const units = await ownedOffenseUnits(ctx.db, nation.id);
+          const item = units.find((u) => u.templateId === templateId);
+          if (!item) {
+            await answer("\u0627\u06CC\u0646 \u0648\u0627\u062D\u062F \u062F\u0631 \u0627\u0646\u0628\u0627\u0631 \u0634\u0645\u0627 \u0646\u06CC\u0633\u062A.", true);
+            return { handled: "atk:qty:not_owned" };
+          }
+          const qty = Math.max(1, Math.min(Math.floor(Number.isFinite(qtyRaw) ? qtyRaw : 1), item.quantity));
+          const draft = await loadAttackDraft(ctx.db, identity.userId);
+          const plan = draft && draft.targetNationId === targetId ? [...draft.plan] : [];
+          const idx = plan.findIndex((e) => e.templateId === templateId);
+          if (idx >= 0) plan[idx] = { templateId, quantity: qty };
+          else plan.push({ templateId, quantity: qty });
+          await saveAttackDraft(ctx.db, identity.userId, nation.id, { targetNationId: targetId, plan });
+          await renderAttackPlanPicker(ctx, chatId, messageId, identity.userId, nation, targetId);
+          await answer("\u0628\u0647 \u0622\u0631\u0627\u06CC\u0634 \u0627\u0636\u0627\u0641\u0647 \u0634\u062F \u2705");
+          return { handled: "atk:qty" };
+        }
+        if (sub === "del") {
+          const templateId = Number(rest[2]);
+          const draft = await loadAttackDraft(ctx.db, identity.userId);
+          const plan = draft && draft.targetNationId === targetId ? draft.plan.filter((e) => e.templateId !== templateId) : [];
+          await saveAttackDraft(ctx.db, identity.userId, nation.id, { targetNationId: targetId, plan });
+          await renderAttackPlanPicker(ctx, chatId, messageId, identity.userId, nation, targetId);
+          await answer("\u0627\u0632 \u0622\u0631\u0627\u06CC\u0634 \u062D\u0630\u0641 \u0634\u062F");
+          return { handled: "atk:del" };
+        }
+        if (sub === "clear") {
+          await saveAttackDraft(ctx.db, identity.userId, nation.id, { targetNationId: targetId, plan: [] });
+          await renderAttackPlanPicker(ctx, chatId, messageId, identity.userId, nation, targetId);
+          await answer("\u0622\u0631\u0627\u06CC\u0634 \u067E\u0627\u06A9 \u0634\u062F");
+          return { handled: "atk:clear" };
+        }
+        if (sub === "preview") {
+          await renderAttackPlanPreview(ctx, chatId, messageId, identity.userId, nation, targetId);
+          await answer();
+          return { handled: "atk:preview" };
+        }
+        await answer("\u062F\u0633\u062A\u0648\u0631 \u0646\u0627\u0634\u0646\u0627\u062E\u062A\u0647", true);
+        return { handled: "atk:unknown" };
       }
       case "w": {
         const nation = await currentNation(ctx, identity.userId);
@@ -17067,6 +17412,7 @@ function renderWarLine(w) {
 }
 function renderWarDetail(detail) {
   const w = detail.war;
+  const attackPlan = detail.attackPlan;
   const reports = detail.reports.slice(0, 3).map(
     (r) => `\u2022 \u0646\u0648\u0628\u062A ${r.roundNo}: \u0628\u0631\u0646\u062F\u0647 <b>${r.winner === "attacker" ? w.attackerName : r.winner === "defender" ? w.defenderName : "\u062A\u0633\u0627\u0648\u06CC"}</b> \u2014 \u0634\u0627\u0646\u0633 \u0645\u0647\u0627\u062C\u0645 ${percent(r.attackerWinChance)}`
   );
@@ -17081,6 +17427,7 @@ function renderWarDetail(detail) {
     statLine("\u063A\u0631\u0627\u0645\u062A \u067E\u0631\u062F\u0627\u062E\u062A\u06CC", coins(w.indemnityPaid)),
     w.outcomeSummary ? statLine("\u0646\u062A\u06CC\u062C\u0647", w.outcomeSummary) : "",
     "",
+    ...attackPlan && attackPlan.length ? ["", "\u{1F3AF} \u0622\u0631\u0627\u06CC\u0634 \u062D\u0645\u0644\u0647:", ...attackPlan.map((e) => `\u2022 ${e.emoji} ${escapeHtml(e.nameFa)} \xD7 ${e.quantity.toLocaleString("en-US")}`)] : [],
     ...reports.length ? ["\u06AF\u0632\u0627\u0631\u0634 \u0646\u0628\u0631\u062F\u0647\u0627:", ...reports] : ["\u0647\u0646\u0648\u0632 \u06AF\u0632\u0627\u0631\u0634\u06CC \u062B\u0628\u062A \u0646\u0634\u062F\u0647 \u0627\u0633\u062A."]
   ].filter(Boolean).join("\n");
 }
@@ -17106,27 +17453,205 @@ async function renderWarTargets(ctx, chatId, messageId, userId, offset) {
     rows
   );
 }
-async function renderWarPreview(ctx, chatId, messageId, nation, targetId) {
-  const { previewForWarTarget: previewForWarTarget2 } = await Promise.resolve().then(() => (init_botActions(), botActions_exports));
-  const p = await previewForWarTarget2(ctx.db, nation, targetId, ctx.settings);
+async function loadAttackDraft(db, userId) {
+  const row = await db.first(
+    sql`SELECT state, data FROM bot_flow_states WHERE user_id = ${userId}`
+  );
+  if (row?.state !== "atk:plan") return null;
+  const data = safeJson3(row.data);
+  const targetNationId = Number(data.targetNationId);
+  const rawPlan = Array.isArray(data.plan) ? data.plan : [];
+  const plan = rawPlan.map((e) => {
+    const entry = e;
+    return { templateId: Number(entry?.templateId), quantity: Number(entry?.quantity) };
+  }).filter((e) => Number.isFinite(e.templateId) && e.templateId > 0 && Number.isFinite(e.quantity) && e.quantity > 0);
+  if (!Number.isFinite(targetNationId) || targetNationId <= 0) return null;
+  return { targetNationId, plan };
+}
+async function saveAttackDraft(db, userId, nationId, draft) {
+  if (draft.plan.length === 0) {
+    await db.run(sql`DELETE FROM bot_flow_states WHERE user_id = ${userId} AND state = 'atk:plan'`);
+    return;
+  }
+  await db.run(
+    sql`INSERT INTO bot_flow_states (user_id, state, nation_id, data, updated_at, expires_at)
+        VALUES (${userId}, 'atk:plan', ${nationId}, ${JSON.stringify(draft)}, ${nowSeconds()}, ${nowSeconds() + 3600})
+        ON CONFLICT (user_id) DO UPDATE SET state = 'atk:plan', nation_id = excluded.nation_id, data = excluded.data, updated_at = excluded.updated_at, expires_at = excluded.expires_at`
+  );
+}
+async function ownedOffenseUnits(db, nationId) {
+  const rows = await db.all(
+    sql`SELECT t.id AS templateId, t.name_fa AS nameFa, c.emoji AS emoji, t.unit_fa AS unitFa,
+               c.key AS categoryKey, c.label_fa AS categoryLabelFa,
+               COALESCE(t.attack_points, c.power_weight) AS attackPoints, COALESCE(i.quantity, 0) AS quantity
+        FROM equipment_templates t
+        JOIN equipment_categories c ON c.id = t.category_id
+        LEFT JOIN nation_inventory i ON i.template_id = t.id AND i.nation_id = ${nationId}
+        WHERE c.is_active = 1 AND c.role = 'offense' AND t.is_active = 1 AND COALESCE(i.quantity, 0) > 0
+        ORDER BY c.sort_order, t.name_fa`
+  );
+  return rows.map((r) => ({
+    templateId: Number(r.templateId),
+    nameFa: String(r.nameFa),
+    emoji: String(r.emoji),
+    unitFa: String(r.unitFa),
+    categoryKey: String(r.categoryKey),
+    categoryLabelFa: String(r.categoryLabelFa),
+    quantity: Number(r.quantity),
+    attackPoints: Number(r.attackPoints ?? 0)
+  }));
+}
+function summarizePlan(units, plan) {
+  const byId = new Map(units.map((u) => [u.templateId, u]));
+  const lines = [];
+  let totalAp = 0;
+  let totalUnits = 0;
+  for (const e of plan) {
+    const u = byId.get(e.templateId);
+    const each = u?.attackPoints ?? 0;
+    totalAp += each * e.quantity;
+    totalUnits += e.quantity;
+    lines.push(`\u2022 ${u ? `${u.emoji} ${u.nameFa}` : `#${e.templateId}`} \xD7 ${e.quantity.toLocaleString("en-US")}`);
+  }
+  return { lines, totalUnits, totalAp: Math.round(totalAp) };
+}
+async function renderAttackPlanPicker(ctx, chatId, messageId, userId, nation, targetId) {
+  const target = await ctx.db.first(sql`SELECT flag, name FROM nations WHERE id = ${targetId}`);
+  if (!target) throw ApiError.notFound("\u06A9\u0634\u0648\u0631 \u0647\u062F\u0641 \u06CC\u0627\u0641\u062A \u0646\u0634\u062F.");
+  const units = await ownedOffenseUnits(ctx.db, nation.id);
+  const draft = await loadAttackDraft(ctx.db, userId);
+  const plan = draft && draft.targetNationId === targetId ? draft.plan : [];
+  const sum = summarizePlan(units, plan);
+  const catTotals = await ctx.db.all(
+    sql`SELECT c.key AS key, c.label_fa AS labelFa, c.emoji AS emoji, COALESCE(SUM(COALESCE(i.quantity, 0)), 0) AS total
+          FROM equipment_categories c
+          JOIN equipment_templates t ON t.category_id = c.id AND t.is_active = 1
+          LEFT JOIN nation_inventory i ON i.template_id = t.id AND i.nation_id = ${nation.id}
+         WHERE c.is_active = 1 AND c.role = 'offense'
+         GROUP BY c.id
+         ORDER BY c.sort_order`
+  );
+  const grandTotal = catTotals.reduce((sumAcc, c) => sumAcc + Number(c.total), 0);
+  const rows = [];
+  const catButtons = catTotals.map((c) => ({
+    text: `${String(c.emoji)} ${String(c.labelFa)} (${Number(c.total).toLocaleString("en-US")})`,
+    callback_data: `atk:cat:${targetId}:${String(c.key)}`
+  }));
+  for (let i = 0; i < catButtons.length; i += 2) rows.push(catButtons.slice(i, i + 2));
+  if (plan.length > 0) {
+    rows.push([{ text: "\u2705 \u0627\u062F\u0627\u0645\u0647 \u0648 \u067E\u06CC\u0634\u200C\u0646\u0645\u0627\u06CC\u0634 \u062D\u0645\u0644\u0647", callback_data: `atk:preview:${targetId}` }]);
+    rows.push([{ text: "\u{1F5D1} \u067E\u0627\u06A9 \u06A9\u0631\u062F\u0646 \u0622\u0631\u0627\u06CC\u0634", callback_data: `atk:clear:${targetId}` }]);
+  }
+  rows.push([{ text: "\u274C \u0627\u0646\u0635\u0631\u0627\u0641", callback_data: "nav:war" }]);
   await ctx.tg.editMessageText(
     chatId,
     messageId,
     [
-      "\u2694\uFE0F <b>\u062E\u0644\u0627\u0635\u0647 \u062F\u0631\u062E\u0648\u0627\u0633\u062A \u062C\u0646\u06AF</b>",
+      "\u{1F3AF} <b>\u0622\u0631\u0627\u06CC\u0634 \u062D\u0645\u0644\u0647</b>",
+      `\u0647\u062F\u0641: ${String(target.flag)} ${escapeHtml(String(target.name))}`,
+      "",
+      `<b>\u0646\u06CC\u0631\u0648\u0647\u0627\u06CC \u0645\u062A\u0639\u0647\u062F (${sum.totalUnits.toLocaleString("en-US")} \u0648\u0627\u062D\u062F):</b>`,
+      ...sum.lines.length ? sum.lines : ["\u2014 \u0647\u0646\u0648\u0632 \u0648\u0627\u062D\u062F\u06CC \u0627\u0646\u062A\u062E\u0627\u0628 \u0646\u0634\u062F\u0647 \u0627\u0633\u062A \u2014"],
+      `\u0642\u062F\u0631\u062A \u062D\u0645\u0644\u0647 \u06A9\u0644: <b>${formatNumber(sum.totalAp)}</b>`,
+      "",
+      grandTotal === 0 ? "\u0634\u0645\u0627 \u0647\u0646\u0648\u0632 \u0647\u06CC\u0686 \u0648\u0627\u062D\u062F \u062A\u0647\u0627\u062C\u0645\u06CC \u0646\u062F\u0627\u0631\u06CC\u062F\u061B \u0627\u0628\u062A\u062F\u0627 \u0627\u0632 \xAB\u{1F6D2} \u0641\u0631\u0648\u0634\u06AF\u0627\u0647\xBB \u0628\u062E\u0631\u06CC\u062F." : "\u2460 \u062F\u0633\u062A\u0647 \u0631\u0627 \u0627\u0646\u062A\u062E\u0627\u0628 \u06A9\u0646\u060C \u2461 \u0648\u0627\u062D\u062F \u0648 \u062A\u0639\u062F\u0627\u062F \u0631\u0627 \u0628\u0632\u0646.\n\u062D\u0645\u0644\u0647 \u0641\u0642\u0637 \u0628\u0627 \u0647\u0645\u06CC\u0646 \u0648\u0627\u062D\u062F\u0647\u0627 \u0627\u0646\u062C\u0627\u0645 \u0645\u06CC\u200C\u0634\u0648\u062F\u061B \u0628\u0642\u06CC\u0647\u0654 \u0627\u0631\u062A\u0634 \u062F\u0631 \u062E\u0627\u0646\u0647 \u0645\u06CC\u200C\u0645\u0627\u0646\u064E\u062F."
+    ].join("\n"),
+    rows
+  );
+}
+async function renderAttackPlanCategory(ctx, chatId, messageId, nation, targetId, categoryKey) {
+  const units = (await ownedOffenseUnits(ctx.db, nation.id)).filter((u) => u.categoryKey === categoryKey);
+  const label = units[0]?.categoryLabelFa;
+  const rows = units.map((u) => [
+    { text: `${u.emoji} ${u.nameFa} \u2014 ${u.quantity.toLocaleString("en-US")} ${u.unitFa}`, callback_data: `atk:tpl:${targetId}:${u.templateId}` }
+  ]);
+  rows.push([{ text: "\u2B05\uFE0F \u062F\u0633\u062A\u0647\u200C\u0647\u0627", callback_data: `atk:back:${targetId}` }]);
+  await ctx.tg.editMessageText(
+    chatId,
+    messageId,
+    [
+      `\u{1F3AF} <b>${label ? escapeHtml(label) : escapeHtml(categoryKey)}</b>`,
+      "",
+      ...units.length ? ["\u06A9\u062F\u0627\u0645 \u0648\u0627\u062D\u062F\u061F"] : ["\u062F\u0631 \u0627\u06CC\u0646 \u062F\u0633\u062A\u0647 \u0645\u0648\u062C\u0648\u062F\u06CC \u0646\u062F\u0627\u0631\u06CC\u062F."]
+    ].join("\n"),
+    rows
+  );
+}
+async function renderAttackPlanItem(ctx, chatId, messageId, userId, nation, targetId, templateId) {
+  const units = await ownedOffenseUnits(ctx.db, nation.id);
+  const item = units.find((u) => u.templateId === templateId);
+  if (!item) {
+    await ctx.tg.editMessageText(
+      chatId,
+      messageId,
+      "\u26A0\uFE0F \u0627\u06CC\u0646 \u0648\u0627\u062D\u062F \u062F\u0631 \u0627\u0646\u0628\u0627\u0631 \u0634\u0645\u0627 \u0646\u06CC\u0633\u062A \u06CC\u0627 \u0642\u0627\u0628\u0644 \u062A\u0639\u0647\u062F \u062F\u0631 \u062D\u0645\u0644\u0647 \u0646\u06CC\u0633\u062A.",
+      [[{ text: "\u2B05\uFE0F \u062F\u0633\u062A\u0647\u200C\u0647\u0627", callback_data: `atk:back:${targetId}` }]]
+    );
+    return;
+  }
+  const draft = await loadAttackDraft(ctx.db, userId);
+  const current = draft && draft.targetNationId === targetId ? draft.plan.find((e) => e.templateId === templateId)?.quantity ?? 0 : 0;
+  const base = [1, 5, 10, 20].filter((q) => q < item.quantity);
+  const presets = [...base, item.quantity];
+  const qtyButtons = presets.map((q, idx) => ({
+    text: idx === presets.length - 1 && ![1, 5, 10, 20].includes(item.quantity) ? `\u0647\u0645\u0647 (${item.quantity.toLocaleString("en-US")})` : q.toLocaleString("en-US"),
+    callback_data: `atk:qty:${targetId}:${templateId}:${q}`
+  }));
+  const rows = [];
+  for (let i = 0; i < qtyButtons.length; i += 3) rows.push(qtyButtons.slice(i, i + 3));
+  if (current > 0) rows.push([{ text: `\u274C \u062D\u0630\u0641 \u0627\u0632 \u0622\u0631\u0627\u06CC\u0634 (\u0641\u0639\u0644\u0627\u064B ${current.toLocaleString("en-US")})`, callback_data: `atk:del:${targetId}:${templateId}` }]);
+  rows.push([{ text: "\u2B05\uFE0F \u062F\u0633\u062A\u0647\u200C\u0647\u0627", callback_data: `atk:cat:${targetId}:${item.categoryKey}` }]);
+  await ctx.tg.editMessageText(
+    chatId,
+    messageId,
+    [
+      `${item.emoji} <b>${escapeHtml(item.nameFa)}</b>`,
+      statLine("\u0645\u0648\u062C\u0648\u062F\u06CC", `${item.quantity.toLocaleString("en-US")} ${escapeHtml(item.unitFa)}`),
+      statLine("\u0642\u062F\u0631\u062A \u062D\u0645\u0644\u0647 \u0647\u0631 \u0648\u0627\u062D\u062F", formatNumber(item.attackPoints)),
+      statLine("\u062F\u0631 \u0622\u0631\u0627\u06CC\u0634 \u0641\u0639\u0644\u06CC", current > 0 ? `${current.toLocaleString("en-US")} \u0639\u062F\u062F` : "\u2014"),
+      "",
+      "\u0686\u0646\u062F \u0648\u0627\u062D\u062F \u0645\u062A\u0639\u0647\u062F \u0645\u06CC\u200C\u06A9\u0646\u06CC\u062F\u061F"
+    ].join("\n"),
+    rows
+  );
+}
+async function renderAttackPlanPreview(ctx, chatId, messageId, userId, nation, targetId) {
+  const draft = await loadAttackDraft(ctx.db, userId);
+  const plan = draft && draft.targetNationId === targetId ? draft.plan : [];
+  if (plan.length === 0) {
+    await ctx.tg.editMessageText(
+      chatId,
+      messageId,
+      "\u26A0\uFE0F \u0647\u0646\u0648\u0632 \u0648\u0627\u062D\u062F\u06CC \u0627\u0646\u062A\u062E\u0627\u0628 \u0646\u06A9\u0631\u062F\u0647\u200C\u0627\u06CC\u062F.",
+      [[{ text: "\u2B05\uFE0F \u0627\u0646\u062A\u062E\u0627\u0628 \u0648\u0627\u062D\u062F\u0647\u0627", callback_data: `atk:back:${targetId}` }]]
+    );
+    return;
+  }
+  const { previewForWarTarget: previewForWarTarget2 } = await Promise.resolve().then(() => (init_botActions(), botActions_exports));
+  const p = await previewForWarTarget2(ctx.db, nation, targetId, ctx.settings, plan);
+  const units = await ownedOffenseUnits(ctx.db, nation.id);
+  const sum = summarizePlan(units, plan);
+  await ctx.tg.editMessageText(
+    chatId,
+    messageId,
+    [
+      "\u2694\uFE0F <b>\u067E\u06CC\u0634\u200C\u0646\u0645\u0627\u06CC\u0634 \u062D\u0645\u0644\u0647</b>",
       "",
       `${nation.flag} ${escapeHtml(nation.name)} \u2192 ${p.targetFlag} ${escapeHtml(p.targetName)}`,
       "",
+      ...sum.lines,
+      statLine("\u0648\u0627\u062D\u062F\u0647\u0627\u06CC \u0645\u062A\u0639\u0647\u062F", sum.totalUnits.toLocaleString("en-US")),
       statLine("\u0642\u062F\u0631\u062A \u0634\u0645\u0627 (\u062A\u0647\u0627\u062C\u0645)", formatNumber(p.attackerPower)),
       statLine("\u0642\u062F\u0631\u062A \u062F\u0641\u0627\u0639 \u062D\u0631\u06CC\u0641", formatNumber(p.defenderPower)),
       statLine("\u0627\u062D\u062A\u0645\u0627\u0644 \u067E\u06CC\u0631\u0648\u0632\u06CC \u0634\u0645\u0627", percent(p.attackerWinChance)),
       statLine("\u0647\u0632\u06CC\u0646\u0647 \u0648\u0631\u0648\u062F", coins(p.entryCost)),
       statLine("\u0646\u0648\u0628\u062A\u200C\u0647\u0627\u06CC \u062D\u062F\u0627\u06A9\u062B\u0631\u06CC", String(p.maxRounds)),
       "",
-      "\u067E\u0633 \u0627\u0632 \u062A\u0623\u06CC\u06CC\u062F\u060C \u062F\u0631\u062E\u0648\u0627\u0633\u062A \u0628\u0631\u0627\u06CC \u06A9\u0634\u0648\u0631 \u0645\u0642\u0627\u0628\u0644 \u0627\u0631\u0633\u0627\u0644 \u0645\u06CC\u200C\u0634\u0648\u062F \u0648 \u0628\u0627\u06CC\u062F \u067E\u0630\u06CC\u0631\u0641\u062A\u0647 \u0634\u0648\u062F."
+      "\u067E\u0633 \u0627\u0632 \u0627\u0631\u0633\u0627\u0644\u060C \u0641\u0642\u0637 \u0647\u0645\u06CC\u0646 \u0648\u0627\u062D\u062F\u0647\u0627 \u0648\u0627\u0631\u062F \u062C\u0646\u06AF \u0645\u06CC\u200C\u0634\u0648\u0646\u062F \u0648 \u0641\u0642\u0637 \u0647\u0645\u06CC\u0646\u200C\u0647\u0627 \u062E\u0633\u0627\u0631\u062A \u0645\u06CC\u200C\u0628\u06CC\u0646\u0646\u062F."
     ].join("\n"),
     [
-      [{ text: "\u2705 \u0627\u0631\u0633\u0627\u0644 \u062F\u0631\u062E\u0648\u0627\u0633\u062A", callback_data: `war:go:${targetId}` }],
+      [{ text: "\u2694\uFE0F \u0627\u0631\u0633\u0627\u0644 \u062F\u0631\u062E\u0648\u0627\u0633\u062A \u062C\u0646\u06AF", callback_data: `war:go:${targetId}` }],
+      [{ text: "\u270F\uFE0F \u0648\u06CC\u0631\u0627\u06CC\u0634 \u0622\u0631\u0627\u06CC\u0634", callback_data: `atk:back:${targetId}` }],
       [{ text: "\u274C \u0627\u0646\u0635\u0631\u0627\u0641", callback_data: "nav:war" }]
     ]
   );

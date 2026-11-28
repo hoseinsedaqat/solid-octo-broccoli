@@ -93,12 +93,16 @@ warRoutes.post('/propose', async (c) => {
   const db = c.get('db');
   const settings = await settingsFor(c);
   const body = parse(
-    z.object({ targetNationId: z.coerce.number().int().positive(), indemnityOffered: z.coerce.number().int().min(0).max(1_000_000_000).optional().default(0) }),
+    z.object({
+      targetNationId: z.coerce.number().int().positive(),
+      indemnityOffered: z.coerce.number().int().min(0).max(1_000_000_000).optional().default(0),
+      attackPlan: z.array(z.object({ templateId: z.coerce.number().int().positive(), quantity: z.coerce.number().int().min(1).max(1000000) })).max(40).optional(),
+    }),
     await parseJson(c),
   );
   await enforceRateLimit(db, `war:${c.get('user').userId}`, 10, 3600, { durable: true });
   const { proposeWar } = await import('../../services/warService');
-  const res = await proposeWar(db, c.get('nation'), body.targetNationId, body.indemnityOffered ?? 0, settings, actorOf(c.get('user')), c.env.BOT_TOKEN);
+  const res = await proposeWar(db, c.get('nation'), body.targetNationId, body.indemnityOffered ?? 0, settings, actorOf(c.get('user')), c.env.BOT_TOKEN, body.attackPlan);
   return c.json(res);
 });
 
@@ -142,9 +146,15 @@ warRoutes.post('/peace/:id/respond', async (c) => {
 warRoutes.post('/preview', async (c) => {
   const db = c.get('db');
   const settings = await settingsFor(c);
-  const body = parse(z.object({ targetNationId: z.coerce.number().int().positive() }), await parseJson(c));
+  const body = parse(
+    z.object({
+      targetNationId: z.coerce.number().int().positive(),
+      attackPlan: z.array(z.object({ templateId: z.coerce.number().int().positive(), quantity: z.coerce.number().int().min(1).max(1000000) })).max(40).optional(),
+    }),
+    await parseJson(c),
+  );
   const { previewForWarTarget } = await import('../../bot/botActions');
-  return c.json(await previewForWarTarget(db, c.get('nation'), body.targetNationId, settings));
+  return c.json(await previewForWarTarget(db, c.get('nation'), body.targetNationId, settings, body.attackPlan));
 });
 
 export function mountShop(app: Hono<HonoEnv>) {

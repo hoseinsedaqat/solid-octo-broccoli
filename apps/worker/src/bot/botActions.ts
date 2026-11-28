@@ -42,10 +42,37 @@ export interface WarPreviewCard {
   expectedLossPercent: number;
 }
 
-export async function previewForWarTarget(db: Db, attacker: NationRow, targetId: number, settings: SettingsBundle): Promise<WarPreviewCard> {
+export async function previewForWarTarget(
+  db: Db,
+  attacker: NationRow,
+  targetId: number,
+  settings: SettingsBundle,
+  attackPlan?: unknown,
+): Promise<WarPreviewCard> {
   if (attacker.id === targetId) throw ApiError.forbidden('حمله به کشور خود امکان‌پذیر نیست.');
   const target = await loadNation(db, targetId);
-  const att = await combatant(db, attacker, settings, 'attacker');
+  let att: Combatant;
+  if (attackPlan) {
+    const { normalizeAttackPlan, validateAttackPlan } = await import('../services/warService');
+    const plan = normalizeAttackPlan(attackPlan);
+    if (plan) {
+      await validateAttackPlan(db, attacker.id, plan);
+      // committed striking force only — mirror of proposeWar()'s math
+      const { loadInventory, loadCategoryWeights } = await import('../db/queries');
+      const { computePower } = await import('../game-engine/scoring');
+      const inventory = await loadInventory(db, attacker.id);
+      const committed = plan.map((e) => {
+        const inv = inventory.find((i) => i.templateId === e.templateId)!;
+        return { templateId: e.templateId, categoryKey: inv.categoryKey, quantity: Math.min(e.quantity, inv.quantity), attackPoints: inv.attackPoints, defensePoints: inv.defensePoints };
+      });
+      const power = computePower(committed, await loadCategoryWeights(db), { manpowerFactor: settings.battle.manpowerFactor, fortificationLevel: 0 });
+      att = { nationId: attacker.id, attackPower: power.attackPower, defensePower: power.defensePower, troopsCount: power.troopsCount, equipmentCount: power.equipmentCount, treasury: attacker.treasury, allianceSupport: 0, fortificationLevel: 0, morale: 1 };
+    } else {
+      att = await combatant(db, attacker, settings, 'attacker');
+    }
+  } else {
+    att = await combatant(db, attacker, settings, 'attacker');
+  }
   const def = await combatant(db, target, settings, 'defender');
   const p = previewBattle(att, def, settings.battle);
   return {

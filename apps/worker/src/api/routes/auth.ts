@@ -2,7 +2,7 @@ import { Hono } from 'hono';
 import { z } from 'zod';
 import { formatZodError } from '@ww/shared';
 import { ApiError } from '../../core/errors';
-import { authenticateInitData, upsertTelegramUser, parseAdminIds, revokeSession } from '../../services/authService';
+import { authenticateInitData, upsertTelegramUser, parseAdminIds, revokeSession, setActiveNation } from '../../services/authService';
 import { loadSessionUser } from '../../services/authService';
 import { Db } from '../../core/db';
 import { buildNationView, type NationRow } from '../../services/nationService';
@@ -60,6 +60,7 @@ authRoutes.post('/session', async (c) => {
 
 authRoutes.use('/me', requireUser);
 authRoutes.use('/logout', requireUser);
+authRoutes.use('/switch-nation', requireUser);
 
 authRoutes.get('/me', async (c) => {
   const db = c.get('db');
@@ -83,6 +84,17 @@ authRoutes.get('/me', async (c) => {
     branding: { gameName: settings.branding.gameName, welcomeTitle: settings.branding.welcomeTitle },
     view,
   });
+});
+
+authRoutes.post('/switch-nation', async (c) => {
+  const user = c.get('user');
+  const body = await c.req.json().catch(() => null);
+  const parsed = z.object({ nationId: z.coerce.number().int().positive() }).safeParse(body);
+  if (!parsed.success) {
+    const e = formatZodError(parsed.error);
+    throw ApiError.validation(e.message, e.fields);
+  }
+  return c.json(await setActiveNation(c.get('db'), user.userId, user.sessionId, parsed.data.nationId, user.nationIds));
 });
 
 authRoutes.post('/logout', async (c) => {

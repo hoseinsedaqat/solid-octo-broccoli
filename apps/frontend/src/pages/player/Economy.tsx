@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Area, AreaChart, CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import { useApi } from '../../auth';
+import { useRouter } from '../../router';
 import { Badge, Btn, Card, Empty, ErrorBox, Grid, Loading, Stat, Tabs, fa, faDateTime, faDuration, faMoney } from '../../ui';
 import { ECONOMY_NOTE, NAV_TITLES, TX_TONES } from './meta';
 
@@ -43,6 +44,9 @@ export function EconomyPage() {
         </div>
         <p className="mt-2 text-[11px] leading-5 text-slate-500">{ECONOMY_NOTE}</p>
       </Card>
+
+      <MilitaryAssets />
+      <LatestTransactions />
 
       <Tabs items={[{ key: 'chart', label: '📈 نمودار' }, { key: 'ledger', label: '🧾 دفتر مالی' }]} value={tab} onChange={setTab} />
 
@@ -206,6 +210,66 @@ export function Ledger({ pageSize = 20 }: { pageSize?: number }) {
       <p className="mt-2 text-[11px] text-slate-500">
         یادداشت: «درخواست پرینت» و «ارسال به ایمیل» عمداً ساخته نشده‌اند — خروجی گرفتن از داده فقط از طریق API و با احراز هویت ممکن است تا داده کشورها درز نکند.
       </p>
+    </Card>
+  );
+}
+
+function MilitaryAssets() {
+  const { navigate } = useRouter();
+  const inv = useApi<{ groups: any[]; totalCategories: number }>('/player/military');
+  const all = inv.data?.groups ?? [];
+  const totalUnits = all.reduce((n: number, g: any) => n + (g.items ?? []).reduce((m: number, i: any) => m + Number(i.quantity), 0), 0);
+  return (
+    <Card
+      title="دارایی نظامی"
+      emoji="🎖️"
+    >
+      {inv.loading ? <Loading /> : null}
+      {inv.error ? <ErrorBox message={inv.error} onRetry={inv.reload} /> : null}
+      {!inv.loading && all.length === 0 ? (
+        <Empty text="انبار نظامی خالی است." action={<Btn variant="primary" onClick={() => navigate('/app/military')}>🎖️ دارایی کامل نظامی</Btn>} />
+      ) : null}
+      {all.length > 0 ? (
+        <>
+          <div className="mb-2 flex items-center justify-between gap-2 text-[11px] text-slate-400">
+            <span>{fa(all.length)} دسته · مجموع {fa(totalUnits)} واحد</span>
+            <Btn variant="ghost" className="!px-2 !py-1" onClick={() => navigate('/app/military')}>همه جزییات 🎖️</Btn>
+          </div>
+          <div className="grid grid-cols-3 gap-1.5 sm:grid-cols-4">
+            {all.map((g: any) => (
+              <div key={g.categoryKey} className="rounded-xl border border-white/10 bg-white/5 px-2 py-2 text-center">
+                <div className="text-lg leading-6">{g.emoji}</div>
+                <div className="mt-0.5 truncate text-[10px] text-slate-400">{g.labelFa ?? g.categoryKey}</div>
+                <div className="text-xs font-black text-slate-100">{fa((g.items ?? []).reduce((m: number, i: any) => m + Number(i.quantity), 0))}</div>
+              </div>
+            ))}
+          </div>
+        </>
+      ) : null}
+    </Card>
+  );
+}
+
+function LatestTransactions() {
+  const { navigate } = useRouter();
+  const txs = useApi<{ rows: any[] }>('/player/transactions?limit=6&offset=0');
+  const rows = txs.data?.rows ?? [];
+  if (!rows.length && txs.loading) return null;
+  return (
+    <Card title="آخرین تراکنش‌ها" emoji="🧾">
+      {txs.error ? <ErrorBox message={txs.error} onRetry={txs.reload} /> : null}
+      <div className="space-y-1">
+        {rows.map((t: any) => (
+          <div key={t.id} className="flex items-center justify-between gap-2 rounded-xl border border-white/5 bg-white/5 px-3 py-1.5 text-[11px]">
+            <span className="min-w-0 truncate text-slate-300">{t.reason ?? t.type}</span>
+            <span className={Number(t.amount) >= 0 ? 'shrink-0 text-ok' : 'shrink-0 text-danger'} dir="ltr">
+              {Number(t.amount) >= 0 ? '+' : ''}
+              {faMoney(Number(t.amount))}
+            </span>
+          </div>
+        ))}
+        {!txs.loading && rows.length === 0 ? <p className="py-2 text-center text-[11px] text-slate-500">تراکنشی ثبت نشده است.</p> : null}
+      </div>
     </Card>
   );
 }

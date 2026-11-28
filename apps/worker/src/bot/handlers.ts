@@ -475,16 +475,26 @@ async function handleCallback(ctx: BotCtx, cb: TgCallbackQuery, updateId: number
         const nation = await currentNation(ctx, identity.userId);
         if (!nation) throw ApiError.forbidden('ابتدا کشور بسازید.');
         if (rest[0] === 'ask') {
-          await renderWarPreview(ctx, chatId, messageId, nation, Number(rest[1]));
+          await renderAttackPlanPicker(ctx, chatId, messageId, identity.userId, nation, Number(rest[1]));
           await answer();
           return { handled: 'war:ask' };
         }
         if (rest[0] === 'go') {
-          const res = await proposeWar(ctx.db, nation, Number(rest[1]), 0, ctx.settings, { userId: identity.userId, telegramId: from.id }, ctx.env.BOT_TOKEN);
+          const targetIdNum = Number(rest[1]);
+          const draft = await loadAttackDraft(ctx.db, identity.userId);
+          const planArr = draft && draft.targetNationId === targetIdNum ? draft.plan : [];
+          if (planArr.length === 0) {
+            await answer('ابتدا آرایش حمله را انتخاب کنید.', true);
+            await renderAttackPlanPicker(ctx, chatId, messageId, identity.userId, nation, targetIdNum);
+            return { handled: 'war:go:plan_required' };
+          }
+          const res = await proposeWar(ctx.db, nation, targetIdNum, 0, ctx.settings, { userId: identity.userId, telegramId: from.id }, ctx.env.BOT_TOKEN, planArr);
+          await clearFlow(ctx.db, identity.userId);
+          const committed = planArr.reduce((sum, e) => sum + e.quantity, 0);
           await ctx.tg.editMessageText(
             chatId,
             messageId,
-            `⚔️ درخواست جنگ ارسال شد.\nشناسه جنگ: <b>${res.warId}</b>\nاحتمال پیروزی مهاجم: ${percent(res.preview.attackerWinChance)}\n\nحالا باید کشور مقابل پاسخ دهد.`,
+            `⚔️ درخواست جنگ ارسال شد.\nشناسه جنگ: <b>${res.warId}</b>\nنیروهای متعهد: <b>${committed.toLocaleString('en-US')} واحد</b>\nاحتمال پیروزی مهاجم: ${percent(res.preview.attackerWinChance)}\n\nحالا باید کشور مقابل پاسخ دهد.`,
             [[{ text: '📜 جنگ‌های من', callback_data: 'war:list' }, { text: '🏠 منو', callback_data: 'm' }]],
           );
           await answer();
@@ -496,6 +506,72 @@ async function handleCallback(ctx: BotCtx, cb: TgCallbackQuery, updateId: number
         }
         await answer('دستور ناشناخته', true);
         return { handled: 'war:unknown' };
+      }
+      case 'atk': {
+        const nation = await currentNation(ctx, identity.userId);
+        if (!nation) throw ApiError.forbidden('ابتدا کشور بسازید.');
+        const sub = rest[0];
+        const targetId = Number(rest[1]);
+        if (!Number.isFinite(targetId) || targetId <= 0) {
+          await answer('هدف نامعتبر است.', true);
+          return { handled: 'atk:bad_target' };
+        }
+        if (sub === 'back') {
+          await renderAttackPlanPicker(ctx, chatId, messageId, identity.userId, nation, targetId);
+          await answer();
+          return { handled: 'atk:back' };
+        }
+        if (sub === 'cat') {
+          await renderAttackPlanCategory(ctx, chatId, messageId, nation, targetId, String(rest[2] ?? ''));
+          await answer();
+          return { handled: 'atk:cat' };
+        }
+        if (sub === 'tpl') {
+          await renderAttackPlanItem(ctx, chatId, messageId, identity.userId, nation, targetId, Number(rest[2]));
+          await answer();
+          return { handled: 'atk:tpl' };
+        }
+        if (sub === 'qty') {
+          const templateId = Number(rest[2]);
+          const qtyRaw = Number(rest[3]);
+          const units = await ownedOffenseUnits(ctx.db, nation.id);
+          const item = units.find((u) => u.templateId === templateId);
+          if (!item) {
+            await answer('این واحد در انبار شما نیست.', true);
+            return { handled: 'atk:qty:not_owned' };
+          }
+          const qty = Math.max(1, Math.min(Math.floor(Number.isFinite(qtyRaw) ? qtyRaw : 1), item.quantity));
+          const draft = await loadAttackDraft(ctx.db, identity.userId);
+          const plan = draft && draft.targetNationId === targetId ? [...draft.plan] : [];
+          const idx = plan.findIndex((e) => e.templateId === templateId);
+          if (idx >= 0) plan[idx] = { templateId, quantity: qty }; else plan.push({ templateId, quantity: qty });
+          await saveAttackDraft(ctx.db, identity.userId, nation.id, { targetNationId: targetId, plan });
+          await renderAttackPlanPicker(ctx, chatId, messageId, identity.userId, nation, targetId);
+          await answer('به آرایش اضافه شد ✅');
+          return { handled: 'atk:qty' };
+        }
+        if (sub === 'del') {
+          const templateId = Number(rest[2]);
+          const draft = await loadAttackDraft(ctx.db, identity.userId);
+          const plan = draft && draft.targetNationId === targetId ? draft.plan.filter((e) => e.templateId !== templateId) : [];
+          await saveAttackDraft(ctx.db, identity.userId, nation.id, { targetNationId: targetId, plan });
+          await renderAttackPlanPicker(ctx, chatId, messageId, identity.userId, nation, targetId);
+          await answer('از آرایش حذف شد');
+          return { handled: 'atk:del' };
+        }
+        if (sub === 'clear') {
+          await saveAttackDraft(ctx.db, identity.userId, nation.id, { targetNationId: targetId, plan: [] });
+          await renderAttackPlanPicker(ctx, chatId, messageId, identity.userId, nation, targetId);
+          await answer('آرایش پاک شد');
+          return { handled: 'atk:clear' };
+        }
+        if (sub === 'preview') {
+          await renderAttackPlanPreview(ctx, chatId, messageId, identity.userId, nation, targetId);
+          await answer();
+          return { handled: 'atk:preview' };
+        }
+        await answer('دستور ناشناخته', true);
+        return { handled: 'atk:unknown' };
       }
       case 'w': {
         const nation = await currentNation(ctx, identity.userId);
@@ -868,6 +944,7 @@ function renderWarLine(w: ReturnType<typeof mapWar>): string {
 
 function renderWarDetail(detail: Awaited<ReturnType<typeof getWarDetail>>): string {
   const w = detail.war;
+  const attackPlan = detail.attackPlan;
   const reports = detail.reports.slice(0, 3).map(
     (r) =>
       `• نوبت ${r.roundNo}: برنده <b>${r.winner === 'attacker' ? w.attackerName : r.winner === 'defender' ? w.defenderName : 'تساوی'}</b> — شانس مهاجم ${percent(r.attackerWinChance)}`,
@@ -883,6 +960,7 @@ function renderWarDetail(detail: Awaited<ReturnType<typeof getWarDetail>>): stri
     statLine('غرامت پرداختی', coins(w.indemnityPaid)),
     w.outcomeSummary ? statLine('نتیجه', w.outcomeSummary) : '',
     '',
+    ...(attackPlan && attackPlan.length ? ['', '🎯 آرایش حمله:', ...attackPlan.map((e) => `• ${e.emoji} ${escapeHtml(e.nameFa)} × ${e.quantity.toLocaleString('en-US')}`)] : []),
     ...(reports.length ? ['گزارش نبردها:', ...reports] : ['هنوز گزارشی ثبت نشده است.']),
   ]
     .filter(Boolean)
@@ -913,27 +991,233 @@ async function renderWarTargets(ctx: BotCtx, chatId: number, messageId: number, 
   );
 }
 
-async function renderWarPreview(ctx: BotCtx, chatId: number, messageId: number, nation: NationRow, targetId: number) {
-  const { previewForWarTarget } = await import('./botActions');
-  const p = await previewForWarTarget(ctx.db, nation, targetId, ctx.settings);
+/* ------------------------- bot attack-plan picker ------------------------ */
+
+interface AttackDraftEntry { templateId: number; quantity: number }
+interface AttackDraft { targetNationId: number; plan: AttackDraftEntry[] }
+
+async function loadAttackDraft(db: Db, userId: number): Promise<AttackDraft | null> {
+  const row = await db.first<{ state: string; data: string | null }>(
+    sql`SELECT state, data FROM bot_flow_states WHERE user_id = ${userId}`,
+  );
+  if (row?.state !== 'atk:plan') return null;
+  const data = safeJson(row.data) as { targetNationId?: unknown; plan?: unknown };
+  const targetNationId = Number(data.targetNationId);
+  const rawPlan = Array.isArray(data.plan) ? data.plan : [];
+  const plan = rawPlan
+    .map((e) => {
+      const entry = e as Partial<AttackDraftEntry> | null;
+      return { templateId: Number(entry?.templateId), quantity: Number(entry?.quantity) };
+    })
+    .filter((e) => Number.isFinite(e.templateId) && e.templateId > 0 && Number.isFinite(e.quantity) && e.quantity > 0);
+  if (!Number.isFinite(targetNationId) || targetNationId <= 0) return null;
+  return { targetNationId, plan };
+}
+
+async function saveAttackDraft(db: Db, userId: number, nationId: number, draft: AttackDraft): Promise<void> {
+  if (draft.plan.length === 0) {
+    await db.run(sql`DELETE FROM bot_flow_states WHERE user_id = ${userId} AND state = 'atk:plan'`);
+    return;
+  }
+  await db.run(
+    sql`INSERT INTO bot_flow_states (user_id, state, nation_id, data, updated_at, expires_at)
+        VALUES (${userId}, 'atk:plan', ${nationId}, ${JSON.stringify(draft)}, ${nowSeconds()}, ${nowSeconds() + 3600})
+        ON CONFLICT (user_id) DO UPDATE SET state = 'atk:plan', nation_id = excluded.nation_id, data = excluded.data, updated_at = excluded.updated_at, expires_at = excluded.expires_at`,
+  );
+}
+
+interface OffenseUnit {
+  templateId: number;
+  nameFa: string;
+  emoji: string;
+  unitFa: string;
+  categoryKey: string;
+  categoryLabelFa: string;
+  quantity: number;
+  attackPoints: number;
+}
+
+/** everything the nation owns in attack-role categories — the raw material of the strike force */
+async function ownedOffenseUnits(db: Db, nationId: number): Promise<OffenseUnit[]> {
+  const rows = await db.all<Record<string, unknown>>(
+    sql`SELECT t.id AS templateId, t.name_fa AS nameFa, c.emoji AS emoji, t.unit_fa AS unitFa,
+               c.key AS categoryKey, c.label_fa AS categoryLabelFa,
+               COALESCE(t.attack_points, c.power_weight) AS attackPoints, COALESCE(i.quantity, 0) AS quantity
+        FROM equipment_templates t
+        JOIN equipment_categories c ON c.id = t.category_id
+        LEFT JOIN nation_inventory i ON i.template_id = t.id AND i.nation_id = ${nationId}
+        WHERE c.is_active = 1 AND c.role = 'offense' AND t.is_active = 1 AND COALESCE(i.quantity, 0) > 0
+        ORDER BY c.sort_order, t.name_fa`,
+  );
+  return rows.map((r) => ({
+    templateId: Number(r.templateId),
+    nameFa: String(r.nameFa),
+    emoji: String(r.emoji),
+    unitFa: String(r.unitFa),
+    categoryKey: String(r.categoryKey),
+    categoryLabelFa: String(r.categoryLabelFa),
+    quantity: Number(r.quantity),
+    attackPoints: Number(r.attackPoints ?? 0),
+  }));
+}
+
+function summarizePlan(units: OffenseUnit[], plan: AttackDraftEntry[]) {
+  const byId = new Map(units.map((u) => [u.templateId, u]));
+  const lines: string[] = [];
+  let totalAp = 0;
+  let totalUnits = 0;
+  for (const e of plan) {
+    const u = byId.get(e.templateId);
+    const each = u?.attackPoints ?? 0;
+    totalAp += each * e.quantity;
+    totalUnits += e.quantity;
+    lines.push(`• ${u ? `${u.emoji} ${u.nameFa}` : `#${e.templateId}`} × ${e.quantity.toLocaleString('en-US')}`);
+  }
+  return { lines, totalUnits, totalAp: Math.round(totalAp) };
+}
+
+async function renderAttackPlanPicker(ctx: BotCtx, chatId: number, messageId: number, userId: number, nation: NationRow, targetId: number) {
+  const target = await ctx.db.first<{ flag: string; name: string }>(sql`SELECT flag, name FROM nations WHERE id = ${targetId}`);
+  if (!target) throw ApiError.notFound('کشور هدف یافت نشد.');
+  const units = await ownedOffenseUnits(ctx.db, nation.id);
+  const draft = await loadAttackDraft(ctx.db, userId);
+  const plan = draft && draft.targetNationId === targetId ? draft.plan : [];
+  const sum = summarizePlan(units, plan);
+  const catTotals = await ctx.db.all<Record<string, unknown>>(
+    sql`SELECT c.key AS key, c.label_fa AS labelFa, c.emoji AS emoji, COALESCE(SUM(COALESCE(i.quantity, 0)), 0) AS total
+          FROM equipment_categories c
+          JOIN equipment_templates t ON t.category_id = c.id AND t.is_active = 1
+          LEFT JOIN nation_inventory i ON i.template_id = t.id AND i.nation_id = ${nation.id}
+         WHERE c.is_active = 1 AND c.role = 'offense'
+         GROUP BY c.id
+         ORDER BY c.sort_order`,
+  );
+  const grandTotal = catTotals.reduce((sumAcc, c) => sumAcc + Number(c.total), 0);
+  const rows: KeyboardRow<InlineKeyboardButton>[] = [];
+  const catButtons: InlineKeyboardButton[] = catTotals.map((c) => ({
+    text: `${String(c.emoji)} ${String(c.labelFa)} (${Number(c.total).toLocaleString('en-US')})`,
+    callback_data: `atk:cat:${targetId}:${String(c.key)}`,
+  }));
+  for (let i = 0; i < catButtons.length; i += 2) rows.push(catButtons.slice(i, i + 2));
+  if (plan.length > 0) {
+    rows.push([{ text: '✅ ادامه و پیش‌نمایش حمله', callback_data: `atk:preview:${targetId}` }]);
+    rows.push([{ text: '🗑 پاک کردن آرایش', callback_data: `atk:clear:${targetId}` }]);
+  }
+  rows.push([{ text: '❌ انصراف', callback_data: 'nav:war' }]);
   await ctx.tg.editMessageText(
     chatId,
     messageId,
     [
-      '⚔️ <b>خلاصه درخواست جنگ</b>',
+      '🎯 <b>آرایش حمله</b>',
+      `هدف: ${String(target.flag)} ${escapeHtml(String(target.name))}`,
+      '',
+      `<b>نیروهای متعهد (${sum.totalUnits.toLocaleString('en-US')} واحد):</b>`,
+      ...(sum.lines.length ? sum.lines : ['— هنوز واحدی انتخاب نشده است —']),
+      `قدرت حمله کل: <b>${fmt(sum.totalAp)}</b>`,
+      '',
+      grandTotal === 0
+        ? 'شما هنوز هیچ واحد تهاجمی ندارید؛ ابتدا از «🛒 فروشگاه» بخرید.'
+        : '① دسته را انتخاب کن، ② واحد و تعداد را بزن.\nحمله فقط با همین واحدها انجام می‌شود؛ بقیهٔ ارتش در خانه می‌مانَد.',
+    ].join('\n'),
+    rows,
+  );
+}
+
+async function renderAttackPlanCategory(ctx: BotCtx, chatId: number, messageId: number, nation: NationRow, targetId: number, categoryKey: string) {
+  const units = (await ownedOffenseUnits(ctx.db, nation.id)).filter((u) => u.categoryKey === categoryKey);
+  const label = units[0]?.categoryLabelFa;
+  const rows: KeyboardRow<InlineKeyboardButton>[] = units.map((u) => [
+    { text: `${u.emoji} ${u.nameFa} — ${u.quantity.toLocaleString('en-US')} ${u.unitFa}`, callback_data: `atk:tpl:${targetId}:${u.templateId}` },
+  ]);
+  rows.push([{ text: '⬅️ دسته‌ها', callback_data: `atk:back:${targetId}` }]);
+  await ctx.tg.editMessageText(
+    chatId,
+    messageId,
+    [
+      `🎯 <b>${label ? escapeHtml(label) : escapeHtml(categoryKey)}</b>`,
+      '',
+      ...(units.length ? ['کدام واحد؟'] : ['در این دسته موجودی ندارید.']),
+    ].join('\n'),
+    rows,
+  );
+}
+
+async function renderAttackPlanItem(ctx: BotCtx, chatId: number, messageId: number, userId: number, nation: NationRow, targetId: number, templateId: number) {
+  const units = await ownedOffenseUnits(ctx.db, nation.id);
+  const item = units.find((u) => u.templateId === templateId);
+  if (!item) {
+    await ctx.tg.editMessageText(
+      chatId,
+      messageId,
+      '⚠️ این واحد در انبار شما نیست یا قابل تعهد در حمله نیست.',
+      [[{ text: '⬅️ دسته‌ها', callback_data: `atk:back:${targetId}` }]],
+    );
+    return;
+  }
+  const draft = await loadAttackDraft(ctx.db, userId);
+  const current = draft && draft.targetNationId === targetId ? draft.plan.find((e) => e.templateId === templateId)?.quantity ?? 0 : 0;
+  const base = [1, 5, 10, 20].filter((q) => q < item.quantity);
+  const presets = [...base, item.quantity];
+  const qtyButtons: InlineKeyboardButton[] = presets.map((q, idx) => ({
+    text: idx === presets.length - 1 && ![1, 5, 10, 20].includes(item.quantity) ? `همه (${item.quantity.toLocaleString('en-US')})` : q.toLocaleString('en-US'),
+    callback_data: `atk:qty:${targetId}:${templateId}:${q}`,
+  }));
+  const rows: KeyboardRow<InlineKeyboardButton>[] = [];
+  for (let i = 0; i < qtyButtons.length; i += 3) rows.push(qtyButtons.slice(i, i + 3));
+  if (current > 0) rows.push([{ text: `❌ حذف از آرایش (فعلاً ${current.toLocaleString('en-US')})`, callback_data: `atk:del:${targetId}:${templateId}` }]);
+  rows.push([{ text: '⬅️ دسته‌ها', callback_data: `atk:cat:${targetId}:${item.categoryKey}` }]);
+  await ctx.tg.editMessageText(
+    chatId,
+    messageId,
+    [
+      `${item.emoji} <b>${escapeHtml(item.nameFa)}</b>`,
+      statLine('موجودی', `${item.quantity.toLocaleString('en-US')} ${escapeHtml(item.unitFa)}`),
+      statLine('قدرت حمله هر واحد', fmt(item.attackPoints)),
+      statLine('در آرایش فعلی', current > 0 ? `${current.toLocaleString('en-US')} عدد` : '—'),
+      '',
+      'چند واحد متعهد می‌کنید؟',
+    ].join('\n'),
+    rows,
+  );
+}
+
+async function renderAttackPlanPreview(ctx: BotCtx, chatId: number, messageId: number, userId: number, nation: NationRow, targetId: number) {
+  const draft = await loadAttackDraft(ctx.db, userId);
+  const plan = draft && draft.targetNationId === targetId ? draft.plan : [];
+  if (plan.length === 0) {
+    await ctx.tg.editMessageText(
+      chatId,
+      messageId,
+      '⚠️ هنوز واحدی انتخاب نکرده‌اید.',
+      [[{ text: '⬅️ انتخاب واحدها', callback_data: `atk:back:${targetId}` }]],
+    );
+    return;
+  }
+  const { previewForWarTarget } = await import('./botActions');
+  const p = await previewForWarTarget(ctx.db, nation, targetId, ctx.settings, plan);
+  const units = await ownedOffenseUnits(ctx.db, nation.id);
+  const sum = summarizePlan(units, plan);
+  await ctx.tg.editMessageText(
+    chatId,
+    messageId,
+    [
+      '⚔️ <b>پیش‌نمایش حمله</b>',
       '',
       `${nation.flag} ${escapeHtml(nation.name)} → ${p.targetFlag} ${escapeHtml(p.targetName)}`,
       '',
+      ...sum.lines,
+      statLine('واحدهای متعهد', sum.totalUnits.toLocaleString('en-US')),
       statLine('قدرت شما (تهاجم)', fmt(p.attackerPower)),
       statLine('قدرت دفاع حریف', fmt(p.defenderPower)),
       statLine('احتمال پیروزی شما', percent(p.attackerWinChance)),
       statLine('هزینه ورود', coins(p.entryCost)),
       statLine('نوبت‌های حداکثری', String(p.maxRounds)),
       '',
-      'پس از تأیید، درخواست برای کشور مقابل ارسال می‌شود و باید پذیرفته شود.',
+      'پس از ارسال، فقط همین واحدها وارد جنگ می‌شوند و فقط همین‌ها خسارت می‌بینند.',
     ].join('\n'),
     [
-      [{ text: '✅ ارسال درخواست', callback_data: `war:go:${targetId}` }],
+      [{ text: '⚔️ ارسال درخواست جنگ', callback_data: `war:go:${targetId}` }],
+      [{ text: '✏️ ویرایش آرایش', callback_data: `atk:back:${targetId}` }],
       [{ text: '❌ انصراف', callback_data: 'nav:war' }],
     ],
   );
