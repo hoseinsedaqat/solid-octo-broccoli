@@ -584,6 +584,21 @@ export function ProfilePage() {
           <Btn
             variant="danger"
             onClick={async () => {
+              if (!window.confirm('همهٔ نشست‌های Mini App (در همهٔ دستگاه‌ها) بسته شوند؟ باید دوباره وارد شوید.')) return;
+              try {
+                await api.post('/player/sessions/revoke-all', {});
+                toast('همهٔ نشست‌ها بسته شد.', 'ok');
+                await logout();
+              } catch (e) {
+                setError((e as ApiError).message);
+              }
+            }}
+          >
+            🔒 بستن نشست‌های Mini App
+          </Btn>
+          <Btn
+            variant="danger"
+            onClick={async () => {
               if (!window.confirm('خروج از حساب؟ توکن این دستگاه پاک می‌شود.')) return;
               await logout();
             }}

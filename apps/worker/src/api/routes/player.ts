@@ -217,6 +217,15 @@ playerRoutes.post('/settings/notifications', async (c) => {
   return c.json({ enabled: body.enabled });
 });
 
+/** بستن همهٔ نشست‌های Mini App — همان کاری که دکمهٔ «🔒 بستن نشست‌های Mini App» در ربات انجام می‌دهد */
+playerRoutes.post('/sessions/revoke-all', async (c) => {
+  const db = c.get('db');
+  const user = c.get('user');
+  const at = nowSeconds();
+  await db.run(sql`UPDATE sessions SET revoked_at = ${at} WHERE user_id = ${user.userId} AND revoked_at IS NULL`);
+  return c.json({ ok: true });
+});
+
 /** one nation of the player becomes the active one for the whole session UI */
 playerRoutes.post('/settings/active-nation', async (c) => {
   const user = c.get('user');

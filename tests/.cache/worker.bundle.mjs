@@ -15042,6 +15042,13 @@ playerRoutes.post("/settings/notifications", async (c) => {
   );
   return c.json({ enabled: body.enabled });
 });
+playerRoutes.post("/sessions/revoke-all", async (c) => {
+  const db = c.get("db");
+  const user = c.get("user");
+  const at = nowSeconds();
+  await db.run(sql`UPDATE sessions SET revoked_at = ${at} WHERE user_id = ${user.userId} AND revoked_at IS NULL`);
+  return c.json({ ok: true });
+});
 playerRoutes.post("/settings/active-nation", async (c) => {
   const user = c.get("user");
   const body = parse(external_exports2.object({ nationId: external_exports2.coerce.number().int().positive() }), await parseJson(c));
