@@ -11,6 +11,7 @@ import { listTransactions, treasuryHistory } from '../../services/financeService
 import { listNotifications, markRead, unreadCount } from '../../services/notificationService';
 import { DEFENSE_ARRANGEMENT_KEYS, DEFENSE_ARRANGEMENT } from '@ww/shared';
 import { claimDailyPrize, prizeState, publicPrizes } from '../../services/dailyPrizeService';
+import { bankState, claimIncome, repayLoan, takeLoan } from '../../services/bankService';
 import type { HonoEnv } from '../../types';
 
 export const playerRoutes = new Hono<HonoEnv>();
@@ -132,6 +133,39 @@ playerRoutes.post('/daily-prize/claim', async (c) => {
   const db = c.get('db');
   const settings = await settingsFor(c);
   const result = await claimDailyPrize(db, c.get('nation'), settings, { botToken: c.env.BOT_TOKEN });
+  return c.json(result);
+});
+
+/* ---------------------------- بانک مرکزی ---------------------------- */
+
+/** موجودی خزانه + درآمد آماده دریافت + وضعیت وام فعال */
+playerRoutes.get('/bank', async (c) => {
+  const db = c.get('db');
+  const settings = await settingsFor(c);
+  return c.json(await bankState(db, c.get('nation'), settings));
+});
+
+/** «دریافت درآمد» — همهٔ دوره‌های تکمیل‌شدهٔ پرداخت‌نشده را یک‌جا واریز می‌کند */
+playerRoutes.post('/bank/income-claim', async (c) => {
+  const db = c.get('db');
+  const settings = await settingsFor(c);
+  const result = await claimIncome(db, c.get('nation'), settings);
+  return c.json(result);
+});
+
+/** دریافت وام بانکی: ۵٬۰۰۰ / ۱۰٬۰۰۰ / ۲۰٬۰۰۰ — سود ۱۰٪ — بازپرداخت طی ۷ روز — فقط یک وام فعال */
+playerRoutes.post('/bank/loan', async (c) => {
+  const db = c.get('db');
+  const body = parse(z.object({ principal: z.number().int().positive() }), await parseJson(c));
+  const nation = c.get('nation');
+  const result = await takeLoan(db, nation, body.principal);
+  return c.json(result);
+});
+
+/** بازپرداخت (تسویه) وام فعال — زودتر از موعد هم مجاز است */
+playerRoutes.post('/bank/loan/repay', async (c) => {
+  const db = c.get('db');
+  const result = await repayLoan(db, c.get('nation'));
   return c.json(result);
 });
 

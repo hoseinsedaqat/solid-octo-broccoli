@@ -7,7 +7,7 @@ export const REPLY_MENU: KeyboardRow<ReplyKeyboardButton>[] = [
   [{ text: '🛒 خرید تجهیزات' }, { text: '⚔️ حمله' }],
   [{ text: '🛡️ دفاع' }, { text: '🎁 جوایز روزانه' }],
   [{ text: '📜 بیانیه‌ها' }, { text: '📊 آمار و اطلاعات' }],
-  [{ text: '🌍 اخبار جهانی' }, { text: '⚙️ تنظیمات' }],
+  [{ text: '🏦 بانک مرکزی' }, { text: '⚙️ تنظیمات' }],
 ];
 
 export const REPLY_TO_LABEL: Record<string, PlayerPage | 'menu'> = {
@@ -19,7 +19,6 @@ export const REPLY_TO_LABEL: Record<string, PlayerPage | 'menu'> = {
   '🌐 دیپلماسی': 'diplomacy',
   '📜 بیانیه‌ها': 'statements',
   '📊 آمار و اطلاعات': 'rankings',
-  '🌍 اخبار جهانی': 'news',
   '⚙️ تنظیمات': 'settings',
 };
 

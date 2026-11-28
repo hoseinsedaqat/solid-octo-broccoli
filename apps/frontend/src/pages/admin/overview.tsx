@@ -216,7 +216,7 @@ export function AdminQuota() {
 export function AdminJobs() {
   const { can } = useAuth();
   const [tab, setTab] = useState<'jobs' | 'backup'>('jobs');
-  const [selected, setSelected] = useState<string[]>(['revenue', 'wars', 'ranking']);
+  const [selected, setSelected] = useState<string[]>(['wars', 'ranking']);
   const [result, setResult] = useState<any | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -224,7 +224,7 @@ export function AdminJobs() {
   const runs = useApi<{ runs: any[] }>('/admin/backup/runs');
   const [pickedTables, setPickedTables] = useState<string[]>([]);
 
-  const jobs = ['revenue', 'wars', 'war_expiry', 'diplomacy_expiry', 'ranking', 'housekeeping'];
+  const jobs = ['wars', 'war_expiry', 'diplomacy_expiry', 'ranking', 'housekeeping'];
   // the endpoint itself is guarded by requireAdmin('settings', true) — same section as the schedule
   const canWrite = can('settings', true);
 

@@ -13,7 +13,7 @@ function starterUnitCount(category) {
   const list = STARTER_PACK[category];
   return (list ?? []).reduce((sum, item) => sum + item.quantity, 0);
 }
-var EQUIPMENT_CATEGORIES, STARTER_PACK, STARTER_ECONOMY, FACTORY_COUNT_IN_STARTER, MINE_COUNT_IN_STARTER, DERIVED_FACTORY_INCOME_PER_UNIT, DERIVED_MINE_INCOME_PER_UNIT, FLAG_CHOICES, RELATION_STATUSES, RELATION_LABELS_FA, ROLES, TRANSACTION_TYPE_LABELS_FA, WAR_STATUS_LABELS_FA, DIPLOMACY_REQUEST_KINDS, STATEMENT_STATUS_LABELS_FA, RANKING_METRICS, DEFAULT_RANKING_WEIGHTS, DEFAULT_BATTLE_PARAMS, DEFAULT_PROFILE_RULES, DEFAULT_DIPLOMACY_RULES, DEFAULT_ECONOMY_RULES, FEATURE_FLAGS, GAME_SETTING_KEYS, DEFAULT_BRANDING, DEFAULT_QUOTA_GUARD, ROUTES, PLAYER_PAGES, PLAYER_PAGE_META, ADMIN_SECTIONS, MAX_STATEMENT_CHARS, MIN_STATEMENT_CHARS, DEFENSE_ARRANGEMENT, DEFENSE_ARRANGEMENT_KEYS, DEFENSE_FORTIFICATION_TOKEN, DAILY_PRIZES;
+var EQUIPMENT_CATEGORIES, STARTER_PACK, STARTER_ECONOMY, FACTORY_COUNT_IN_STARTER, MINE_COUNT_IN_STARTER, DERIVED_FACTORY_INCOME_PER_UNIT, DERIVED_MINE_INCOME_PER_UNIT, FLAG_CHOICES, RELATION_STATUSES, RELATION_LABELS_FA, ROLES, BANK_LOAN, TRANSACTION_TYPE_LABELS_FA, WAR_STATUS_LABELS_FA, DIPLOMACY_REQUEST_KINDS, STATEMENT_STATUS_LABELS_FA, RANKING_METRICS, DEFAULT_RANKING_WEIGHTS, DEFAULT_BATTLE_PARAMS, DEFAULT_PROFILE_RULES, DEFAULT_DIPLOMACY_RULES, DEFAULT_ECONOMY_RULES, FEATURE_FLAGS, GAME_SETTING_KEYS, DEFAULT_BRANDING, DEFAULT_QUOTA_GUARD, ROUTES, PLAYER_PAGES, PLAYER_PAGE_META, ADMIN_SECTIONS, MAX_STATEMENT_CHARS, MIN_STATEMENT_CHARS, DEFENSE_ARRANGEMENT, DEFENSE_ARRANGEMENT_KEYS, DEFENSE_FORTIFICATION_TOKEN, DAILY_PRIZES;
 var init_constants = __esm({
   "shared/src/constants.ts"() {
     "use strict";
@@ -153,6 +153,11 @@ var init_constants = __esm({
       peace_treaty: "\u062F\u0627\u0631\u0627\u06CC \u067E\u06CC\u0645\u0627\u0646 \u0635\u0644\u062D"
     };
     ROLES = ["player", "admin", "super_admin"];
+    BANK_LOAN = {
+      options: [5e3, 1e4, 2e4],
+      interestRate: 0.1,
+      termDays: 7
+    };
     TRANSACTION_TYPE_LABELS_FA = {
       starter_grant: "\u062F\u0627\u0631\u0627\u06CC\u06CC \u0627\u0648\u0644\u06CC\u0647 \u06A9\u0634\u0648\u0631",
       revenue: "\u062F\u0631\u0622\u0645\u062F \u062F\u0648\u0631\u0647\u200C\u0627\u06CC",
@@ -165,7 +170,9 @@ var init_constants = __esm({
       tax: "\u0645\u0627\u0644\u06CC\u0627\u062A",
       maintenance: "\u0647\u0632\u06CC\u0646\u0647 \u0646\u06AF\u0647\u062F\u0627\u0631\u06CC",
       battle_loss_compensation: "\u062C\u0628\u0631\u0627\u0646 \u062E\u0633\u0627\u0631\u062A",
-      prize: "\u062C\u0627\u06CC\u0632\u0647 \u0634\u0627\u0646\u0633\u06CC \u0631\u0648\u0632\u0627\u0646\u0647"
+      prize: "\u062C\u0627\u06CC\u0632\u0647 \u0634\u0627\u0646\u0633\u06CC \u0631\u0648\u0632\u0627\u0646\u0647",
+      loan_disbursement: "\u062F\u0631\u06CC\u0627\u0641\u062A \u0648\u0627\u0645 \u0628\u0627\u0646\u06A9\u06CC",
+      loan_repayment: "\u062A\u0633\u0648\u06CC\u0647 \u0648\u0627\u0645 \u0628\u0627\u0646\u06A9\u06CC"
     };
     WAR_STATUS_LABELS_FA = {
       proposed: "\u062F\u0631 \u0627\u0646\u062A\u0638\u0627\u0631 \u067E\u0630\u06CC\u0631\u0634",
@@ -13544,6 +13551,272 @@ init_format();
 init_ids();
 init_queries();
 init_auditService();
+
+// apps/worker/src/services/financeService.ts
+init_src();
+init_sql();
+init_errors2();
+init_format();
+init_ids();
+init_queries();
+init_auditService();
+init_notificationService();
+function completedCycleIndex(anchorAt, cycleSeconds, now) {
+  if (cycleSeconds <= 0) return -1;
+  const elapsed = now - anchorAt;
+  if (elapsed < cycleSeconds) return -1;
+  return Math.floor(elapsed / cycleSeconds) - 1;
+}
+async function creditCycle(db, nation, settings, now = nowSeconds()) {
+  const override = await db.first(
+    sql`SELECT income_cycle_seconds FROM nation_settings WHERE nation_id = ${nation.id}`
+  );
+  const cycleSeconds = Math.max(60, override?.income_cycle_seconds ?? settings.economy.incomeCycleSeconds);
+  const due = completedCycleIndex(nation.income_anchor_at, cycleSeconds, now);
+  const lastCredited = Number(nation.last_income_cycle ?? -1);
+  if (due <= lastCredited) {
+    return { nationId: nation.id, status: "not_due", cycleIndex: lastCredited, gross: 0, tax: 0, maintenance: 0, net: 0, treasuryAfter: nation.treasury };
+  }
+  const cycleIndex = lastCredited + 1;
+  const computed = await computeNation(db, nation, settings);
+  const { grossIncome, taxCost, maintenanceCost } = computed.income;
+  let net = grossIncome - taxCost - maintenanceCost;
+  if (net < 0) net = -Math.min(-net, nation.treasury);
+  const key = revenueCycleKey(nation.id, cycleIndex);
+  const txUuid = uuid();
+  const at = nowSeconds();
+  if (net === 0) {
+    await db.batch([
+      sql`INSERT OR IGNORE INTO revenue_cycles (nation_id, cycle_index, cycle_key, gross_amount, tax_amount, maintenance_amount, net_amount, status, computed_at, credited_at)
+           VALUES (${nation.id}, ${cycleIndex}, ${key}, ${grossIncome}, ${taxCost}, ${maintenanceCost}, 0, 'skipped', ${at}, ${at})`,
+      sql`UPDATE nations SET last_income_cycle = ${cycleIndex}, last_income_at = ${at}, updated_at = ${at} WHERE id = ${nation.id}`
+    ]);
+    return { nationId: nation.id, status: "skipped", cycleIndex, gross: grossIncome, tax: taxCost, maintenance: maintenanceCost, net: 0, treasuryAfter: nation.treasury };
+  }
+  try {
+    await db.batch([
+      sql`INSERT OR IGNORE INTO revenue_cycles (nation_id, cycle_index, cycle_key, gross_amount, tax_amount, maintenance_amount, net_amount, status, computed_at)
+           VALUES (${nation.id}, ${cycleIndex}, ${key}, ${grossIncome}, ${taxCost}, ${maintenanceCost}, ${net}, 'pending', ${at})`,
+      sql`UPDATE nations
+             SET treasury = treasury + COALESCE((SELECT net_amount FROM revenue_cycles WHERE cycle_key = ${key} AND status = 'pending'), 0),
+                 last_income_cycle = ${cycleIndex},
+                 last_income_at = ${at},
+                 updated_at = ${at}
+           WHERE id = ${nation.id}`,
+      sql`INSERT INTO transactions (uuid, nation_id, type, amount, balance_before, balance_after, currency,
+                                    idempotency_key, reference_type, reference_id, reason, meta, created_at)
+           VALUES (${txUuid}, ${nation.id}, 'revenue', ${net}, ${nation.treasury},
+                   (SELECT treasury FROM nations WHERE id = ${nation.id}), 'coin',
+                   ${key}, 'revenue_cycle',
+                   (SELECT id FROM revenue_cycles WHERE cycle_key = ${key}),
+                   ${`\u062F\u0631\u0622\u0645\u062F \u062F\u0648\u0631\u0647 ${cycleIndex + 1}`},
+                   ${JSON.stringify({ gross: grossIncome, tax: taxCost, maintenance: maintenanceCost })}, ${at})`,
+      sql`UPDATE revenue_cycles
+              SET status = 'credited', credited_at = ${at},
+                  transaction_id = (SELECT id FROM transactions WHERE idempotency_key = ${key})
+            WHERE cycle_key = ${key} AND status = 'pending'`,
+      sql`UPDATE nation_economy
+              SET total_income = total_income + ${Math.max(0, net)},
+                  total_tax = total_tax + ${taxCost},
+                  updated_at = ${at}
+            WHERE nation_id = ${nation.id}`,
+      sql`INSERT INTO nation_stat_history (nation_id, day, treasury, income, power, equipment, created_at)
+           VALUES (${nation.id}, ${dayKey(at)},
+                   (SELECT treasury FROM nations WHERE id = ${nation.id}), ${net},
+                   (SELECT military_power FROM nations WHERE id = ${nation.id}),
+                   (SELECT equipment_count FROM nations WHERE id = ${nation.id}), ${at})
+           ON CONFLICT (nation_id, day) DO UPDATE SET
+             treasury = excluded.treasury, income = nation_stat_history.income + excluded.income,
+             power = excluded.power, equipment = excluded.equipment`
+    ]);
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    if (/UNIQUE constraint failed: (revenue_cycles|transactions)/i.test(message)) {
+      const balance2 = await db.first(sql`SELECT treasury FROM nations WHERE id = ${nation.id}`);
+      return { nationId: nation.id, status: "no_change", cycleIndex, gross: grossIncome, tax: taxCost, maintenance: maintenanceCost, net: 0, treasuryAfter: Number(balance2?.treasury ?? nation.treasury) };
+    }
+    throw err;
+  }
+  const balance = await db.first(sql`SELECT treasury FROM nations WHERE id = ${nation.id}`);
+  return {
+    nationId: nation.id,
+    status: "credited",
+    cycleIndex,
+    gross: grossIncome,
+    tax: taxCost,
+    maintenance: maintenanceCost,
+    net,
+    treasuryAfter: Number(balance?.treasury ?? nation.treasury)
+  };
+}
+async function listTransactions(db, nationId, opts = {}) {
+  const limit = Math.min(100, Math.max(1, opts.limit ?? 25));
+  const offset = Math.max(0, opts.offset ?? 0);
+  const where = opts.type && opts.type !== "all" ? "AND t.type = ?" : "";
+  const bindings = [nationId, ...opts.type && opts.type !== "all" ? [opts.type] : [], limit + 1, offset];
+  const rows = await db.all({
+    sql: `SELECT t.* FROM transactions t WHERE t.nation_id = ? ${where} ORDER BY t.id DESC LIMIT ? OFFSET ?`,
+    bindings
+  });
+  const page = rows.slice(0, limit);
+  const ids = page.map((r) => Number(r.id));
+  const items = ids.length ? await db.all(
+    sql`SELECT transaction_id, name_snapshot, quantity, unit_price, total_price
+              FROM transaction_items WHERE transaction_id IN (${ids})`
+  ) : [];
+  const byTx = /* @__PURE__ */ new Map();
+  for (const it of items) {
+    const list = byTx.get(Number(it.transaction_id)) ?? [];
+    list.push({
+      nameFa: String(it.name_snapshot),
+      quantity: Number(it.quantity),
+      unitPrice: it.unit_price === null ? null : Number(it.unit_price),
+      totalPrice: it.total_price === null ? null : Number(it.total_price)
+    });
+    byTx.set(Number(it.transaction_id), list);
+  }
+  return {
+    rows: page.map((r) => ({
+      id: Number(r.id),
+      uuid: String(r.uuid),
+      type: r.type,
+      typeLabelFa: TRANSACTION_TYPE_LABELS_FA[r.type] ?? String(r.type),
+      amount: Number(r.amount),
+      balanceBefore: r.balance_before === null ? null : Number(r.balance_before),
+      balanceAfter: r.balance_after === null ? null : Number(r.balance_after),
+      reason: r.reason ?? null,
+      referenceType: r.reference_type ?? null,
+      referenceId: r.reference_id === null ? null : Number(r.reference_id),
+      createdAt: toIso(Number(r.created_at)),
+      items: byTx.get(Number(r.id)) ?? []
+    })),
+    nextOffset: rows.length > limit ? offset + limit : null
+  };
+}
+async function treasuryHistory(db, nationId, days = 30) {
+  const rows = await db.all(
+    sql`SELECT day, treasury, income, power, equipment FROM nation_stat_history
+          WHERE nation_id = ${nationId} ORDER BY day DESC LIMIT ${Math.min(365, Math.max(2, days))}`
+  );
+  const history = rows.reverse();
+  if (history.length > 0) return history;
+  return db.all(
+    sql`SELECT strftime('%Y-%m-%d', created_at, 'unixepoch') AS day,
+               SUM(CASE WHEN amount > 0 THEN amount ELSE 0 END) AS income,
+               SUM(amount) AS treasury
+          FROM transactions WHERE nation_id = ${nationId}
+         GROUP BY day ORDER BY day ASC LIMIT ${Math.min(365, Math.max(2, days))}`
+  );
+}
+async function adminAdjustTreasury(db, nation, delta, reason, actor) {
+  if (!Number.isInteger(delta) || delta === 0) throw ApiError.validation("\u0645\u0642\u062F\u0627\u0631 \u062A\u063A\u06CC\u06CC\u0631 \u0646\u0627\u0645\u0639\u062A\u0628\u0631 \u0627\u0633\u062A.");
+  if (reason.trim().length < 3) throw ApiError.validation("\u062B\u0628\u062A \u062F\u0644\u06CC\u0644 \u0628\u0631\u0627\u06CC \u0627\u0635\u0644\u0627\u062D \u0645\u0627\u0644\u06CC \u0627\u0644\u0632\u0627\u0645\u06CC \u0627\u0633\u062A.");
+  const at = nowSeconds();
+  const key = adminTxKey(delta > 0 ? "credit" : "debit", nation.id, at, uuid().slice(0, 8));
+  const type = delta > 0 ? "admin_credit" : "admin_debit";
+  try {
+    await db.batch([
+      sql`INSERT INTO transactions (uuid, nation_id, type, amount, balance_before, balance_after, currency, idempotency_key,
+                                    reference_type, reference_id, reason, created_by_user_id, created_at)
+           VALUES (${uuid()}, ${nation.id}, ${type}, ${delta}, ${nation.treasury}, ${nation.treasury + delta}, 'coin', ${key},
+                   'admin', ${actor.userId}, ${reason.trim()}, ${actor.userId}, ${at})`,
+      sql`UPDATE nations SET treasury = treasury + ${delta}, updated_at = ${at} WHERE id = ${nation.id}`,
+      sql`UPDATE nation_economy
+              SET total_income = total_income + CASE WHEN ${delta} > 0 THEN ${delta} ELSE 0 END,
+                  total_spent  = total_spent  + CASE WHEN ${delta} < 0 THEN ${-delta} ELSE 0 END,
+                  updated_at = ${at}
+            WHERE nation_id = ${nation.id}`
+    ]);
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    if (message.toLowerCase().includes("check constraint")) {
+      throw ApiError.validation("\u06A9\u0627\u0647\u0634 \u0645\u0648\u062C\u0648\u062F\u06CC \u0628\u0627\u0639\u062B \u0645\u0646\u0641\u06CC \u0634\u062F\u0646 \u062E\u0632\u0627\u0646\u0647 \u0645\u06CC\u200C\u0634\u0648\u062F \u0648 \u0645\u062C\u0627\u0632 \u0646\u06CC\u0633\u062A.");
+    }
+    throw err;
+  }
+  const after = await db.first(sql`SELECT treasury FROM nations WHERE id = ${nation.id}`);
+  await audit(db, {
+    actor,
+    action: "economy.adjust_treasury",
+    targetType: "nation",
+    targetId: nation.id,
+    before: { treasury: nation.treasury },
+    after: { treasury: Number(after?.treasury ?? 0), delta },
+    reason: reason.trim()
+  });
+  await notify(db, {
+    nationId: nation.id,
+    kind: "admin",
+    title: delta > 0 ? "\u0627\u0641\u0632\u0627\u06CC\u0634 \u062E\u0632\u0627\u0646\u0647 \u062A\u0648\u0633\u0637 \u0645\u062F\u06CC\u0631" : "\u06A9\u0627\u0647\u0634 \u062E\u0632\u0627\u0646\u0647 \u062A\u0648\u0633\u0637 \u0645\u062F\u06CC\u0631",
+    body: `${delta > 0 ? "+" : ""}${delta.toLocaleString("en-US")} \u0633\u06A9\u0647 \u2014 \u062F\u0644\u06CC\u0644: ${reason.trim()}`
+  });
+  return { treasuryBefore: nation.treasury, treasuryAfter: Number(after?.treasury ?? 0) };
+}
+async function adminSetIncome(db, nation, patch, reason, settings, actor) {
+  const at = nowSeconds();
+  const sets = [];
+  const bindings = [];
+  for (const [col, value] of [
+    ["factory_income", patch.factoryIncome],
+    ["mine_income", patch.mineIncome],
+    ["upkeep_base", patch.upkeepBase]
+  ]) {
+    if (value === void 0) continue;
+    if (!Number.isInteger(value) || value < 0) throw ApiError.validation("\u0645\u0642\u0627\u062F\u06CC\u0631 \u062F\u0631\u0622\u0645\u062F \u0648 \u0647\u0632\u06CC\u0646\u0647 \u0646\u06AF\u0647\u062F\u0627\u0631\u06CC \u0628\u0627\u06CC\u062F \u0639\u062F\u062F \u0635\u062D\u06CC\u062D \u063A\u06CC\u0631\u0645\u0646\u0641\u06CC \u0628\u0627\u0634\u0646\u062F.");
+    sets.push(`${col} = ?`);
+    bindings.push(value);
+  }
+  if (sets.length === 0) throw ApiError.validation("\u0647\u06CC\u0686 \u062A\u063A\u06CC\u06CC\u0631\u06CC \u0627\u0631\u0633\u0627\u0644 \u0646\u0634\u062F\u0647 \u0627\u0633\u062A.");
+  if (reason.trim().length < 3) throw ApiError.validation("\u062B\u0628\u062A \u062F\u0644\u06CC\u0644 \u0627\u0644\u0632\u0627\u0645\u06CC \u0627\u0633\u062A.");
+  bindings.push(at, nation.id);
+  await db.run({
+    sql: `UPDATE nation_economy SET ${sets.join(", ")}, updated_at = ? WHERE nation_id = ?`,
+    bindings
+  });
+  const updated = await db.first(
+    sql`SELECT factory_income, mine_income FROM nation_economy WHERE nation_id = ${nation.id}`
+  );
+  await db.run(
+    sql`INSERT INTO transactions (uuid, nation_id, type, amount, balance_before, balance_after, currency, idempotency_key,
+                                  reference_type, reference_id, reason, created_by_user_id, meta, created_at)
+         VALUES (${uuid()}, ${nation.id}, 'admin_correction', 0, ${nation.treasury}, ${nation.treasury}, 'coin', ${adminTxKey("income", nation.id, at, uuid().slice(0, 8))},
+                 'economy', NULL, ${reason.trim()}, ${actor.userId}, ${JSON.stringify({ ...patch })}, ${at})`
+  );
+  await refreshNationStatsAfterIncomeChange(db, nation, settings);
+  await audit(db, {
+    actor,
+    action: "economy.set_income",
+    targetType: "nation",
+    targetId: nation.id,
+    before: { factoryIncome: (await loadIncome(db, nation.id))?.factory_income },
+    after: { ...patch, factory_income: updated?.factory_income, mine_income: updated?.mine_income },
+    reason: reason.trim()
+  });
+  return updated;
+}
+async function loadIncome(db, nationId) {
+  return db.first(
+    sql`SELECT factory_income, mine_income, upkeep_base FROM nation_economy WHERE nation_id = ${nationId}`
+  );
+}
+async function refreshNationStatsAfterIncomeChange(db, nation, settings) {
+  const { refreshNationStats: refreshNationStats2 } = await Promise.resolve().then(() => (init_queries(), queries_exports));
+  await refreshNationStats2(db, nation, settings);
+}
+async function globalMoneyStats(db) {
+  const row = await db.first(
+    sql`SELECT (SELECT COALESCE(SUM(treasury),0) FROM nations) AS total_treasury,
+               (SELECT COALESCE(SUM(gross_income),0) FROM nation_economy) AS total_income,
+               (SELECT COUNT(*) FROM transactions) AS total_tx`
+  );
+  return {
+    totalTreasury: Number(row?.total_treasury ?? 0),
+    totalIncomePerCycle: Number(row?.total_income ?? 0),
+    transactionCount: Number(row?.total_tx ?? 0)
+  };
+}
+
+// apps/worker/src/services/nationService.ts
 async function getDefaultStarterTemplate(db) {
   const head = await db.first(
     sql`SELECT id, name, treasury, factory_income, mine_income, income_cycle_seconds
@@ -13688,6 +13961,19 @@ async function updateNationProfile(db, nation, patch, settings, actor) {
 async function buildNationView(db, nation, settings, opts = {}) {
   const [economyRow, rel] = await Promise.all([loadEconomyRow(db, nation.id), relationCounts(db, nation.id)]);
   const computed = await computeNation(db, nation, settings);
+  const dueCycle = completedCycleIndex(nation.income_anchor_at, computed.income.cycleSeconds, nowSeconds());
+  const pendingCycles = Math.max(0, dueCycle - Number(nation.last_income_cycle ?? -1));
+  let pendingAmount = 0;
+  {
+    let sim = nation.treasury;
+    for (let i = 0; i < pendingCycles; i++) {
+      let net = computed.income.netIncome;
+      if (net < 0) net = -Math.min(-net, sim);
+      sim += net;
+      pendingAmount += net;
+    }
+  }
+  const pending = { cycles: pendingCycles, amount: pendingAmount };
   const cycleSeconds = computed.income.cycleSeconds;
   const elapsed = nowSeconds() - nation.income_anchor_at;
   const completed = Math.max(0, Math.floor(elapsed / cycleSeconds));
@@ -13705,6 +13991,8 @@ async function buildNationView(db, nation, settings, opts = {}) {
       cycleSeconds,
       nextIncomeIn,
       nextIncomeAt: toIso(nowSeconds() + nextIncomeIn),
+      pendingIncome: pending.amount,
+      pendingIncomeCycles: pending.cycles,
       lastIncomeAt: toIso(nation.last_income_at),
       totalIncome: Number(economyRow?.total_income ?? 0),
       totalSpent: Number(economyRow?.total_spent ?? 0),
@@ -14156,270 +14444,6 @@ async function inventoryView(db, nationId, settings) {
   return [...grouped.entries()].map(([key, v]) => ({ categoryKey: key, labelFa: v.labelFa, emoji: v.emoji, total: v.total, items: v.items }));
 }
 
-// apps/worker/src/services/financeService.ts
-init_src();
-init_sql();
-init_errors2();
-init_format();
-init_ids();
-init_queries();
-init_auditService();
-init_notificationService();
-function completedCycleIndex(anchorAt, cycleSeconds, now) {
-  if (cycleSeconds <= 0) return -1;
-  const elapsed = now - anchorAt;
-  if (elapsed < cycleSeconds) return -1;
-  return Math.floor(elapsed / cycleSeconds) - 1;
-}
-async function creditCycle(db, nation, settings, now = nowSeconds()) {
-  const override = await db.first(
-    sql`SELECT income_cycle_seconds FROM nation_settings WHERE nation_id = ${nation.id}`
-  );
-  const cycleSeconds = Math.max(60, override?.income_cycle_seconds ?? settings.economy.incomeCycleSeconds);
-  const due = completedCycleIndex(nation.income_anchor_at, cycleSeconds, now);
-  const lastCredited = Number(nation.last_income_cycle ?? -1);
-  if (due <= lastCredited) {
-    return { nationId: nation.id, status: "not_due", cycleIndex: lastCredited, gross: 0, tax: 0, maintenance: 0, net: 0, treasuryAfter: nation.treasury };
-  }
-  const cycleIndex = lastCredited + 1;
-  const computed = await computeNation(db, nation, settings);
-  const { grossIncome, taxCost, maintenanceCost } = computed.income;
-  let net = grossIncome - taxCost - maintenanceCost;
-  if (net < 0) net = -Math.min(-net, nation.treasury);
-  const key = revenueCycleKey(nation.id, cycleIndex);
-  const txUuid = uuid();
-  const at = nowSeconds();
-  if (net === 0) {
-    await db.batch([
-      sql`INSERT OR IGNORE INTO revenue_cycles (nation_id, cycle_index, cycle_key, gross_amount, tax_amount, maintenance_amount, net_amount, status, computed_at, credited_at)
-           VALUES (${nation.id}, ${cycleIndex}, ${key}, ${grossIncome}, ${taxCost}, ${maintenanceCost}, 0, 'skipped', ${at}, ${at})`,
-      sql`UPDATE nations SET last_income_cycle = ${cycleIndex}, last_income_at = ${at}, updated_at = ${at} WHERE id = ${nation.id}`
-    ]);
-    return { nationId: nation.id, status: "skipped", cycleIndex, gross: grossIncome, tax: taxCost, maintenance: maintenanceCost, net: 0, treasuryAfter: nation.treasury };
-  }
-  try {
-    await db.batch([
-      sql`INSERT OR IGNORE INTO revenue_cycles (nation_id, cycle_index, cycle_key, gross_amount, tax_amount, maintenance_amount, net_amount, status, computed_at)
-           VALUES (${nation.id}, ${cycleIndex}, ${key}, ${grossIncome}, ${taxCost}, ${maintenanceCost}, ${net}, 'pending', ${at})`,
-      sql`UPDATE nations
-             SET treasury = treasury + COALESCE((SELECT net_amount FROM revenue_cycles WHERE cycle_key = ${key} AND status = 'pending'), 0),
-                 last_income_cycle = ${cycleIndex},
-                 last_income_at = ${at},
-                 updated_at = ${at}
-           WHERE id = ${nation.id}`,
-      sql`INSERT INTO transactions (uuid, nation_id, type, amount, balance_before, balance_after, currency,
-                                    idempotency_key, reference_type, reference_id, reason, meta, created_at)
-           VALUES (${txUuid}, ${nation.id}, 'revenue', ${net}, ${nation.treasury},
-                   (SELECT treasury FROM nations WHERE id = ${nation.id}), 'coin',
-                   ${key}, 'revenue_cycle',
-                   (SELECT id FROM revenue_cycles WHERE cycle_key = ${key}),
-                   ${`\u062F\u0631\u0622\u0645\u062F \u062F\u0648\u0631\u0647 ${cycleIndex + 1}`},
-                   ${JSON.stringify({ gross: grossIncome, tax: taxCost, maintenance: maintenanceCost })}, ${at})`,
-      sql`UPDATE revenue_cycles
-              SET status = 'credited', credited_at = ${at},
-                  transaction_id = (SELECT id FROM transactions WHERE idempotency_key = ${key})
-            WHERE cycle_key = ${key} AND status = 'pending'`,
-      sql`UPDATE nation_economy
-              SET total_income = total_income + ${Math.max(0, net)},
-                  total_tax = total_tax + ${taxCost},
-                  updated_at = ${at}
-            WHERE nation_id = ${nation.id}`,
-      sql`INSERT INTO nation_stat_history (nation_id, day, treasury, income, power, equipment, created_at)
-           VALUES (${nation.id}, ${dayKey(at)},
-                   (SELECT treasury FROM nations WHERE id = ${nation.id}), ${net},
-                   (SELECT military_power FROM nations WHERE id = ${nation.id}),
-                   (SELECT equipment_count FROM nations WHERE id = ${nation.id}), ${at})
-           ON CONFLICT (nation_id, day) DO UPDATE SET
-             treasury = excluded.treasury, income = nation_stat_history.income + excluded.income,
-             power = excluded.power, equipment = excluded.equipment`
-    ]);
-  } catch (err) {
-    const message = err instanceof Error ? err.message : String(err);
-    if (/UNIQUE constraint failed: (revenue_cycles|transactions)/i.test(message)) {
-      const balance2 = await db.first(sql`SELECT treasury FROM nations WHERE id = ${nation.id}`);
-      return { nationId: nation.id, status: "no_change", cycleIndex, gross: grossIncome, tax: taxCost, maintenance: maintenanceCost, net: 0, treasuryAfter: Number(balance2?.treasury ?? nation.treasury) };
-    }
-    throw err;
-  }
-  const balance = await db.first(sql`SELECT treasury FROM nations WHERE id = ${nation.id}`);
-  return {
-    nationId: nation.id,
-    status: "credited",
-    cycleIndex,
-    gross: grossIncome,
-    tax: taxCost,
-    maintenance: maintenanceCost,
-    net,
-    treasuryAfter: Number(balance?.treasury ?? nation.treasury)
-  };
-}
-async function listTransactions(db, nationId, opts = {}) {
-  const limit = Math.min(100, Math.max(1, opts.limit ?? 25));
-  const offset = Math.max(0, opts.offset ?? 0);
-  const where = opts.type && opts.type !== "all" ? "AND t.type = ?" : "";
-  const bindings = [nationId, ...opts.type && opts.type !== "all" ? [opts.type] : [], limit + 1, offset];
-  const rows = await db.all({
-    sql: `SELECT t.* FROM transactions t WHERE t.nation_id = ? ${where} ORDER BY t.id DESC LIMIT ? OFFSET ?`,
-    bindings
-  });
-  const page = rows.slice(0, limit);
-  const ids = page.map((r) => Number(r.id));
-  const items = ids.length ? await db.all(
-    sql`SELECT transaction_id, name_snapshot, quantity, unit_price, total_price
-              FROM transaction_items WHERE transaction_id IN (${ids})`
-  ) : [];
-  const byTx = /* @__PURE__ */ new Map();
-  for (const it of items) {
-    const list = byTx.get(Number(it.transaction_id)) ?? [];
-    list.push({
-      nameFa: String(it.name_snapshot),
-      quantity: Number(it.quantity),
-      unitPrice: it.unit_price === null ? null : Number(it.unit_price),
-      totalPrice: it.total_price === null ? null : Number(it.total_price)
-    });
-    byTx.set(Number(it.transaction_id), list);
-  }
-  return {
-    rows: page.map((r) => ({
-      id: Number(r.id),
-      uuid: String(r.uuid),
-      type: r.type,
-      typeLabelFa: TRANSACTION_TYPE_LABELS_FA[r.type] ?? String(r.type),
-      amount: Number(r.amount),
-      balanceBefore: r.balance_before === null ? null : Number(r.balance_before),
-      balanceAfter: r.balance_after === null ? null : Number(r.balance_after),
-      reason: r.reason ?? null,
-      referenceType: r.reference_type ?? null,
-      referenceId: r.reference_id === null ? null : Number(r.reference_id),
-      createdAt: toIso(Number(r.created_at)),
-      items: byTx.get(Number(r.id)) ?? []
-    })),
-    nextOffset: rows.length > limit ? offset + limit : null
-  };
-}
-async function treasuryHistory(db, nationId, days = 30) {
-  const rows = await db.all(
-    sql`SELECT day, treasury, income, power, equipment FROM nation_stat_history
-          WHERE nation_id = ${nationId} ORDER BY day DESC LIMIT ${Math.min(365, Math.max(2, days))}`
-  );
-  const history = rows.reverse();
-  if (history.length > 0) return history;
-  return db.all(
-    sql`SELECT strftime('%Y-%m-%d', created_at, 'unixepoch') AS day,
-               SUM(CASE WHEN amount > 0 THEN amount ELSE 0 END) AS income,
-               SUM(amount) AS treasury
-          FROM transactions WHERE nation_id = ${nationId}
-         GROUP BY day ORDER BY day ASC LIMIT ${Math.min(365, Math.max(2, days))}`
-  );
-}
-async function adminAdjustTreasury(db, nation, delta, reason, actor) {
-  if (!Number.isInteger(delta) || delta === 0) throw ApiError.validation("\u0645\u0642\u062F\u0627\u0631 \u062A\u063A\u06CC\u06CC\u0631 \u0646\u0627\u0645\u0639\u062A\u0628\u0631 \u0627\u0633\u062A.");
-  if (reason.trim().length < 3) throw ApiError.validation("\u062B\u0628\u062A \u062F\u0644\u06CC\u0644 \u0628\u0631\u0627\u06CC \u0627\u0635\u0644\u0627\u062D \u0645\u0627\u0644\u06CC \u0627\u0644\u0632\u0627\u0645\u06CC \u0627\u0633\u062A.");
-  const at = nowSeconds();
-  const key = adminTxKey(delta > 0 ? "credit" : "debit", nation.id, at, uuid().slice(0, 8));
-  const type = delta > 0 ? "admin_credit" : "admin_debit";
-  try {
-    await db.batch([
-      sql`INSERT INTO transactions (uuid, nation_id, type, amount, balance_before, balance_after, currency, idempotency_key,
-                                    reference_type, reference_id, reason, created_by_user_id, created_at)
-           VALUES (${uuid()}, ${nation.id}, ${type}, ${delta}, ${nation.treasury}, ${nation.treasury + delta}, 'coin', ${key},
-                   'admin', ${actor.userId}, ${reason.trim()}, ${actor.userId}, ${at})`,
-      sql`UPDATE nations SET treasury = treasury + ${delta}, updated_at = ${at} WHERE id = ${nation.id}`,
-      sql`UPDATE nation_economy
-              SET total_income = total_income + CASE WHEN ${delta} > 0 THEN ${delta} ELSE 0 END,
-                  total_spent  = total_spent  + CASE WHEN ${delta} < 0 THEN ${-delta} ELSE 0 END,
-                  updated_at = ${at}
-            WHERE nation_id = ${nation.id}`
-    ]);
-  } catch (err) {
-    const message = err instanceof Error ? err.message : String(err);
-    if (message.toLowerCase().includes("check constraint")) {
-      throw ApiError.validation("\u06A9\u0627\u0647\u0634 \u0645\u0648\u062C\u0648\u062F\u06CC \u0628\u0627\u0639\u062B \u0645\u0646\u0641\u06CC \u0634\u062F\u0646 \u062E\u0632\u0627\u0646\u0647 \u0645\u06CC\u200C\u0634\u0648\u062F \u0648 \u0645\u062C\u0627\u0632 \u0646\u06CC\u0633\u062A.");
-    }
-    throw err;
-  }
-  const after = await db.first(sql`SELECT treasury FROM nations WHERE id = ${nation.id}`);
-  await audit(db, {
-    actor,
-    action: "economy.adjust_treasury",
-    targetType: "nation",
-    targetId: nation.id,
-    before: { treasury: nation.treasury },
-    after: { treasury: Number(after?.treasury ?? 0), delta },
-    reason: reason.trim()
-  });
-  await notify(db, {
-    nationId: nation.id,
-    kind: "admin",
-    title: delta > 0 ? "\u0627\u0641\u0632\u0627\u06CC\u0634 \u062E\u0632\u0627\u0646\u0647 \u062A\u0648\u0633\u0637 \u0645\u062F\u06CC\u0631" : "\u06A9\u0627\u0647\u0634 \u062E\u0632\u0627\u0646\u0647 \u062A\u0648\u0633\u0637 \u0645\u062F\u06CC\u0631",
-    body: `${delta > 0 ? "+" : ""}${delta.toLocaleString("en-US")} \u0633\u06A9\u0647 \u2014 \u062F\u0644\u06CC\u0644: ${reason.trim()}`
-  });
-  return { treasuryBefore: nation.treasury, treasuryAfter: Number(after?.treasury ?? 0) };
-}
-async function adminSetIncome(db, nation, patch, reason, settings, actor) {
-  const at = nowSeconds();
-  const sets = [];
-  const bindings = [];
-  for (const [col, value] of [
-    ["factory_income", patch.factoryIncome],
-    ["mine_income", patch.mineIncome],
-    ["upkeep_base", patch.upkeepBase]
-  ]) {
-    if (value === void 0) continue;
-    if (!Number.isInteger(value) || value < 0) throw ApiError.validation("\u0645\u0642\u0627\u062F\u06CC\u0631 \u062F\u0631\u0622\u0645\u062F \u0648 \u0647\u0632\u06CC\u0646\u0647 \u0646\u06AF\u0647\u062F\u0627\u0631\u06CC \u0628\u0627\u06CC\u062F \u0639\u062F\u062F \u0635\u062D\u06CC\u062D \u063A\u06CC\u0631\u0645\u0646\u0641\u06CC \u0628\u0627\u0634\u0646\u062F.");
-    sets.push(`${col} = ?`);
-    bindings.push(value);
-  }
-  if (sets.length === 0) throw ApiError.validation("\u0647\u06CC\u0686 \u062A\u063A\u06CC\u06CC\u0631\u06CC \u0627\u0631\u0633\u0627\u0644 \u0646\u0634\u062F\u0647 \u0627\u0633\u062A.");
-  if (reason.trim().length < 3) throw ApiError.validation("\u062B\u0628\u062A \u062F\u0644\u06CC\u0644 \u0627\u0644\u0632\u0627\u0645\u06CC \u0627\u0633\u062A.");
-  bindings.push(at, nation.id);
-  await db.run({
-    sql: `UPDATE nation_economy SET ${sets.join(", ")}, updated_at = ? WHERE nation_id = ?`,
-    bindings
-  });
-  const updated = await db.first(
-    sql`SELECT factory_income, mine_income FROM nation_economy WHERE nation_id = ${nation.id}`
-  );
-  await db.run(
-    sql`INSERT INTO transactions (uuid, nation_id, type, amount, balance_before, balance_after, currency, idempotency_key,
-                                  reference_type, reference_id, reason, created_by_user_id, meta, created_at)
-         VALUES (${uuid()}, ${nation.id}, 'admin_correction', 0, ${nation.treasury}, ${nation.treasury}, 'coin', ${adminTxKey("income", nation.id, at, uuid().slice(0, 8))},
-                 'economy', NULL, ${reason.trim()}, ${actor.userId}, ${JSON.stringify({ ...patch })}, ${at})`
-  );
-  await refreshNationStatsAfterIncomeChange(db, nation, settings);
-  await audit(db, {
-    actor,
-    action: "economy.set_income",
-    targetType: "nation",
-    targetId: nation.id,
-    before: { factoryIncome: (await loadIncome(db, nation.id))?.factory_income },
-    after: { ...patch, factory_income: updated?.factory_income, mine_income: updated?.mine_income },
-    reason: reason.trim()
-  });
-  return updated;
-}
-async function loadIncome(db, nationId) {
-  return db.first(
-    sql`SELECT factory_income, mine_income, upkeep_base FROM nation_economy WHERE nation_id = ${nationId}`
-  );
-}
-async function refreshNationStatsAfterIncomeChange(db, nation, settings) {
-  const { refreshNationStats: refreshNationStats2 } = await Promise.resolve().then(() => (init_queries(), queries_exports));
-  await refreshNationStats2(db, nation, settings);
-}
-async function globalMoneyStats(db) {
-  const row = await db.first(
-    sql`SELECT (SELECT COALESCE(SUM(treasury),0) FROM nations) AS total_treasury,
-               (SELECT COALESCE(SUM(gross_income),0) FROM nation_economy) AS total_income,
-               (SELECT COUNT(*) FROM transactions) AS total_tx`
-  );
-  return {
-    totalTreasury: Number(row?.total_treasury ?? 0),
-    totalIncomePerCycle: Number(row?.total_income ?? 0),
-    transactionCount: Number(row?.total_tx ?? 0)
-  };
-}
-
 // apps/worker/src/api/routes/player.ts
 init_notificationService();
 init_src();
@@ -14546,6 +14570,185 @@ async function claimDailyPrize(db, nation, settings, deps = {}) {
   return { alreadyClaimed: false, day, prize: publicPrize(prize.key) };
 }
 
+// apps/worker/src/services/bankService.ts
+init_src();
+init_sql();
+init_errors2();
+init_format();
+init_ids();
+init_queries();
+init_auditService();
+init_notificationService();
+async function pendingIncome(db, nation, settings, now = nowSeconds()) {
+  const override = await db.first(
+    sql`SELECT income_cycle_seconds FROM nation_settings WHERE nation_id = ${nation.id}`
+  );
+  const cycleSeconds = Math.max(60, override?.income_cycle_seconds ?? settings.economy.incomeCycleSeconds);
+  const due = completedCycleIndex(nation.income_anchor_at, cycleSeconds, now);
+  const lastCredited = Number(nation.last_income_cycle ?? -1);
+  const cycles = Math.max(0, due - lastCredited);
+  if (cycles <= 0) return { cycles: 0, amount: 0, netPerCycle: 0, cycleSeconds };
+  const computed = await computeNation(db, nation, settings);
+  const rawNet = computed.income.netIncome;
+  let sim = nation.treasury;
+  let total = 0;
+  for (let i = 0; i < cycles; i++) {
+    let net = rawNet;
+    if (net < 0) net = -Math.min(-net, sim);
+    sim += net;
+    total += net;
+  }
+  return { cycles, amount: total, netPerCycle: rawNet, cycleSeconds };
+}
+async function claimIncome(db, nation, settings, now = nowSeconds()) {
+  let current = nation;
+  let cycles = 0;
+  let total = 0;
+  for (let i = 0; i < 240; i++) {
+    const res = await creditCycle(db, current, settings, now);
+    if (res.status === "credited") {
+      cycles++;
+      total += res.net;
+      current = await loadNation(db, nation.id);
+      continue;
+    }
+    if (res.status === "skipped") {
+      current = await loadNation(db, nation.id);
+      continue;
+    }
+    break;
+  }
+  return { cycles, total, treasury: current.treasury };
+}
+async function activeLoan(db, nationId) {
+  return db.first(sql`SELECT * FROM nation_loans WHERE nation_id = ${nationId} AND status = 'active'`);
+}
+async function bankState(db, nation, settings, now = nowSeconds()) {
+  const [pending, loan] = await Promise.all([pendingIncome(db, nation, settings, now), activeLoan(db, nation.id)]);
+  const daysLeft = loan ? Math.ceil((Number(loan.due_at) - now) / 86400) : null;
+  return {
+    treasury: nation.treasury,
+    pendingIncome: pending,
+    activeLoan: loan ? {
+      principal: Number(loan.principal),
+      repayAmount: Number(loan.repay_amount),
+      interestRate: Number(loan.interest_rate),
+      createdAt: toIso(Number(loan.created_at)),
+      dueAt: toIso(Number(loan.due_at)),
+      daysLeft,
+      overdue: now > Number(loan.due_at)
+    } : null,
+    loanOptions: BANK_LOAN.options.map((principal) => ({
+      principal,
+      interestRate: BANK_LOAN.interestRate,
+      repayAmount: principal + Math.round(principal * BANK_LOAN.interestRate),
+      termDays: BANK_LOAN.termDays
+    })),
+    canTakeLoan: !loan
+  };
+}
+async function takeLoan(db, nation, principal, now = nowSeconds()) {
+  const allowed = BANK_LOAN.options.find((o) => o === principal);
+  if (!allowed) throw ApiError.validation("\u0645\u0628\u0644\u063A \u0648\u0627\u0645 \u0645\u0646\u062A\u062E\u0628 \u0645\u0639\u062A\u0628\u0631 \u0646\u06CC\u0633\u062A.");
+  const repayAmount = allowed + Math.round(allowed * BANK_LOAN.interestRate);
+  const existing = await activeLoan(db, nation.id);
+  if (existing) throw ApiError.conflict("\u0634\u0645\u0627 \u06CC\u06A9 \u0648\u0627\u0645 \u0641\u0639\u0627\u0644 \u062F\u0627\u0631\u06CC\u062F\u061B \u062A\u0627 \u062A\u0633\u0648\u06CC\u0647 \u0622\u0646 \u0627\u0645\u06A9\u0627\u0646 \u062F\u0631\u06CC\u0627\u0641\u062A \u0648\u0627\u0645 \u062C\u062F\u06CC\u062F \u0648\u062C\u0648\u062F \u0646\u062F\u0627\u0631\u062F.");
+  const at = now;
+  const dueAt = at + BANK_LOAN.termDays * 86400;
+  const idempotencyKey = `loan:${nation.id}:${uuid().slice(0, 12)}`;
+  try {
+    await db.batch([
+      sql`INSERT INTO nation_loans (nation_id, principal, interest_rate, repay_amount, status, created_at, due_at)
+           VALUES (${nation.id}, ${allowed}, ${BANK_LOAN.interestRate}, ${repayAmount}, 'active', ${at}, ${dueAt})`,
+      sql`UPDATE nations SET treasury = treasury + ${allowed}, updated_at = ${at} WHERE id = ${nation.id}`,
+      sql`INSERT INTO transactions (uuid, nation_id, type, amount, balance_before, balance_after, currency,
+                                    idempotency_key, reference_type, reference_id, reason, meta, created_at)
+           VALUES (${uuid()}, ${nation.id}, 'loan_disbursement', ${allowed}, ${nation.treasury}, ${nation.treasury + allowed}, 'coin',
+                   ${idempotencyKey}, 'nation_loan',
+                   (SELECT id FROM nation_loans WHERE nation_id = ${nation.id} AND status = 'active' ORDER BY id DESC LIMIT 1),
+                   ${`\u062F\u0631\u06CC\u0627\u0641\u062A \u0648\u0627\u0645 \u0628\u0627\u0646\u06A9\u06CC ${allowed.toLocaleString("en-US")} \u0633\u06A9\u0647\u200C\u0627\u06CC`},
+                   ${JSON.stringify({ principal: allowed, interestRate: BANK_LOAN.interestRate, repayAmount, dueAt })}, ${at})`,
+      sql`INSERT INTO nation_stat_history (nation_id, day, treasury, income, power, equipment, created_at)
+           VALUES (${nation.id}, ${dayKey(at)},
+                   (SELECT treasury FROM nations WHERE id = ${nation.id}), 0,
+                   (SELECT military_power FROM nations WHERE id = ${nation.id}),
+                   (SELECT equipment_count FROM nations WHERE id = ${nation.id}), ${at})
+           ON CONFLICT (nation_id, day) DO UPDATE SET treasury = excluded.treasury`
+    ]);
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    if (/UNIQUE constraint failed/i.test(message)) {
+      throw ApiError.conflict("\u0634\u0645\u0627 \u06CC\u06A9 \u0648\u0627\u0645 \u0641\u0639\u0627\u0644 \u062F\u0627\u0631\u06CC\u062F\u061B \u062A\u0627 \u062A\u0633\u0648\u06CC\u0647 \u0622\u0646 \u0627\u0645\u06A9\u0627\u0646 \u062F\u0631\u06CC\u0627\u0641\u062A \u0648\u0627\u0645 \u062C\u062F\u06CC\u062F \u0648\u062C\u0648\u062F \u0646\u062F\u0627\u0631\u062F.");
+    }
+    throw err;
+  }
+  const after = await db.first(sql`SELECT treasury FROM nations WHERE id = ${nation.id}`);
+  await audit(db, {
+    actor: null,
+    action: "bank.take_loan",
+    targetType: "nation",
+    targetId: nation.id,
+    before: { treasury: nation.treasury },
+    after: { treasury: Number(after?.treasury ?? 0), principal: allowed, dueAt },
+    reason: "\u0648\u0627\u0645 \u0628\u0627\u0646\u06A9\u06CC"
+  });
+  await notify(db, {
+    nationId: nation.id,
+    kind: "bank",
+    title: "\u0648\u0627\u0645 \u0628\u0627\u0646\u06A9\u06CC \u062F\u0631\u06CC\u0627\u0641\u062A \u0634\u062F",
+    body: `\u0648\u0627\u0645 ${allowed.toLocaleString("en-US")} \u0633\u06A9\u0647\u200C\u0627\u06CC \u0628\u0647 \u062E\u0632\u0627\u0646\u0647 \u0648\u0627\u0631\u06CC\u0632 \u0634\u062F. \u0645\u0628\u0644\u063A \u0628\u0627\u0632\u067E\u0631\u062F\u0627\u062E\u062A ${repayAmount.toLocaleString("en-US")} \u0633\u06A9\u0647 (\u0633\u0648\u062F \u06F1\u06F0\u066A) \u062A\u0627 ${new Date(dueAt * 1e3).toISOString().slice(0, 10)}.`
+  });
+  return { principal: allowed, repayAmount, dueAt, treasury: Number(after?.treasury ?? nation.treasury + allowed) };
+}
+async function repayLoan(db, nation, now = nowSeconds()) {
+  const loan = await activeLoan(db, nation.id);
+  if (!loan) throw ApiError.validation("\u0648\u0627\u0645\u06CC \u0628\u0631\u0627\u06CC \u0628\u0627\u0632\u067E\u0631\u062F\u0627\u062E\u062A \u0646\u062F\u0627\u0631\u06CC\u062F.");
+  const repayAmount = Number(loan.repay_amount);
+  if (nation.treasury < repayAmount) {
+    throw ApiError.validation(`\u0645\u0648\u062C\u0648\u062F\u06CC \u062E\u0632\u0627\u0646\u0647 (${nation.treasury.toLocaleString("en-US")} \u0633\u06A9\u0647) \u0628\u0631\u0627\u06CC \u0628\u0627\u0632\u067E\u0631\u062F\u0627\u062E\u062A \u0648\u0627\u0645 (${repayAmount.toLocaleString("en-US")} \u0633\u06A9\u0647) \u06A9\u0627\u0641\u06CC \u0646\u06CC\u0633\u062A.`);
+  }
+  const at = now;
+  const idempotencyKey = `loan-repay:${loan.id}`;
+  try {
+    await db.batch([
+      sql`UPDATE nation_loans SET status = 'repaid', repaid_at = ${at} WHERE id = ${loan.id} AND status = 'active'`,
+      sql`UPDATE nations SET treasury = treasury - ${repayAmount}, updated_at = ${at} WHERE id = ${nation.id}`,
+      sql`INSERT INTO transactions (uuid, nation_id, type, amount, balance_before, balance_after, currency,
+                                    idempotency_key, reference_type, reference_id, reason, meta, created_at)
+           VALUES (${uuid()}, ${nation.id}, 'loan_repayment', ${-repayAmount}, ${nation.treasury}, ${nation.treasury - repayAmount}, 'coin',
+                   ${idempotencyKey}, 'nation_loan', ${loan.id},
+                   ${`\u062A\u0633\u0648\u06CC\u0647 \u0648\u0627\u0645 \u0628\u0627\u0646\u06A9\u06CC ${Number(loan.principal).toLocaleString("en-US")} \u0633\u06A9\u0647\u200C\u0627\u06CC (\u0633\u0648\u062F \u06F1\u06F0\u066A)`},
+                   ${JSON.stringify({ principal: Number(loan.principal), interestRate: Number(loan.interest_rate), repayAmount })}, ${at})`,
+      sql`INSERT INTO nation_stat_history (nation_id, day, treasury, income, power, equipment, created_at)
+           VALUES (${nation.id}, ${dayKey(at)},
+                   (SELECT treasury FROM nations WHERE id = ${nation.id}), 0,
+                   (SELECT military_power FROM nations WHERE id = ${nation.id}),
+                   (SELECT equipment_count FROM nations WHERE id = ${nation.id}), ${at})
+           ON CONFLICT (nation_id, day) DO UPDATE SET treasury = excluded.treasury`
+    ]);
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    if (/UNIQUE constraint failed/i.test(message)) {
+      throw ApiError.validation("\u0627\u06CC\u0646 \u0648\u0627\u0645 \u0642\u0628\u0644\u0627\u064B \u062A\u0633\u0648\u06CC\u0647 \u0634\u062F\u0647 \u0627\u0633\u062A.");
+    }
+    if (message.toLowerCase().includes("check constraint")) {
+      throw ApiError.validation("\u0628\u0627\u0632\u067E\u0631\u062F\u0627\u062E\u062A \u0628\u0627\u0639\u062B \u0645\u0646\u0641\u06CC \u0634\u062F\u0646 \u062E\u0632\u0627\u0646\u0647 \u0645\u06CC\u200C\u0634\u0648\u062F \u0648 \u0645\u062C\u0627\u0632 \u0646\u06CC\u0633\u062A.");
+    }
+    throw err;
+  }
+  const after = await db.first(sql`SELECT treasury FROM nations WHERE id = ${nation.id}`);
+  await audit(db, {
+    actor: null,
+    action: "bank.repay_loan",
+    targetType: "nation",
+    targetId: nation.id,
+    before: { treasury: nation.treasury },
+    after: { treasury: Number(after?.treasury ?? 0), repayAmount },
+    reason: "\u062A\u0633\u0648\u06CC\u0647 \u0648\u0627\u0645 \u0628\u0627\u0646\u06A9\u06CC"
+  });
+  return { repayAmount, treasury: Number(after?.treasury ?? nation.treasury - repayAmount) };
+}
+
 // apps/worker/src/api/routes/player.ts
 var playerRoutes = new Hono3();
 playerRoutes.use(requireUser);
@@ -14649,6 +14852,29 @@ playerRoutes.post("/daily-prize/claim", async (c) => {
   const db = c.get("db");
   const settings = await settingsFor(c);
   const result = await claimDailyPrize(db, c.get("nation"), settings, { botToken: c.env.BOT_TOKEN });
+  return c.json(result);
+});
+playerRoutes.get("/bank", async (c) => {
+  const db = c.get("db");
+  const settings = await settingsFor(c);
+  return c.json(await bankState(db, c.get("nation"), settings));
+});
+playerRoutes.post("/bank/income-claim", async (c) => {
+  const db = c.get("db");
+  const settings = await settingsFor(c);
+  const result = await claimIncome(db, c.get("nation"), settings);
+  return c.json(result);
+});
+playerRoutes.post("/bank/loan", async (c) => {
+  const db = c.get("db");
+  const body = parse(external_exports2.object({ principal: external_exports2.number().int().positive() }), await parseJson(c));
+  const nation = c.get("nation");
+  const result = await takeLoan(db, nation, body.principal);
+  return c.json(result);
+});
+playerRoutes.post("/bank/loan/repay", async (c) => {
+  const db = c.get("db");
+  const result = await repayLoan(db, c.get("nation"));
   return c.json(result);
 });
 playerRoutes.get("/notifications", async (c) => {
@@ -16067,7 +16293,6 @@ async function runScheduled(env, db, eventCron, now = nowSeconds()) {
   }
   const settings = await loadSettings(db, { force: true });
   const paused = await isCronPaused(db, settings);
-  await run("revenue", () => revenueJob(db, settings, now, paused));
   await run("wars", () => warJob(db, settings, now));
   await run("war_expiry", () => warExpiryJob(db, settings, now));
   if (paused) {
@@ -16082,51 +16307,6 @@ async function runScheduled(env, db, eventCron, now = nowSeconds()) {
   await snapshotQuota(db, settings);
   await flushQuota(db);
   return { startedAt, finishedAt: nowSeconds(), jobs, ...{ cron: eventCron ?? null } };
-}
-async function revenueJob(db, settings, now, paused) {
-  if (paused) return { processed: 0, detail: "skipped:quota-guard" };
-  const state = await db.first(sql`SELECT cursor FROM job_checkpoints WHERE job_key = 'revenue'`);
-  let cursor = Number(state?.cursor ?? 0);
-  const pageSize = 40;
-  const maxPages = 10;
-  let credited = 0;
-  let skipped = 0;
-  let visited = 0;
-  let pages = 0;
-  for (let page = 0; page < maxPages; page++) {
-    const nations = await db.all(
-      sql`SELECT id, owner_user_id, name, flag, leader_name, status, treasury, military_power, economic_score, total_score,
-                 world_rank, allies_count, enemies_count, wars_count, wins_count, losses_count, equipment_count, troops_count,
-                 income_anchor_at, last_income_cycle, last_income_at, last_rename_at, last_leader_rename_at, last_flag_change_at,
-                 starter_template_id, created_at, updated_at
-            FROM nations WHERE status IN ('active','at_war') AND id > ${cursor} ORDER BY id LIMIT ${pageSize}`
-    );
-    pages++;
-    if (nations.length === 0) {
-      cursor = 0;
-      break;
-    }
-    visited += nations.length;
-    for (const raw2 of nations) {
-      const nation = raw2;
-      const maxCatchup = Math.max(1, settings.economy.maxCatchupCycles);
-      for (let i = 0; i < maxCatchup; i++) {
-        const result = await creditCycle(db, nation, settings, now);
-        if (result.status === "credited") credited++;
-        else if (result.status === "no_change" || result.status === "skipped") skipped++;
-        if (result.status === "not_due" || result.status === "no_change") break;
-        const due = completedCycleIndex(nation.income_anchor_at, settings.economy.incomeCycleSeconds, now);
-        if (result.cycleIndex >= due) break;
-      }
-    }
-    cursor = Number(nations[nations.length - 1].id);
-    if (nations.length < pageSize) {
-      cursor = 0;
-      break;
-    }
-  }
-  await markJob(db, "revenue", { cursor, rowsProcessed: credited });
-  return { processed: credited, cursor, detail: `credited=${credited} skipped=${skipped} nations=${visited} pages=${pages}` };
 }
 async function warJob(db, settings, now) {
   const due = await listDueWars(db, now, 12);
@@ -16204,9 +16384,6 @@ async function triggerJobsManually(env, db, jobs) {
   };
   for (const job of jobs) {
     switch (job) {
-      case "revenue":
-        await runOne(job, () => revenueJob(db, settings, now, false));
-        break;
       case "wars":
         await runOne(job, () => warJob(db, settings, now));
         break;
@@ -16642,7 +16819,7 @@ adminRoutes.get("/audit", requireAdmin("audit"), async (c) => {
 adminRoutes.get("/quota", requireAdmin("quota"), async (c) => c.json(await snapshotQuota(c.get("db"), await loadSettings(c.get("db")))));
 adminRoutes.post("/jobs/run", write("settings"), async (c) => {
   const body = parse5(
-    external_exports2.object({ jobs: external_exports2.array(external_exports2.enum(["revenue", "wars", "war_expiry", "ranking", "diplomacy_expiry", "housekeeping"])).min(1).max(6) }),
+    external_exports2.object({ jobs: external_exports2.array(external_exports2.enum(["wars", "war_expiry", "ranking", "diplomacy_expiry", "housekeeping"])).min(1).max(6) }),
     await parseJson(c)
   );
   const res = await triggerJobsManually(c.env, c.get("db"), body.jobs);
@@ -16715,7 +16892,7 @@ var REPLY_MENU = [
   [{ text: "\u{1F6D2} \u062E\u0631\u06CC\u062F \u062A\u062C\u0647\u06CC\u0632\u0627\u062A" }, { text: "\u2694\uFE0F \u062D\u0645\u0644\u0647" }],
   [{ text: "\u{1F6E1}\uFE0F \u062F\u0641\u0627\u0639" }, { text: "\u{1F381} \u062C\u0648\u0627\u06CC\u0632 \u0631\u0648\u0632\u0627\u0646\u0647" }],
   [{ text: "\u{1F4DC} \u0628\u06CC\u0627\u0646\u06CC\u0647\u200C\u0647\u0627" }, { text: "\u{1F4CA} \u0622\u0645\u0627\u0631 \u0648 \u0627\u0637\u0644\u0627\u0639\u0627\u062A" }],
-  [{ text: "\u{1F30D} \u0627\u062E\u0628\u0627\u0631 \u062C\u0647\u0627\u0646\u06CC" }, { text: "\u2699\uFE0F \u062A\u0646\u0638\u06CC\u0645\u0627\u062A" }]
+  [{ text: "\u{1F3E6} \u0628\u0627\u0646\u06A9 \u0645\u0631\u06A9\u0632\u06CC" }, { text: "\u2699\uFE0F \u062A\u0646\u0638\u06CC\u0645\u0627\u062A" }]
 ];
 var REPLY_TO_LABEL = {
   "\u{1F6E1}\uFE0F \u0645\u062F\u06CC\u0631\u06CC\u062A \u06A9\u0634\u0648\u0631": "country",
@@ -16726,7 +16903,6 @@ var REPLY_TO_LABEL = {
   "\u{1F310} \u062F\u06CC\u067E\u0644\u0645\u0627\u0633\u06CC": "diplomacy",
   "\u{1F4DC} \u0628\u06CC\u0627\u0646\u06CC\u0647\u200C\u0647\u0627": "statements",
   "\u{1F4CA} \u0622\u0645\u0627\u0631 \u0648 \u0627\u0637\u0644\u0627\u0639\u0627\u062A": "rankings",
-  "\u{1F30D} \u0627\u062E\u0628\u0627\u0631 \u062C\u0647\u0627\u0646\u06CC": "news",
   "\u2699\uFE0F \u062A\u0646\u0638\u06CC\u0645\u0627\u062A": "settings"
 };
 function mainMenu(webAppUrl) {
@@ -16891,6 +17067,15 @@ async function handleUserMessage(ctx, message, updateId) {
     await renderDefenseArranger(ctx, message.chat.id, null, identity.userId, nation);
     return { handled: "reply:defense" };
   }
+  if (text === "\u{1F3E6} \u0628\u0627\u0646\u06A9 \u0645\u0631\u06A9\u0632\u06CC") {
+    const nation = await currentNation(ctx, identity.userId);
+    if (!nation) {
+      await ctx.tg.sendMessage(message.chat.id, "\u0627\u0628\u062A\u062F\u0627 \u06A9\u0634\u0648\u0631 \u0628\u0633\u0627\u0632\u06CC\u062F.", { inline: [[{ text: "\u{1F3F3}\uFE0F \u0633\u0627\u062E\u062A \u06A9\u0634\u0648\u0631", callback_data: "new" }]] });
+      return { handled: "reply:bank:no_nation" };
+    }
+    await sendBankHome(ctx, message.chat.id, identity.userId, nation);
+    return { handled: "reply:bank" };
+  }
   const catKey = CATEGORY_TO_KEY[text];
   if (catKey) {
     await sendShopCategoryCard(ctx, message.chat.id, identity.userId, catKey);
@@ -16988,6 +17173,15 @@ async function handleCommand(ctx, message, updateId) {
       return renderPage(ctx, message.chat.id, identity.userId, "country", message.message_id);
     case "/defense":
       return renderPage(ctx, message.chat.id, identity.userId, "defense", message.message_id);
+    case "/bank": {
+      const nation = await currentNation(ctx, identity.userId);
+      if (!nation) {
+        await ctx.tg.sendMessage(message.chat.id, "\u0627\u0628\u062A\u062F\u0627 \u06A9\u0634\u0648\u0631 \u0628\u0633\u0627\u0632\u06CC\u062F.", { inline: [[{ text: "\u{1F3F3}\uFE0F \u0633\u0627\u062E\u062A \u06A9\u0634\u0648\u0631", callback_data: "new" }]] });
+        return { handled: "bank:no_nation" };
+      }
+      await sendBankHome(ctx, message.chat.id, identity.userId, nation);
+      return { handled: "reply:bank" };
+    }
     case "/settings":
       return renderPage(ctx, message.chat.id, identity.userId, "settings", message.message_id);
     default:
@@ -17008,6 +17202,7 @@ function helpText() {
     "/shop \u2014 \u0641\u0631\u0648\u0634\u06AF\u0627\u0647 \u062A\u062C\u0647\u06CC\u0632\u0627\u062A",
     "/war \u2014 \u062C\u0646\u06AF\u200C\u0647\u0627 \u0648 \u062D\u0645\u0644\u0627\u062A",
     "/defense \u2014 \u0648\u0636\u0639\u06CC\u062A \u062F\u0641\u0627\u0639\u06CC",
+    "/bank \u2014 \u0628\u0627\u0646\u06A9 \u0645\u0631\u06A9\u0632\u06CC (\u062F\u0631\u06CC\u0627\u0641\u062A \u062F\u0631\u0622\u0645\u062F \u0648 \u0648\u0627\u0645)",
     "/diplomacy \u2014 \u062F\u06CC\u067E\u0644\u0645\u0627\u0633\u06CC \u0648 \u0627\u062A\u062D\u0627\u062F",
     "/statement \u2014 \u0635\u062F\u0648\u0631 \u0628\u06CC\u0627\u0646\u06CC\u0647 \u0631\u0633\u0645\u06CC",
     "/rankings \u2014 \u0631\u062A\u0628\u0647\u200C\u0628\u0646\u062F\u06CC \u062C\u0647\u0627\u0646\u06CC",
@@ -17036,7 +17231,7 @@ async function welcomeText(ctx, userId) {
     statLine("\u062F\u0634\u0645\u0646\u0627\u0646", String(rel.enemies)),
     statLine("\u0648\u0636\u0639\u06CC\u062A \u06A9\u0634\u0648\u0631", statusLabel(nation.status)),
     ``,
-    `\u23F3 \u0648\u0627\u0631\u06CC\u0632 \u062F\u0631\u0622\u0645\u062F \u0628\u0639\u062F\u06CC: ${Math.round(view.economy.nextIncomeIn / 60)} \u062F\u0642\u06CC\u0642\u0647`
+    `\u{1F4B0} \u062F\u0631\u0622\u0645\u062F \u0622\u0645\u0627\u062F\u0647 \u062F\u0631\u06CC\u0627\u0641\u062A: ${formatNumber(view.economy.pendingIncome ?? 0)} \u0633\u06A9\u0647 \u2014 \u0627\u0632 \xAB\u{1F3E6} \u0628\u0627\u0646\u06A9 \u0645\u0631\u06A9\u0632\u06CC\xBB`
   ].join("\n");
 }
 function statusLabel(status) {
@@ -17339,6 +17534,106 @@ async function handleCallback(ctx, cb, updateId) {
         await answer("\u062F\u0633\u062A\u0648\u0631 \u0646\u0627\u0634\u0646\u0627\u062E\u062A\u0647", true);
         return { handled: "def:unknown" };
       }
+      case "bank": {
+        const nation = await currentNation(ctx, identity.userId);
+        if (!nation) {
+          await answer("\u0627\u0628\u062A\u062F\u0627 \u06A9\u0634\u0648\u0631 \u0628\u0633\u0627\u0632\u06CC\u062F.", true);
+          return { handled: "bank:no_nation" };
+        }
+        const sub = rest[0];
+        if (sub === "home") {
+          await editBankHome(ctx, chatId, messageId, nation);
+          await answer();
+          return { handled: "bank:home" };
+        }
+        if (sub === "income") {
+          await editBankIncome(ctx, chatId, messageId, nation);
+          await answer();
+          return { handled: "bank:income" };
+        }
+        if (sub === "claim_income") {
+          const result = await claimIncome(ctx.db, nation, ctx.settings);
+          if (result.cycles === 0) {
+            await answer("\u062F\u0631\u0622\u0645\u062F\u06CC \u0628\u0631\u0627\u06CC \u062F\u0631\u06CC\u0627\u0641\u062A \u0646\u06CC\u0633\u062A.", true);
+            await editBankIncome(ctx, chatId, messageId, nation);
+            return { handled: "bank:claim:none" };
+          }
+          await ctx.tg.editMessageText(
+            chatId,
+            messageId,
+            [
+              "\u{1F4B4} <b>\u062F\u0631\u0622\u0645\u062F \u06A9\u0634\u0648\u0631</b>",
+              "",
+              `\u2705 <b>${formatNumber(result.total)} \u0633\u06A9\u0647</b> \u0627\u0632 \u062F\u0631\u0622\u0645\u062F \u062F\u0648\u0631\u0647\u200C\u0627\u06CC \u0628\u0647 \u062E\u0632\u0627\u0646\u0647 \u0648\u0627\u0631\u06CC\u0632 \u0634\u062F (${result.cycles} \u062F\u0648\u0631\u0647).`,
+              "",
+              `\u0645\u0648\u062C\u0648\u062F\u06CC \u062E\u0632\u0627\u0646\u0647: <b>${formatNumber(result.treasury)} \u0633\u06A9\u0647</b>`
+            ].join("\n"),
+            [[{ text: "\u0628\u0627\u0632\u06AF\u0634\u062A \u2B05 BACK", callback_data: "bank:home" }]]
+          );
+          await answer("\u062F\u0631\u0622\u0645\u062F \u0628\u0647 \u062E\u0632\u0627\u0646\u0647 \u0648\u0627\u0631\u06CC\u0632 \u0634\u062F \u2705");
+          return { handled: "bank:claim_income" };
+        }
+        if (sub === "loan") {
+          await editBankLoan(ctx, chatId, messageId, nation);
+          await answer();
+          return { handled: "bank:loan" };
+        }
+        if (sub === "take") {
+          const principal = Number(rest[1] ?? "");
+          try {
+            const res = await takeLoan(ctx.db, nation, principal);
+            const dueDate = new Date(res.dueAt * 1e3).toISOString().slice(0, 10);
+            await ctx.tg.editMessageText(
+              chatId,
+              messageId,
+              [
+                "\u{1F3E6} <b>\u0628\u0627\u0646\u06A9 \u0645\u0631\u06A9\u0632\u06CC \u06A9\u0634\u0648\u0631</b>",
+                "",
+                `\u2705 \u0648\u0627\u0645 <b>${formatNumber(res.principal)} \u0633\u06A9\u0647\u200C\u0627\u06CC</b> \u0628\u0647 \u062E\u0632\u0627\u0646\u0647 \u0648\u0627\u0631\u06CC\u0632 \u0634\u062F.`,
+                "",
+                statLine("\u0645\u0628\u0644\u063A \u0628\u0627\u0632\u067E\u0631\u062F\u0627\u062E\u062A (\u0633\u0648\u062F \u06F1\u06F0\u066A)", `${formatNumber(res.repayAmount)} \u0633\u06A9\u0647`),
+                statLine("\u0633\u0631\u0631\u0633\u06CC\u062F", dueDate),
+                "",
+                "\u062A\u0627 \u062A\u0633\u0648\u06CC\u0647 \u0627\u06CC\u0646 \u0648\u0627\u0645\u060C \u0627\u0645\u06A9\u0627\u0646 \u062F\u0631\u06CC\u0627\u0641\u062A \u0648\u0627\u0645 \u062C\u062F\u06CC\u062F \u0648\u062C\u0648\u062F \u0646\u062F\u0627\u0631\u062F."
+              ].join("\n"),
+              [[{ text: "\u0628\u0627\u0632\u06AF\u0634\u062A \u2B05 BACK", callback_data: "bank:home" }]]
+            );
+            await answer("\u0648\u0627\u0645 \u0628\u0647 \u062E\u0632\u0627\u0646\u0647 \u0645\u0646\u062A\u0642\u0644 \u0634\u062F \u2705");
+            return { handled: "bank:take" };
+          } catch (err) {
+            const message = err instanceof Error ? err.message : "\u062E\u0637\u0627\u06CC\u06CC \u0631\u062E \u062F\u0627\u062F.";
+            await answer(message, true);
+            await editBankLoan(ctx, chatId, messageId, nation);
+            return { handled: "bank:take:failed" };
+          }
+        }
+        if (sub === "repay") {
+          try {
+            const res = await repayLoan(ctx.db, nation);
+            await ctx.tg.editMessageText(
+              chatId,
+              messageId,
+              [
+                "\u{1F3E6} <b>\u0628\u0627\u0646\u06A9 \u0645\u0631\u06A9\u0632\u06CC \u06A9\u0634\u0648\u0631</b>",
+                "",
+                `\u2705 \u0648\u0627\u0645 \u0634\u0645\u0627 \u062A\u0633\u0648\u06CC\u0647 \u0634\u062F. <b>${formatNumber(res.repayAmount)} \u0633\u06A9\u0647</b> \u0627\u0632 \u062E\u0632\u0627\u0646\u0647 \u06A9\u0633\u0631 \u0634\u062F.`,
+                "",
+                `\u0645\u0648\u062C\u0648\u062F\u06CC \u062E\u0632\u0627\u0646\u0647: <b>${formatNumber(res.treasury)} \u0633\u06A9\u0647</b>`
+              ].join("\n"),
+              [[{ text: "\u0628\u0627\u0632\u06AF\u0634\u062A \u2B05 BACK", callback_data: "bank:home" }]]
+            );
+            await answer("\u0648\u0627\u0645 \u062A\u0633\u0648\u06CC\u0647 \u0634\u062F \u2705");
+            return { handled: "bank:repay" };
+          } catch (err) {
+            const message = err instanceof Error ? err.message : "\u062E\u0637\u0627\u06CC\u06CC \u0631\u062E \u062F\u0627\u062F.";
+            await answer(message, true);
+            await editBankLoan(ctx, chatId, messageId, nation);
+            return { handled: "bank:repay:failed" };
+          }
+        }
+        await answer("\u062F\u0633\u062A\u0648\u0631 \u0646\u0627\u0634\u0646\u0627\u062E\u062A\u0647", true);
+        return { handled: "bank:unknown" };
+      }
       case "atk": {
         const nation = await currentNation(ctx, identity.userId);
         if (!nation) throw ApiError.forbidden("\u0627\u0628\u062A\u062F\u0627 \u06A9\u0634\u0648\u0631 \u0628\u0633\u0627\u0632\u06CC\u062F.");
@@ -17609,7 +17904,7 @@ async function renderFor(ctx, nation, page) {
           statLine("\u0647\u0632\u06CC\u0646\u0647 \u0646\u06AF\u0647\u062F\u0627\u0631\u06CC", coins(view.economy.maintenanceCost)),
           statLine("\u062F\u0631\u0622\u0645\u062F \u062E\u0627\u0644\u0635 \u0647\u0631 \u062F\u0648\u0631\u0647", coins(view.economy.netIncome)),
           statLine("\u062F\u0648\u0631\u0647 \u0648\u0627\u0631\u06CC\u0632", `${Math.round(view.economy.cycleSeconds / 3600)} \u0633\u0627\u0639\u062A`),
-          statLine("\u0648\u0627\u0631\u06CC\u0632 \u0628\u0639\u062F\u06CC", `${Math.round(view.economy.nextIncomeIn / 60)} \u062F\u0642\u06CC\u0642\u0647`),
+          statLine("\u062F\u0631\u0622\u0645\u062F \u0622\u0645\u0627\u062F\u0647 \u062F\u0631\u06CC\u0627\u0641\u062A", `${formatNumber(view.economy.pendingIncome ?? 0)} \u0633\u06A9\u0647`),
           "",
           "\u{1F9FE} \u0622\u062E\u0631\u06CC\u0646 \u062A\u0631\u0627\u06A9\u0646\u0634\u200C\u0647\u0627:",
           ...tx.rows.map((t) => `\u2022 ${txLabel(t.type)} \u2014 ${t.amount > 0 ? "+" : ""}${formatNumber(t.amount)} \u0633\u06A9\u0647`)
@@ -18245,6 +18540,111 @@ async function sendPrizesCard(ctx, chatId, userId) {
   ];
   const inline = state.claimed && state.prize ? [[{ text: "\u2705 \u062F\u0631\u06CC\u0627\u0641\u062A \u0634\u062F", callback_data: "noop" }], ...backButton()] : [[{ text: "\u{1F381} \u062F\u0631\u06CC\u0627\u0641\u062A \u062C\u0627\u06CC\u0632\u0647 \u0634\u0627\u0646\u0633\u06CC", callback_data: "prize:claim" }], ...backButton()];
   await ctx.tg.sendMessage(chatId, lines.join("\n"), { inline });
+}
+function bankHomeText(state) {
+  const lines = ["\u{1F3E6} <b>\u0628\u0627\u0646\u06A9 \u0645\u0631\u06A9\u0632\u06CC \u06A9\u0634\u0648\u0631</b>", "", "\u{1F3E6} \u0645\u0648\u062C\u0648\u062F\u06CC \u062E\u0632\u0627\u0646\u0647 \u0645\u0644\u06CC \u{1F4B0}", `<b>${formatNumber(state.treasury)} \u0633\u06A9\u0647</b>`];
+  const loan = state.activeLoan;
+  if (loan) {
+    lines.push("", `\u{1F512} \u0648\u0627\u0645 \u0641\u0639\u0627\u0644: ${formatNumber(loan.principal)} \u0633\u06A9\u0647 \u2014 \u0628\u0627\u0632\u067E\u0631\u062F\u0627\u062E\u062A ${formatNumber(loan.repayAmount)} \u0633\u06A9\u0647`);
+    if (loan.daysLeft !== null && loan.daysLeft < 0) lines.push("\u26A0\uFE0F \u0633\u0631\u0631\u0633\u06CC\u062F \u0648\u0627\u0645 \u06AF\u0630\u0634\u062A\u0647 \u0627\u0633\u062A. \u0647\u0631 \u0686\u0647 \u0632\u0648\u062F\u062A\u0631 \u062A\u0633\u0648\u06CC\u0647 \u06A9\u0646\u06CC\u062F.");
+    else if (loan.daysLeft !== null) lines.push(`\u0633\u0631\u0631\u0633\u06CC\u062F: ${loan.daysLeft} \u0631\u0648\u0632 \u062F\u06CC\u06AF\u0631`);
+  }
+  return lines.join("\n");
+}
+function bankHomeRows() {
+  return [
+    [
+      { text: "\u062F\u0631\u06CC\u0627\u0641\u062A \u062F\u0631\u0622\u0645\u062F \u{1F4B5}", callback_data: "bank:income" },
+      { text: "\u0648\u0627\u0645 \u0628\u0627\u0646\u06A9\u06CC \u{1F4B3}", callback_data: "bank:loan" }
+    ],
+    [{ text: "\u0628\u0627\u0632\u06AF\u0634\u062A \u0628\u0647 \u0645\u0646\u0648\u06CC \u0627\u0635\u0644\u06CC \u2B05 BACK", callback_data: "m" }]
+  ];
+}
+async function freshBankState(ctx, nation) {
+  const fresh = await loadNationOwnedBy(ctx.db, Number(nation.owner_user_id), nation.id);
+  return bankState(ctx.db, fresh ?? nation, ctx.settings);
+}
+async function sendBankHome(ctx, chatId, userId, nation) {
+  const state = await freshBankState(ctx, nation);
+  await ctx.tg.sendMessage(chatId, bankHomeText(state), { inline: bankHomeRows() });
+}
+async function editBankHome(ctx, chatId, messageId, nation) {
+  const state = await freshBankState(ctx, nation);
+  await ctx.tg.editMessageText(chatId, messageId, bankHomeText(state), bankHomeRows());
+}
+function bankIncomeLines(state) {
+  return [
+    "\u{1F4B4} <b>\u062F\u0631\u0622\u0645\u062F \u06A9\u0634\u0648\u0631</b>",
+    "",
+    "\u062F\u0631\u0622\u0645\u062F \u0622\u0645\u0627\u062F\u0647 \u062F\u0631\u06CC\u0627\u0641\u062A",
+    `\u{1F4B0} <b>${formatNumber(state.pendingIncome.amount)} \u0633\u06A9\u0647</b>`,
+    "",
+    "\u0641\u0631\u0645\u0627\u0646\u062F\u0647\u060C \u062F\u0631\u0622\u0645\u062F \u0627\u0642\u062A\u0635\u0627\u062F\u06CC \u06A9\u0634\u0648\u0631 \u0634\u0645\u0627 \u0622\u0645\u0627\u062F\u0647 \u062F\u0631\u06CC\u0627\u0641\u062A \u0627\u0633\u062A."
+  ].join("\n");
+}
+function bankIncomeRows(state) {
+  const amount = state.pendingIncome.amount;
+  const claimRow = amount > 0 ? [{ text: `\u062F\u0631\u06CC\u0627\u0641\u062A ${formatNumber(amount)} \u0633\u06A9\u0647 \u{1F4B0}`, callback_data: "bank:claim_income" }] : [{ text: "\u2705 \u062F\u0631\u0622\u0645\u062F\u06CC \u0622\u0645\u0627\u062F\u0647 \u0646\u06CC\u0633\u062A", callback_data: "noop" }];
+  return [claimRow, [{ text: "\u0628\u0627\u0632\u06AF\u0634\u062A \u2B05 BACK", callback_data: "bank:home" }]];
+}
+async function editBankIncome(ctx, chatId, messageId, nation) {
+  const state = await freshBankState(ctx, nation);
+  await ctx.tg.editMessageText(chatId, messageId, bankIncomeLines(state), bankIncomeRows(state));
+}
+function bankLoanLines(state) {
+  const loan = state.activeLoan;
+  if (loan) {
+    const due = (loan.dueAt ?? "").slice(0, 10);
+    const daysLeft = loan.daysLeft;
+    const dueLabel = daysLeft === null ? "" : daysLeft < 0 ? " \u2014 \u0633\u0631\u0631\u0633\u06CC\u062F \u06AF\u0630\u0634\u062A\u0647 \u0627\u0633\u062A \u26A0\uFE0F" : ` \u2014 ${daysLeft} \u0631\u0648\u0632 \u062F\u06CC\u06AF\u0631`;
+    return [
+      "\u{1F3E6} <b>\u0628\u0627\u0646\u06A9 \u0645\u0631\u06A9\u0632\u06CC \u06A9\u0634\u0648\u0631</b>",
+      "",
+      "\u0641\u0631\u0645\u0627\u0646\u062F\u0647\u060C \u0634\u0645\u0627 \u06CC\u06A9 \u0648\u0627\u0645 \u0641\u0639\u0627\u0644 \u062F\u0627\u0631\u06CC\u062F:",
+      "",
+      `\u{1F512} \u0627\u0635\u0644 \u0648\u0627\u0645: <b>${formatNumber(loan.principal)} \u0633\u06A9\u0647</b>`,
+      `\u0645\u0628\u0644\u063A \u0628\u0627\u0632\u067E\u0631\u062F\u0627\u062E\u062A (\u0633\u0648\u062F \u06F1\u06F0\u066A): <b>${formatNumber(loan.repayAmount)} \u0633\u06A9\u0647</b>`,
+      `\u0633\u0631\u0631\u0633\u06CC\u062F: ${due}${dueLabel}`,
+      "",
+      "\u062A\u0627 \u062A\u0633\u0648\u06CC\u0647 \u0627\u06CC\u0646 \u0648\u0627\u0645\u060C \u0627\u0645\u06A9\u0627\u0646 \u062F\u0631\u06CC\u0627\u0641\u062A \u0648\u0627\u0645 \u062C\u062F\u06CC\u062F \u0648\u062C\u0648\u062F \u0646\u062F\u0627\u0631\u062F."
+    ].join("\n");
+  }
+  return [
+    "\u{1F3E6} <b>\u0628\u0627\u0646\u06A9 \u0645\u0631\u06A9\u0632\u06CC \u06A9\u0634\u0648\u0631</b>",
+    "",
+    "\u0641\u0631\u0645\u0627\u0646\u062F\u0647\u060C \u0645\u06CC\u200C\u062A\u0648\u0646\u06CC \u0627\u0632 \u0628\u0627\u0646\u06A9 \u0645\u0631\u06A9\u0632\u06CC \u0648\u0627\u0645 \u062F\u0631\u06CC\u0627\u0641\u062A \u06A9\u0646\u06CC.",
+    "",
+    "\u{1F4B0} \u0645\u0628\u0644\u063A \u0648\u0627\u0645 \u0642\u0627\u0628\u0644 \u062F\u0631\u06CC\u0627\u0641\u062A:",
+    "",
+    "\u2022 \u0648\u0627\u0645 \u06A9\u0648\u0686\u06A9: \u06F5\u066C\u06F0\u06F0\u06F0 \u0633\u06A9\u0647",
+    "\u2022 \u0648\u0627\u0645 \u0645\u062A\u0648\u0633\u0637: \u06F1\u06F0\u066C\u06F0\u06F0\u06F0 \u0633\u06A9\u0647",
+    "\u2022 \u0648\u0627\u0645 \u0628\u0632\u0631\u06AF: \u06F2\u06F0\u066C\u06F0\u06F0\u06F0 \u0633\u06A9\u0647",
+    "",
+    "\u{1F4CC} \u0634\u0631\u0627\u06CC\u0637 \u0648\u0627\u0645:",
+    "",
+    "\u2022 \u0628\u0627\u0632\u067E\u0631\u062F\u0627\u062E\u062A \u0628\u0639\u062F \u0627\u0632 \u06F7 \u0631\u0648\u0632",
+    "\u2022 \u0633\u0648\u062F \u0648\u0627\u0645: \u06F1\u06F0\u066A",
+    "\u2022 \u062A\u0627 \u062A\u0633\u0648\u06CC\u0647 \u0648\u0627\u0645 \u0642\u0628\u0644\u06CC\u060C \u0627\u0645\u06A9\u0627\u0646 \u062F\u0631\u06CC\u0627\u0641\u062A \u0648\u0627\u0645 \u062C\u062F\u06CC\u062F \u0648\u062C\u0648\u062F \u0646\u062F\u0627\u0631\u062F."
+  ].join("\n");
+}
+function bankLoanRows(state) {
+  const loan = state.activeLoan;
+  if (loan) {
+    return [
+      [{ text: `\u0628\u0627\u0632\u067E\u0631\u062F\u0627\u062E\u062A \u0648\u0627\u0645 (${formatNumber(loan.repayAmount)} \u0633\u06A9\u0647) \u{1F4B5}`, callback_data: "bank:repay" }],
+      [{ text: "\u0628\u0627\u0632\u06AF\u0634\u062A \u2B05 BACK", callback_data: "bank:home" }]
+    ];
+  }
+  return [
+    [{ text: "\u062F\u0631\u06CC\u0627\u0641\u062A \u0648\u0627\u0645 5,000 \u0633\u06A9\u0647 \u{1F4B5}", callback_data: "bank:take:5000" }],
+    [{ text: "\u062F\u0631\u06CC\u0627\u0641\u062A \u0648\u0627\u0645 10,000 \u0633\u06A9\u0647 \u{1F4B5}", callback_data: "bank:take:10000" }],
+    [{ text: "\u062F\u0631\u06CC\u0627\u0641\u062A \u0648\u0627\u0645 20,000 \u0633\u06A9\u0647 \u{1F4B5}", callback_data: "bank:take:20000" }],
+    [{ text: "\u0628\u0627\u0632\u06AF\u0634\u062A \u2B05 BACK", callback_data: "bank:home" }]
+  ];
+}
+async function editBankLoan(ctx, chatId, messageId, nation) {
+  const state = await freshBankState(ctx, nation);
+  await ctx.tg.editMessageText(chatId, messageId, bankLoanLines(state), bankLoanRows(state));
 }
 
 // apps/worker/src/app.ts

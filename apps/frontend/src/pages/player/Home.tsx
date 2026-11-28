@@ -1,5 +1,5 @@
 import { useApi, useAuth } from '../../auth';
-import { useCountdown, useRouter } from '../../router';
+import { useRouter } from '../../router';
 import { Badge, Card, Empty, ErrorBox, Grid, Loading, Row, Stat, fa, faDateTime, faDuration, faMoney } from '../../ui';
 import { ECONOMY_NOTE, categoryLabel } from './meta';
 
@@ -17,7 +17,6 @@ export function PlayerHome() {
   const reqs = useApi<{ incoming: any[] }>('/diplomacy/requests');
 
   const econ = { ...(view?.economy ?? {}), ...(eco.data?.economy ?? {}) } as Record<string, number>;
-  const nextIn = useCountdown(econ.nextIncomeIn);
   const nation = view?.nation;
   const activeWars = (wars.data?.wars ?? []).filter((w: any) => ['active', 'proposed', 'peace_requested'].includes(String(w.status)));
 
@@ -50,10 +49,10 @@ export function PlayerHome() {
         </Grid>
 
         <div className="mt-3 flex items-center justify-between rounded-xl border border-gold/20 bg-gold/5 px-3 py-2">
-          <span className="text-xs text-slate-300">درآمد بعدی</span>
+          <span className="text-xs text-slate-300">درآمد آماده دریافت</span>
           <span className="text-sm font-bold text-gold-soft">
+            {faMoney(Number(econ.pendingIncome ?? 0))} سکه
             {econ.cycleSeconds ? <span className="ml-1 text-[11px] font-normal text-slate-400">هر {faDuration(econ.cycleSeconds)}</span> : null}
-            {faDuration(nextIn)}
           </span>
         </div>
       </Card>

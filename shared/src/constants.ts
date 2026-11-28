@@ -197,6 +197,13 @@ export type Role = (typeof ROLES)[number];
 export const NATIONALITY_STATUS = ['active', 'frozen', 'banned', 'at_war', 'in_alliance'] as const;
 export type NationStatus = (typeof NATIONALITY_STATUS)[number];
 
+/** بانک مرکزی: وام بانکی — ارقام روی صفحه‌های ربات؛ تغییر فقط اینجا */
+export const BANK_LOAN = {
+  options: [5000, 10000, 20000] as const,
+  interestRate: 0.10,
+  termDays: 7,
+} as const;
+
 export const TRANSACTION_TYPES = [
   'starter_grant',
   'revenue',
@@ -210,6 +217,8 @@ export const TRANSACTION_TYPES = [
   'maintenance',
   'battle_loss_compensation',
   'prize',
+  'loan_disbursement',
+  'loan_repayment',
 ] as const;
 export type TransactionType = (typeof TRANSACTION_TYPES)[number];
 
@@ -226,6 +235,8 @@ export const TRANSACTION_TYPE_LABELS_FA: Record<TransactionType, string> = {
   maintenance: 'هزینه نگهداری',
   battle_loss_compensation: 'جبران خسارت',
   prize: 'جایزه شانسی روزانه',
+  loan_disbursement: 'دریافت وام بانکی',
+  loan_repayment: 'تسویه وام بانکی',
 };
 
 export const WAR_STATUS = ['proposed', 'accepted', 'active', 'peace_requested', 'ended', 'cancelled', 'stopped_by_admin'] as const;

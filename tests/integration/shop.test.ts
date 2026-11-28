@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { EQUIPMENT_CATEGORIES, STARTER_ECONOMY } from '@ww/shared';
-import { advanceTime, all, createWorld, first, onboardViaBot, run, runCron, type World } from '../helpers/harness';
+import { advanceTime, all, createWorld, first, onboardViaBot, run, type World } from '../helpers/harness';
 
 let world: World;
 let nationA = 0;
@@ -197,12 +197,14 @@ describe('buying equipment', () => {
   it('charges the maintenance of what was bought on the next cycle', async () => {
     const before = await treasury();
     await advanceTime(world.db, nationA, STARTER_ECONOMY.incomeCycleSeconds + 60);
-    await runCron(world, adminToken, ['revenue']);
+    const claim = await world.api('POST', '/api/player/bank/income-claim', { token: tokenA, body: {} });
+    expect(claim.status).toBe(200);
     const row = await first<{ amount: number }>(
       world.db,
       `SELECT amount FROM transactions WHERE nation_id = ? AND type = 'revenue' ORDER BY id DESC LIMIT 1`,
       nationA,
     );
+    expect(Number(row!.amount)).toBe(Number(claim.json.total));
     expect(await treasury()).toBe(before + Number(row!.amount));
   });
 

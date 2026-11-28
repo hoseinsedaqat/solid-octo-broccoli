@@ -69,7 +69,7 @@ export const TX_TONES: Record<string, 'ok' | 'bad' | 'warn' | 'info' | 'neutral'
 
 /** the honest footnote shown next to every money number */
 export const ECONOMY_NOTE =
-  'همه محاسبه‌ها سمت سرور انجام می‌شود: کارخانه و معدن هر دو در یک چرخه ۲۴ ساعته پرداخت می‌شوند و قیمت‌ها فقط از پایگاه داده خوانده می‌شوند.';
+  'همه محاسبه‌ها سمت سرور انجام می‌شود: کارخانه و معدن هر ۲۴ ساعت یک دوره می‌سازند و درآمد را شما با دکمه «دریافت درآمد» در بانک مرکزی برداشت می‌کنید؛ قیمت‌ها فقط از پایگاه داده خوانده می‌شوند.';
 
 export const WAR_TONES: Record<string, 'ok' | 'bad' | 'warn' | 'info' | 'neutral'> = {
   proposed: 'warn',

@@ -126,7 +126,7 @@ export async function execScript(db: D1Database, sql: string): Promise<number> {
 
 export const BOT_TOKEN = '123456:TEST-token-for-harness-only';
 
-export const MIGRATIONS = ['0001_init.sql', '0002_rate_limits.sql', '0003_war_attack_plan.sql', '0004_attack_plan_remaining.sql', '0005_defense_plan_daily_prizes.sql', '0006_transactions_prize_type.sql'].map((f) => ({
+export const MIGRATIONS = ['0001_init.sql', '0002_rate_limits.sql', '0003_war_attack_plan.sql', '0004_attack_plan_remaining.sql', '0005_defense_plan_daily_prizes.sql', '0006_transactions_prize_type.sql', '0007_central_bank.sql'].map((f) => ({
   name: f,
   sql: readFileSync(join(ROOT, 'apps/worker/migrations', f), 'utf8'),
 }));
@@ -306,7 +306,7 @@ export async function advanceTime(db: D1Database, nationId: number, seconds: num
  * POST /api/admin/jobs/run, which calls the very same job functions as the worker's
  * `scheduled` handler (see src/scheduled/cron.ts: triggerJobsManually).
  */
-export async function runCron(world: World, adminToken: string, jobs: ('revenue' | 'wars' | 'ranking' | 'diplomacy_expiry')[] = ['revenue', 'wars', 'ranking', 'diplomacy_expiry']): Promise<any> {
+export async function runCron(world: World, adminToken: string, jobs: ('wars' | 'war_expiry' | 'ranking' | 'diplomacy_expiry' | 'housekeeping')[] = ['wars', 'ranking', 'diplomacy_expiry']): Promise<any> {
   const res = await world.api('POST', '/api/admin/jobs/run', { token: adminToken, body: { jobs } });
   if (res.status !== 200) throw new Error(`jobs/run failed: ${res.status} ${res.text}`);
   return res.json;

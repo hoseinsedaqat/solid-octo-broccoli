@@ -544,7 +544,7 @@ adminRoutes.get('/quota', requireAdmin('quota'), async (c) => c.json(await snaps
 
 adminRoutes.post('/jobs/run', write('settings'), async (c) => {
   const body = parse(
-    z.object({ jobs: z.array(z.enum(['revenue', 'wars', 'war_expiry', 'ranking', 'diplomacy_expiry', 'housekeeping'])).min(1).max(6) }),
+    z.object({ jobs: z.array(z.enum(['wars', 'war_expiry', 'ranking', 'diplomacy_expiry', 'housekeeping'])).min(1).max(6) }),
     await parseJson(c),
   );
   const res = await triggerJobsManually(c.env, c.get('db'), body.jobs);

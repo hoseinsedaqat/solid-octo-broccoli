@@ -1,4 +1,4 @@
-import { FLAG_CHOICES, DAILY_PRIZES, DEFENSE_ARRANGEMENT, DEFENSE_FORTIFICATION_TOKEN, type PlayerPage } from '@ww/shared';
+import { FLAG_CHOICES, DAILY_PRIZES, DEFENSE_ARRANGEMENT, DEFENSE_FORTIFICATION_TOKEN, BANK_LOAN, type PlayerPage } from '@ww/shared';
 import type { Db } from '../core/db';
 import { sql } from '../core/sql';
 import { nowSeconds } from '../core/format';
@@ -19,6 +19,7 @@ import { listNations, proposeWar, respondToWar, getWarsForNation, getWarDetail, 
 import { listIncoming, decideRequest, listRelations } from '../services/diplomacyService';
 import { createStatement, listMyStatements } from '../services/statementService';
 import { prizeState, claimDailyPrize } from '../services/dailyPrizeService';
+import { bankState, claimIncome, takeLoan, repayLoan } from '../services/bankService';
 import { feed as newsFeed, listRankings } from '../services/newsService';
 import { configureTelegramApiBase, TelegramApi, escapeHtml, coins, type TgCallbackQuery, type TgMessage, type TgUpdate, type InlineKeyboardButton, type KeyboardRow } from './telegram';
 import { backButton, CATEGORY_BACK_TEXT, CATEGORY_ENTRY_TEXT, CATEGORY_KEYPAD, CATEGORY_TO_KEY, flagKeyboard, formatNumber, formatNumber as fmt, mainMenu, moreMenu, pager, percent, REPLY_MENU, REPLY_TO_LABEL, statLine, yesNoRows } from './ui';
@@ -131,6 +132,15 @@ async function handleUserMessage(ctx: BotCtx, message: TgMessage, updateId: numb
     await renderDefenseArranger(ctx, message.chat.id, null, identity.userId, nation);
     return { handled: 'reply:defense' };
   }
+  if (text === '🏦 بانک مرکزی') {
+    const nation = await currentNation(ctx, identity.userId);
+    if (!nation) {
+      await ctx.tg.sendMessage(message.chat.id, 'ابتدا کشور بسازید.', { inline: [[{ text: '🏳️ ساخت کشور', callback_data: 'new' }]] });
+      return { handled: 'reply:bank:no_nation' };
+    }
+    await sendBankHome(ctx, message.chat.id, identity.userId, nation);
+    return { handled: 'reply:bank' };
+  }
 
   // the 18 category buttons of the purchase keypad (installed by «مدیریت کشور»)
   const catKey = CATEGORY_TO_KEY[text];
@@ -238,6 +248,15 @@ async function handleCommand(ctx: BotCtx, message: TgMessage, updateId: number):
       return renderPage(ctx, message.chat.id, identity.userId, 'country', message.message_id);
     case '/defense':
       return renderPage(ctx, message.chat.id, identity.userId, 'defense', message.message_id);
+    case '/bank': {
+      const nation = await currentNation(ctx, identity.userId);
+      if (!nation) {
+        await ctx.tg.sendMessage(message.chat.id, 'ابتدا کشور بسازید.', { inline: [[{ text: '🏳️ ساخت کشور', callback_data: 'new' }]] });
+        return { handled: 'bank:no_nation' };
+      }
+      await sendBankHome(ctx, message.chat.id, identity.userId, nation);
+      return { handled: 'reply:bank' };
+    }
     case '/settings':
       return renderPage(ctx, message.chat.id, identity.userId, 'settings', message.message_id);
     default:
@@ -260,6 +279,7 @@ export function helpText(): string {
     '/shop — فروشگاه تجهیزات',
     '/war — جنگ‌ها و حملات',
     '/defense — وضعیت دفاعی',
+    '/bank — بانک مرکزی (دریافت درآمد و وام)',
     '/diplomacy — دیپلماسی و اتحاد',
     '/statement — صدور بیانیه رسمی',
     '/rankings — رتبه‌بندی جهانی',
@@ -289,7 +309,7 @@ async function welcomeText(ctx: BotCtx, userId: number): Promise<string> {
     statLine('دشمنان', String(rel.enemies)),
     statLine('وضعیت کشور', statusLabel(nation.status)),
     ``,
-    `⏳ واریز درآمد بعدی: ${Math.round(view.economy.nextIncomeIn / 60)} دقیقه`,
+    `💰 درآمد آماده دریافت: ${fmt(view.economy.pendingIncome ?? 0)} سکه — از «🏦 بانک مرکزی»`,
   ].join('\n');
 }
 
@@ -604,6 +624,106 @@ async function handleCallback(ctx: BotCtx, cb: TgCallbackQuery, updateId: number
         await answer('دستور ناشناخته', true);
         return { handled: 'def:unknown' };
       }
+      case 'bank': {
+        const nation = await currentNation(ctx, identity.userId);
+        if (!nation) {
+          await answer('ابتدا کشور بسازید.', true);
+          return { handled: 'bank:no_nation' };
+        }
+        const sub = rest[0];
+        if (sub === 'home') {
+          await editBankHome(ctx, chatId, messageId, nation);
+          await answer();
+          return { handled: 'bank:home' };
+        }
+        if (sub === 'income') {
+          await editBankIncome(ctx, chatId, messageId, nation);
+          await answer();
+          return { handled: 'bank:income' };
+        }
+        if (sub === 'claim_income') {
+          const result = await claimIncome(ctx.db, nation, ctx.settings);
+          if (result.cycles === 0) {
+            await answer('درآمدی برای دریافت نیست.', true);
+            await editBankIncome(ctx, chatId, messageId, nation);
+            return { handled: 'bank:claim:none' };
+          }
+          await ctx.tg.editMessageText(
+            chatId,
+            messageId,
+            [
+              '💴 <b>درآمد کشور</b>',
+              '',
+              `✅ <b>${fmt(result.total)} سکه</b> از درآمد دوره‌ای به خزانه واریز شد (${result.cycles} دوره).`,
+              '',
+              `موجودی خزانه: <b>${fmt(result.treasury)} سکه</b>`,
+            ].join('\n'),
+            [[{ text: 'بازگشت ⬅ BACK', callback_data: 'bank:home' }]],
+          );
+          await answer('درآمد به خزانه واریز شد ✅');
+          return { handled: 'bank:claim_income' };
+        }
+        if (sub === 'loan') {
+          await editBankLoan(ctx, chatId, messageId, nation);
+          await answer();
+          return { handled: 'bank:loan' };
+        }
+        if (sub === 'take') {
+          const principal = Number(rest[1] ?? '');
+          try {
+            const res = await takeLoan(ctx.db, nation, principal);
+            const dueDate = new Date(res.dueAt * 1000).toISOString().slice(0, 10);
+            await ctx.tg.editMessageText(
+              chatId,
+              messageId,
+              [
+                '🏦 <b>بانک مرکزی کشور</b>',
+                '',
+                `✅ وام <b>${fmt(res.principal)} سکه‌ای</b> به خزانه واریز شد.`,
+                '',
+                statLine('مبلغ بازپرداخت (سود ۱۰٪)', `${fmt(res.repayAmount)} سکه`),
+                statLine('سررسید', dueDate),
+                '',
+                'تا تسویه این وام، امکان دریافت وام جدید وجود ندارد.',
+              ].join('\n'),
+              [[{ text: 'بازگشت ⬅ BACK', callback_data: 'bank:home' }]],
+            );
+            await answer('وام به خزانه منتقل شد ✅');
+            return { handled: 'bank:take' };
+          } catch (err) {
+            const message = err instanceof Error ? err.message : 'خطایی رخ داد.';
+            await answer(message, true);
+            await editBankLoan(ctx, chatId, messageId, nation);
+            return { handled: 'bank:take:failed' };
+          }
+        }
+        if (sub === 'repay') {
+          try {
+            const res = await repayLoan(ctx.db, nation);
+            await ctx.tg.editMessageText(
+              chatId,
+              messageId,
+              [
+                '🏦 <b>بانک مرکزی کشور</b>',
+                '',
+                `✅ وام شما تسویه شد. <b>${fmt(res.repayAmount)} سکه</b> از خزانه کسر شد.`,
+                '',
+                `موجودی خزانه: <b>${fmt(res.treasury)} سکه</b>`,
+              ].join('\n'),
+              [[{ text: 'بازگشت ⬅ BACK', callback_data: 'bank:home' }]],
+            );
+            await answer('وام تسویه شد ✅');
+            return { handled: 'bank:repay' };
+          } catch (err) {
+            const message = err instanceof Error ? err.message : 'خطایی رخ داد.';
+            await answer(message, true);
+            await editBankLoan(ctx, chatId, messageId, nation);
+            return { handled: 'bank:repay:failed' };
+          }
+        }
+        await answer('دستور ناشناخته', true);
+        return { handled: 'bank:unknown' };
+      }
       case 'atk': {
         const nation = await currentNation(ctx, identity.userId);
         if (!nation) throw ApiError.forbidden('ابتدا کشور بسازید.');
@@ -875,7 +995,7 @@ async function renderFor(ctx: BotCtx, nation: NationRow, page: PlayerPage): Prom
           statLine('هزینه نگهداری', coins(view.economy.maintenanceCost)),
           statLine('درآمد خالص هر دوره', coins(view.economy.netIncome)),
           statLine('دوره واریز', `${Math.round(view.economy.cycleSeconds / 3600)} ساعت`),
-          statLine('واریز بعدی', `${Math.round(view.economy.nextIncomeIn / 60)} دقیقه`),
+          statLine('درآمد آماده دریافت', `${fmt(view.economy.pendingIncome ?? 0)} سکه`),
           '',
           '🧾 آخرین تراکنش‌ها:',
           ...tx.rows.map((t) => `• ${txLabel(t.type)} — ${t.amount > 0 ? '+' : ''}${formatNumber(t.amount)} سکه`),
@@ -1574,4 +1694,126 @@ async function sendPrizesCard(ctx: BotCtx, chatId: number, userId: number) {
       ? [[{ text: '✅ دریافت شد', callback_data: 'noop' }], ...backButton()]
       : [[{ text: '🎁 دریافت جایزه شانسی', callback_data: 'prize:claim' }], ...backButton()];
   await ctx.tg.sendMessage(chatId, lines.join('\n'), { inline });
+}
+
+/* ------------------------------ 🏦 بانک مرکزی ------------------------------ */
+
+function bankHomeText(state: Awaited<ReturnType<typeof bankState>>): string {
+  const lines = ['🏦 <b>بانک مرکزی کشور</b>', '', '🏦 موجودی خزانه ملی 💰', `<b>${fmt(state.treasury)} سکه</b>`];
+  const loan = state.activeLoan;
+  if (loan) {
+    lines.push('', `🔒 وام فعال: ${fmt(loan.principal)} سکه — بازپرداخت ${fmt(loan.repayAmount)} سکه`);
+    if (loan.daysLeft !== null && loan.daysLeft < 0) lines.push('⚠️ سررسید وام گذشته است. هر چه زودتر تسویه کنید.');
+    else if (loan.daysLeft !== null) lines.push(`سررسید: ${loan.daysLeft} روز دیگر`);
+  }
+  return lines.join('\n');
+}
+
+function bankHomeRows(): KeyboardRow<InlineKeyboardButton>[] {
+  return [
+    [
+      { text: 'دریافت درآمد 💵', callback_data: 'bank:income' },
+      { text: 'وام بانکی 💳', callback_data: 'bank:loan' },
+    ],
+    [{ text: 'بازگشت به منوی اصلی ⬅ BACK', callback_data: 'm' }],
+  ];
+}
+
+async function freshBankState(ctx: BotCtx, nation: NationRow) {
+  const fresh = await loadNationOwnedBy(ctx.db, Number(nation.owner_user_id), nation.id);
+  return bankState(ctx.db, fresh ?? nation, ctx.settings);
+}
+
+async function sendBankHome(ctx: BotCtx, chatId: number, userId: number, nation: NationRow) {
+  void userId;
+  const state = await freshBankState(ctx, nation);
+  await ctx.tg.sendMessage(chatId, bankHomeText(state), { inline: bankHomeRows() });
+}
+
+async function editBankHome(ctx: BotCtx, chatId: number, messageId: number, nation: NationRow) {
+  const state = await freshBankState(ctx, nation);
+  await ctx.tg.editMessageText(chatId, messageId, bankHomeText(state), bankHomeRows());
+}
+
+function bankIncomeLines(state: Awaited<ReturnType<typeof bankState>>): string {
+  return [
+    '💴 <b>درآمد کشور</b>',
+    '',
+    'درآمد آماده دریافت',
+    `💰 <b>${fmt(state.pendingIncome.amount)} سکه</b>`,
+    '',
+    'فرمانده، درآمد اقتصادی کشور شما آماده دریافت است.',
+  ].join('\n');
+}
+
+function bankIncomeRows(state: Awaited<ReturnType<typeof bankState>>): KeyboardRow<InlineKeyboardButton>[] {
+  const amount = state.pendingIncome.amount;
+  const claimRow: InlineKeyboardButton[] =
+    amount > 0
+      ? [{ text: `دریافت ${fmt(amount)} سکه 💰`, callback_data: 'bank:claim_income' }]
+      : [{ text: '✅ درآمدی آماده نیست', callback_data: 'noop' }];
+  return [claimRow, [{ text: 'بازگشت ⬅ BACK', callback_data: 'bank:home' }]];
+}
+
+async function editBankIncome(ctx: BotCtx, chatId: number, messageId: number, nation: NationRow) {
+  const state = await freshBankState(ctx, nation);
+  await ctx.tg.editMessageText(chatId, messageId, bankIncomeLines(state), bankIncomeRows(state));
+}
+
+function bankLoanLines(state: Awaited<ReturnType<typeof bankState>>): string {
+  const loan = state.activeLoan;
+  if (loan) {
+    const due = (loan.dueAt ?? '').slice(0, 10);
+    const daysLeft = loan.daysLeft;
+    const dueLabel = daysLeft === null ? '' : daysLeft < 0 ? ' — سررسید گذشته است ⚠️' : ` — ${daysLeft} روز دیگر`;
+    return [
+      '🏦 <b>بانک مرکزی کشور</b>',
+      '',
+      'فرمانده، شما یک وام فعال دارید:',
+      '',
+      `🔒 اصل وام: <b>${fmt(loan.principal)} سکه</b>`,
+      `مبلغ بازپرداخت (سود ۱۰٪): <b>${fmt(loan.repayAmount)} سکه</b>`,
+      `سررسید: ${due}${dueLabel}`,
+      '',
+      'تا تسویه این وام، امکان دریافت وام جدید وجود ندارد.',
+    ].join('\n');
+  }
+  return [
+    '🏦 <b>بانک مرکزی کشور</b>',
+    '',
+    'فرمانده، می‌تونی از بانک مرکزی وام دریافت کنی.',
+    '',
+    '💰 مبلغ وام قابل دریافت:',
+    '',
+    '• وام کوچک: ۵٬۰۰۰ سکه',
+    '• وام متوسط: ۱۰٬۰۰۰ سکه',
+    '• وام بزرگ: ۲۰٬۰۰۰ سکه',
+    '',
+    '📌 شرایط وام:',
+    '',
+    '• بازپرداخت بعد از ۷ روز',
+    '• سود وام: ۱۰٪',
+    '• تا تسویه وام قبلی، امکان دریافت وام جدید وجود ندارد.',
+  ].join('\n');
+}
+
+function bankLoanRows(state: Awaited<ReturnType<typeof bankState>>): KeyboardRow<InlineKeyboardButton>[] {
+  const loan = state.activeLoan;
+  if (loan) {
+    return [
+      [{ text: `بازپرداخت وام (${fmt(loan.repayAmount)} سکه) 💵`, callback_data: 'bank:repay' }],
+      [{ text: 'بازگشت ⬅ BACK', callback_data: 'bank:home' }],
+    ];
+  }
+  return [
+    [{ text: 'دریافت وام 5,000 سکه 💵', callback_data: 'bank:take:5000' }],
+    [{ text: 'دریافت وام 10,000 سکه 💵', callback_data: 'bank:take:10000' }],
+    [{ text: 'دریافت وام 20,000 سکه 💵', callback_data: 'bank:take:20000' }],
+    [{ text: 'بازگشت ⬅ BACK', callback_data: 'bank:home' }],
+  ];
+}
+
+async function editBankLoan(ctx: BotCtx, chatId: number, messageId: number, nation: NationRow) {
+  const state = await freshBankState(ctx, nation);
+  await ctx.tg.editMessageText(chatId, messageId, bankLoanLines(state), bankLoanRows(state));
 }
