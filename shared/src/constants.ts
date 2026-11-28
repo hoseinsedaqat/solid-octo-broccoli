@@ -197,6 +197,50 @@ export type Role = (typeof ROLES)[number];
 export const NATIONALITY_STATUS = ['active', 'frozen', 'banned', 'at_war', 'in_alliance'] as const;
 export type NationStatus = (typeof NATIONALITY_STATUS)[number];
 
+/** 🛢️ منابع طبیعی کشور — ذخایر پیش‌فرض، موجودی اولیه و قیمت جهانی (اعداد بازیکن قابل تغییر نیستند؛ فقط ادمین می‌تواند قالب بانکی را عوض کند) */
+export const RESOURCES = [
+  { key: 'oil', emoji: '🛢️', nameFa: 'نفت', unitFa: 'بشکه', reserve: 500_000, stock: 500_000, market: 10, extractCost: 500, capacity: 5_000, wells: 5 },
+  { key: 'gas', emoji: '🔥', nameFa: 'گاز طبیعی', unitFa: 'واحد', reserve: 800_000, stock: 800_000, market: 8, extractCost: 700, capacity: 8_000, wells: 6 },
+  { key: 'iron', emoji: '⛏️', nameFa: 'آهن', unitFa: 'تن', reserve: 300_000, stock: 300_000, market: 10, extractCost: 600, capacity: 6_000, wells: 4 },
+  { key: 'gold', emoji: '🥇', nameFa: 'طلا', unitFa: 'واحد', reserve: 50_000, stock: 50_000, market: 1_000, extractCost: 1_500, capacity: 1_000, wells: 2 },
+  { key: 'uranium', emoji: '☢️', nameFa: 'اورانیوم', unitFa: 'واحد', reserve: 2_000, stock: 2_000, market: 5_000, extractCost: 2_500, capacity: 200, wells: 1 },
+  { key: 'diamond', emoji: '💎', nameFa: 'الماس', unitFa: 'واحد', reserve: 1_000, stock: 1_000, market: 5_000, extractCost: 3_000, capacity: 100, wells: 1 },
+] as const;
+export type ResourceKey = (typeof RESOURCES)[number]['key'];
+export const RESOURCE_KEYS: readonly string[] = RESOURCES.map((r) => r.key);
+/** محصول پالایش (انبار مشترک، نوع جدا) */
+export const REFINED_PRODUCTS = [
+  { key: 'fuel', emoji: '⛽', nameFa: 'سوخت', unitFa: 'واحد' },
+  { key: 'steel', emoji: '⚙️', nameFa: 'فولاد', unitFa: 'واحد' },
+  { key: 'energy', emoji: '⚡', nameFa: 'انرژی', unitFa: 'واحد' },
+] as const;
+export const REFINERY_RECIPES = [
+  { key: 'oil_to_fuel', emoji: '⛽', inputKey: 'oil', inputQty: 1_000, outputKey: 'fuel', outputQty: 800, cost: 300, minutes: 30 },
+  { key: 'iron_to_steel', emoji: '⚙️', inputKey: 'iron', inputQty: 1_000, outputKey: 'steel', outputQty: 800, cost: 300, minutes: 30 },
+  { key: 'gas_to_energy', emoji: '⚡', inputKey: 'gas', inputQty: 1_000, outputKey: 'energy', outputQty: 800, cost: 300, minutes: 30 },
+] as const;
+/** شرکای تجاری خارجی (فقط برای نمایش و لاگ) */
+export const TRADE_PARTNERS = [
+  { key: 'russia', flag: '🇷🇺', nameFa: 'روسیه' },
+  { key: 'saudi', flag: '🇸🇦', nameFa: 'عربستان' },
+  { key: 'iraq', flag: '🇮🇶', nameFa: 'عراق' },
+  { key: 'emirates', flag: '🇦🇪', nameFa: 'امارات' },
+] as const;
+export const IMPORT_SHIPPING_FEE = 2_000;
+export const CONTRACT_TERM_DAYS = 7;
+export const CONTRACT_TYPES = [
+  { key: 'oil', emoji: '🛢️', nameFa: 'قرارداد نفتی' },
+  { key: 'gas', emoji: '🔥', nameFa: 'قرارداد گازی' },
+  { key: 'mineral', emoji: '⛏️', nameFa: 'قرارداد مواد معدنی' },
+  { key: 'supply', emoji: '📦', nameFa: 'قرارداد تأمین منابع' },
+] as const;
+export const BUDGET_POTS = [
+  { key: 'military', emoji: '🛡️', nameFa: 'بودجه نظامی' },
+  { key: 'construction', emoji: '🏗️', nameFa: 'بودجه ساخت‌وساز' },
+  { key: 'industry', emoji: '🏭', nameFa: 'بودجه صنایع' },
+  { key: 'public', emoji: '💵', nameFa: 'بودجه عمومی' },
+] as const;
+
 /** وزارت ساخت‌وساز: سازه‌های یک‌بارساخت — ارقام و جوایز اینجا تغییر می‌کنند (عددها با پادگان/نیروی هوایی توازن داده می‌شوند؛ در صورت تغییر نظام، همین‌جا عوض کنید) */
 export const BUILDINGS = [
   { key: 'barracks', emoji: '🪖', nameFa: 'پادگان نظامی', descFa: 'آموزش و جذب سرباز', cost: 10_000, grant: { kind: 'units', templateCode: 'rangers', quantity: 1000 } },
