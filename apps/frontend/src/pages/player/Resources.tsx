@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useApi } from '../../auth';
 import { api, type ApiError } from '../../api';
 import { useRouter } from '../../router';
-import { fa, faMoney, useToast, Loading, ErrorBox } from '../../ui';
+import { fa, useToast, Loading, ErrorBox } from '../../ui';
 import { LightBlackButton, LightBullet, LightCard, LightBackButton, LightGreenButton, LightNote, LightSectionTitle, LightShell } from '../../components/Light';
 
 export interface ResourceRow {
@@ -116,7 +116,6 @@ export function ExtractListPage() {
 
 export function ExtractDetailPage({ resourceKey }: { resourceKey: string }) {
   const toast = useToast();
-  const { navigate } = useRouter();
   const res = useResources();
   const [busy, setBusy] = useState<number | 'max' | null>(null);
   const r = res.data?.resources.find((x) => x.key === resourceKey);
@@ -159,7 +158,7 @@ export function ExtractDetailPage({ resourceKey }: { resourceKey: string }) {
           <div className="mt-4">
             <LightSectionTitle>انتخاب مقدار استخراج ⚙️</LightSectionTitle>
             <div className="space-y-2">
-              {[2_000, 5_000, 10_000].map((n) => {
+              {[1_000, 5_000, 10_000].map((n) => {
                 const allowed = n <= Math.min(r.capacity, r.reserves);
                 return (
                   <LightBlackButton key={n} disabled={!allowed} loading={busy === n} onClick={() => void doExtract(n)}>
