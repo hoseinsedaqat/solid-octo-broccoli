@@ -222,27 +222,47 @@ export function WarehousePage() {
 
 export function MarketPage() {
   const res = useResources();
+  const [view, setView] = useState<'prices' | 'changes'>('prices');
+  const [flash, setFlash] = useState<string | null>(null);
   return (
     <LightShell title="بازار جهانی منابع" emoji="💹">
       <LightCard>
-        <p className="mb-2 text-[11px] text-[#6b7280]">قیمت‌های لحظه‌ای بازار (برای خرید و فروش و قراردادها اعمال می‌شود)</p>
-        <div className="flex items-center justify-between border-b border-black/10 pb-2 text-[11px] font-extrabold text-[#374151]">
-          <span>منبع</span>
-          <span>قیمت واحد</span>
-        </div>
-        {res.loading ? <Loading /> : null}
-        {res.error ? <ErrorBox message={res.error} onRetry={res.reload} /> : null}
-        {(res.data?.market ?? []).map((m) => (
-          <div key={m.key} className="flex items-center justify-between border-b border-black/5 py-2.5 last:border-0">
-            <span className="flex items-center gap-2 text-[12px] font-bold text-[#111827]">
-              <span className="text-base">{m.emoji}</span> {m.nameFa}
-              <span className="text-[10px] font-normal text-[#9ca3af]">(هر {m.unitFa})</span>
-            </span>
-            <span className="text-[12px] font-extrabold tabular-nums text-[#111827]">{fa(m.price)} سکه</span>
+        <p className="mb-2 text-[11px] text-[#6b7280]">قیمت‌های بازار جهانی ({view === 'prices' ? 'نمایش قیمت‌ها' : 'تغییرات بازار'})</p>
+        {view === 'prices' ? (
+          <>
+            <div className="flex items-center justify-between border-b border-black/10 pb-2 text-[11px] font-extrabold text-[#374151]">
+              <span>منبع</span>
+              <span>قیمت واحد</span>
+            </div>
+            {res.loading ? <Loading /> : null}
+            {res.error ? <ErrorBox message={res.error} onRetry={res.reload} /> : null}
+            {(res.data?.market ?? []).map((m) => (
+              <div key={m.key} className="flex items-center justify-between border-b border-black/5 py-2.5 last:border-0">
+                <span className="flex items-center gap-2 text-[12px] font-bold text-[#111827]">
+                  <span className="text-base">{m.emoji}</span> {m.nameFa}
+                  <span className="text-[10px] font-normal text-[#9ca3af]">(هر {m.unitFa})</span>
+                </span>
+                <button onClick={() => setFlash(`${m.nameFa}: ${fa(m.price)} سکه`)} className="rounded-lg px-2 py-1 text-[12px] font-extrabold tabular-nums text-[#111827] transition hover:bg-black/5">
+                  {fa(m.price)} سکه
+                </button>
+              </div>
+            ))}
+            {flash ? <p className="mt-2 rounded-xl bg-[#f0fdf4] px-3 py-2 text-center text-[11px] font-bold text-[#15803d]">{flash}</p> : null}
+          </>
+        ) : (
+          <div className="space-y-2 py-2 text-[11px] leading-7 text-[#374151]">
+            <p className="rounded-2xl bg-[#f8f9fb] p-3">قیمت‌های بازار در این نسخه توسط مدیر بازی تنظیم می‌شوند و برای همهٔ بازیکنان یکسان و یکسان‌نگر هستند.</p>
+            <p className="rounded-2xl bg-[#f8f9fb] p-3">این قیمت‌ها همان مبنای «خرید»، «فروش» و «قراردادهای تجاری» هستند؛ هیچ بازیکن یا گروهی نمی‌تواند آن‌ها را جابه‌جا کند.</p>
+            <p className="rounded-2xl bg-[#f8f9fb] p-3">تغییر قیمت‌ها فقط با بروزرسانی بازی اعمال می‌شود و در همهٔ صفحات بلافاصله بازتاب پیدا می‌کند.</p>
           </div>
-        ))}
+        )}
       </LightCard>
-      <div className="mt-3">
+
+      <div className="mt-3 space-y-2">
+        <button onClick={() => setView('prices')} className={`flex w-full items-center justify-center gap-2 rounded-2xl px-4 py-3.5 text-[13px] font-bold transition active:scale-[0.98] ${view === 'prices' ? 'bg-[#111111] text-white' : 'bg-[#e8eaed] text-[#111827]'}`}>📊 مشاهده قیمت‌ها</button>
+        <button onClick={() => setView('changes')} className={`flex w-full items-center justify-center gap-2 rounded-2xl px-4 py-3.5 text-[13px] font-bold transition active:scale-[0.98] ${view === 'changes' ? 'bg-[#111111] text-white' : 'bg-[#e8eaed] text-[#111827]'}`}>📈 تغییرات بازار</button>
+      </div>
+      <div className="mt-2">
         <LightBackButton label="بازگشت" to="/app/economy-hub" />
       </div>
     </LightShell>
