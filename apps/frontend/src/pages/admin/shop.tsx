@@ -70,6 +70,31 @@ export function AdminEquipment() {
 
       {tab === 'items' ? (
         <div className="space-y-2">
+          <div className="flex justify-end">
+            <Btn
+              variant="primary"
+              onClick={() =>
+                setEdit({
+                  id: null,
+                  categoryKey: 'tanks',
+                  code: '',
+                  nameFa: '',
+                  unitFa: 'عدد',
+                  price: null,
+                  attackPoints: null,
+                  defensePoints: null,
+                  description: '',
+                  isActive: true,
+                  isForSale: false,
+                  purchaseLimitPerCycle: null,
+                  maintenancePerUnit: null,
+                })
+              }
+            >
+              ➕ افزودن تجهیزات جدید
+            </Btn>
+          </div>
+          {items.length === 0 && !list.loading ? <p className="py-4 text-center text-xs text-slate-500">آیتمی مطابق فیلتر نیست. برای ساخت آیتم جدید دکمهٔ بالا را بزنید.</p> : null}
           {items.map((it: any) => (
             <Card key={it.id}>
               <div className="flex items-start justify-between gap-2">
@@ -231,7 +256,7 @@ export function AdminEquipment() {
         </Card>
       ) : null}
 
-      <Modal open={edit !== null} title={edit ? `ویرایش ${edit.nameFa}` : ''} onClose={() => setEdit(null)}>
+      <Modal open={edit !== null} title={edit?.id ? `ویرایش ${edit.nameFa}` : 'افزودن تجهیزات جدید'} onClose={() => setEdit(null)}>
         {edit ? <EquipmentForm item={edit} onSaved={async () => { setEdit(null); await list.reload(); }} /> : null}
       </Modal>
     </div>
@@ -285,6 +310,7 @@ function EquipmentForm({ item, onSaved }: { item: any; onSaved: () => void }) {
       </div>
       {error ? <p className="text-[11px] text-danger">{error}</p> : null}
       <div className="flex justify-end gap-2">
+        {item.id ? (
         <Btn
           variant="danger"
           loading={busy}
@@ -304,15 +330,26 @@ function EquipmentForm({ item, onSaved }: { item: any; onSaved: () => void }) {
         >
           🗑 غیرفعال کردن
         </Btn>
+        ) : null}
         <Btn
           variant="primary"
           loading={busy}
           onClick={async () => {
             setBusy(true);
             setError(null);
+            if (!String(f.nameFa).trim()) {
+              setError('نام فارسی آیتم را بنویسید.');
+              setBusy(false);
+              return;
+            }
+            if (!String(f.code).trim() || !/^[a-z0-9_]{2,40}$/i.test(String(f.code).trim())) {
+              setError('کد آیتم باید ۲ تا ۴۰ کاراکتر لاتین/عدد/زیرخط باشد.');
+              setBusy(false);
+              return;
+            }
             try {
               await api.post('/admin/shop/equipment', {
-                id: item.id,
+                ...(item.id ? { id: item.id } : {}),
                 categoryKey: f.categoryKey,
                 code: f.code,
                 nameFa: f.nameFa.trim(),

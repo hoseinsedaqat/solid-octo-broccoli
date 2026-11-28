@@ -98,10 +98,9 @@ export async function loadSessionUser(db: Db, token: string): Promise<SessionUse
   const now = nowSeconds();
   const row = await db.first<Record<string, unknown>>(
     sql`SELECT s.id AS session_id, s.expires_at, u.id AS user_id, u.telegram_user_id, u.role, u.status, u.username,
-               u.is_primary_admin, n.id AS active_nation_id
+               u.is_primary_admin, s.active_nation_id AS session_active_nation_id
           FROM sessions s
           JOIN users u ON u.id = s.user_id
-          LEFT JOIN nations n ON n.owner_user_id = u.id AND n.status <> 'dissolved'
          WHERE s.token_hash = ${tokenHash} AND s.revoked_at IS NULL`,
   );
   if (!row) return null;
@@ -123,7 +122,7 @@ export async function loadSessionUser(db: Db, token: string): Promise<SessionUse
     status: row.status as SessionUser['status'],
     permissions,
     nationIds: nations.map((n) => n.id),
-    activeNationId: activeNation(nations.map((n) => n.id), row.active_nation_id),
+    activeNationId: activeNation(nations.map((n) => n.id), row.session_active_nation_id),
     sessionId: Number(row.session_id),
     isPrimaryAdmin: Number(row.is_primary_admin) === 1,
   };
@@ -143,6 +142,13 @@ export async function loadPermissions(db: Db, userId: number, role: Role): Promi
   const out: SessionUser['permissions'] = {};
   for (const r of rows) out[r.resource] = { read: r.can_read === 1, write: r.can_write === 1 };
   return out;
+}
+
+/** switch the active nation for THIS session (nation switching in the Mini App) */
+export async function setActiveNation(db: Db, userId: number, sessionId: number, nationId: number, nationIds: number[]) {
+  if (!nationIds.includes(nationId)) throw ApiError.forbidden('این کشور متعلق به شما نیست.');
+  await db.run(sql`UPDATE sessions SET active_nation_id = ${nationId} WHERE id = ${sessionId} AND user_id = ${userId}`);
+  return { activeNationId: nationId };
 }
 
 export async function revokeSession(db: Db, userId: number, sessionId?: number) {

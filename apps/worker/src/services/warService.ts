@@ -4,7 +4,8 @@ import { nowSeconds, toIso, humanDuration } from '../core/format';
 import { seedFromString, uuid, warTxKey } from '../core/ids';
 import type { Db } from '../core/db';
 import type { SettingsBundle } from '../core/settings';
-import { computeNation, loadInventory, warLabel, type NationRow } from '../db/queries';
+import { computeNation, loadInventory, loadCategoryWeights, warLabel, type NationRow } from '../db/queries';
+import { computePower } from '../game-engine/scoring';
 import { previewBattle, simulateBattle, type Combatant } from '../game-engine/battle';
 import { audit } from './auditService';
 import { notify } from './notificationService';
@@ -39,6 +40,8 @@ export interface WarRow {
   attacker_flag: string;
   defender_name: string;
   defender_flag: string;
+  attack_plan: string | null;
+  attack_plan_remaining: string | null;
 }
 
 async function loadWar(db: Db, warId: number): Promise<WarRow> {
@@ -51,6 +54,174 @@ async function loadWar(db: Db, warId: number): Promise<WarRow> {
   );
   if (!row) throw ApiError.notFound('جنگ یافت نشد.');
   return row;
+}
+
+
+export interface AttackPlanEntry {
+  templateId: number;
+  quantity: number;
+}
+
+export interface ResolvedAttackPlanEntry {
+  templateId: number;
+  quantity: number;
+  categoryKey: string;
+  nameFa: string;
+  emoji: string;
+}
+
+/** merge duplicate templateIds, floor quantities, reject invalid input */
+export function normalizeAttackPlan(raw: unknown): AttackPlanEntry[] | null {
+  if (raw === null || raw === undefined) return null;
+  const list = Array.isArray(raw) ? raw : [];
+  const merged = new Map<number, number>();
+  for (const item of list) {
+    const templateId = Number((item as AttackPlanEntry)?.templateId);
+    const quantity = Number((item as AttackPlanEntry)?.quantity);
+    if (!Number.isFinite(templateId) || !Number.isFinite(quantity)) throw ApiError.validation('آرایش حمله نامعتبر است.');
+    if (templateId <= 0 || quantity <= 0) throw ApiError.validation('آرایش حمله نامعتبر است.');
+    const qty = Math.floor(quantity);
+    merged.set(Math.floor(templateId), (merged.get(Math.floor(templateId)) ?? 0) + qty);
+  }
+  const entries = [...merged.entries()].map(([templateId, quantity]) => ({ templateId, quantity }));
+  if (entries.length === 0) return null;
+  if (entries.length > 40 || entries.reduce((n, e) => n + e.quantity, 0) > 100000) {
+    throw ApiError.validation('آرایش حمله بیش از حد بزرگ است.');
+  }
+  return entries;
+}
+
+/** validate committed quantities against current inventory; returns inventory rows used */
+export async function validateAttackPlan(db: Db, nationId: number, plan: AttackPlanEntry[]) {
+  const inventory = await loadInventory(db, nationId);
+  const byId = new Map(inventory.map((i) => [i.templateId, i]));
+  for (const e of plan) {
+    const have = byId.get(e.templateId);
+    if (!have || have.quantity < e.quantity) {
+      throw ApiError.validation('تعداد انتخاب‌شده از موجودی کشور شما بیشتر است.', { templateId: e.templateId });
+    }
+  }
+  return byId;
+}
+
+async function committedCombatantOf(
+  db: Db,
+  nation: NationRow,
+  settings: SettingsBundle,
+  plan: AttackPlanEntry[],
+): Promise<Combatant & { categories: Record<string, number> }> {
+  const inventory = await loadInventory(db, nation.id);
+  const committed = plan
+    .map((e) => {
+      const inv = inventory.find((i) => i.templateId === e.templateId);
+      if (!inv) return null;
+      return {
+        templateId: e.templateId,
+        categoryKey: inv.categoryKey,
+        quantity: Math.min(e.quantity, inv.quantity),
+        attackPoints: inv.attackPoints,
+        defensePoints: inv.defensePoints,
+      };
+    })
+    .filter((r): r is NonNullable<typeof r> => r !== null && r.quantity > 0);
+  if (committed.length === 0) {
+    // the committed force is gone — the war continues with nobody left to strike
+    return { nationId: nation.id, attackPower: 0, defensePower: 0, troopsCount: 0, equipmentCount: 0, treasury: nation.treasury, allianceSupport: 0, fortificationLevel: 0, morale: 1, categories: {} };
+  }
+  const weights = await loadCategoryWeights(db);
+  const power = computePower(committed, weights, { manpowerFactor: settings.battle.manpowerFactor, fortificationLevel: 0 });
+  const categories: Record<string, number> = {};
+  for (const r of committed) categories[r.categoryKey] = (categories[r.categoryKey] ?? 0) + r.quantity;
+  return {
+    nationId: nation.id,
+    attackPower: power.attackPower,
+    defensePower: power.defensePower,
+    troopsCount: power.troopsCount,
+    equipmentCount: power.equipmentCount,
+    treasury: nation.treasury,
+    allianceSupport: 0,
+    fortificationLevel: 0,
+    morale: 1,
+    categories,
+  };
+}
+
+function parseAttackPlan(raw: string | null | undefined): AttackPlanEntry[] | null {
+  if (!raw) return null;
+  try {
+    const parsed = JSON.parse(raw);
+    // '[]' is a real state: the committed striking force was destroyed
+    if (Array.isArray(parsed) && parsed.length === 0) return [];
+    return normalizeAttackPlan(parsed);
+  } catch {
+    return null;
+  }
+}
+
+/** resolve plan entries to names/emojis for display */
+export async function resolveAttackPlan(db: Db, plan: AttackPlanEntry[]): Promise<ResolvedAttackPlanEntry[]> {
+  const out: ResolvedAttackPlanEntry[] = [];
+  for (const e of plan) {
+    const t = await db.first<{ name_fa: string; emoji: string | null; categoryKey: string }>(
+      sql`SELECT t.name_fa, c.emoji AS emoji, c.key AS categoryKey
+            FROM equipment_templates t JOIN equipment_categories c ON c.id = t.category_id WHERE t.id = ${e.templateId}`,
+    );
+    out.push({ templateId: e.templateId, quantity: e.quantity, categoryKey: t?.categoryKey ?? '', nameFa: t?.name_fa ?? `#${e.templateId}`, emoji: t?.emoji ?? '🎖️' });
+  }
+  return out;
+}
+
+/** real unit loss for the committed plan: the strike force pays for the battle */
+async function applyCommittedLosses(
+  db: Db,
+  nationId: number,
+  plan: AttackPlanEntry[],
+  lossesByCategory: Record<string, number>,
+  at: number,
+): Promise<AttackPlanEntry[]> {
+  const inventory = await loadInventory(db, nationId);
+  const invByTemplate = new Map(inventory.map((i) => [i.templateId, i]));
+  const byCat = new Map<string, AttackPlanEntry[]>();
+  for (const entry of plan) {
+    const inv = invByTemplate.get(entry.templateId);
+    if (!inv) continue;
+    const list = byCat.get(inv.categoryKey) ?? [];
+    list.push(entry);
+    byCat.set(inv.categoryKey, list);
+  }
+  const stmts = [];
+  const remaining: AttackPlanEntry[] = [];
+  for (const [cat, entries] of byCat) {
+    // how many units of this category the battle destroys (engine-allocated, absolute)
+    const available = entries.map((e) => Math.min(e.quantity, invByTemplate.get(e.templateId)!.quantity));
+    const availTotal = available.reduce((a, b) => a + b, 0);
+    const want = Math.min(availTotal, Math.max(0, Math.floor(Number(lossesByCategory[cat] ?? 0))));
+    if (want <= 0) {
+      for (const e of entries) if (e.quantity > 0) remaining.push({ templateId: e.templateId, quantity: e.quantity });
+      continue;
+    }
+    // proportional to committed size, largest-remainder rounding — never more than committed
+    const raw = available.map((a) => (availTotal > 0 ? (want * a) / availTotal : 0));
+    const alloc = raw.map(Math.floor);
+    const leftover = want - alloc.reduce((a, b) => a + b, 0);
+    [...raw.keys()]
+      .map((i) => [raw[i]! - alloc[i]!, i] as const)
+      .sort((a, b) => b[0] - a[0])
+      .slice(0, leftover)
+      .forEach(([, i]) => (alloc[i] = alloc[i]! + 1));
+    for (let i = 0; i < entries.length; i++) {
+      const entry = entries[i]!;
+      const inv = invByTemplate.get(entry.templateId)!;
+      const lost = Math.min(alloc[i] ?? 0, entry.quantity, inv.quantity);
+      const left = Math.max(0, entry.quantity - lost);
+      if (lost > 0) {
+        stmts.push(sql`UPDATE nation_inventory SET quantity = MAX(0, quantity - ${lost}), updated_at = ${at} WHERE id = ${inv.id}`);
+      }
+      if (left > 0) remaining.push({ templateId: entry.templateId, quantity: left });
+    }
+  }
+  if (stmts.length) await db.batch(stmts);
+  return remaining;
 }
 
 async function combatantOf(db: Db, nation: NationRow, settings: SettingsBundle, side: 'attacker' | 'defender'): Promise<Combatant & { categories: Record<string, number> }> {
@@ -153,6 +324,7 @@ export async function proposeWar(
   settings: SettingsBundle,
   actor: { userId: number; telegramId: number },
   botToken?: string,
+  attackPlan?: unknown,
 ) {
   if (!settings.features.warEnabled) throw ApiError.disabled('جنگ');
   if (attacker.id === targetNationId) throw ApiError.forbidden('حمله به کشور خود امکان‌پذیر نیست.');
@@ -194,7 +366,9 @@ export async function proposeWar(
     if (left > 0) throw ApiError.conflict(`برای حمله بعدی ${humanDuration(left)} باید صبر کنید.`);
   }
 
-  const att = await combatantOf(db, attacker, settings, 'attacker');
+  const plan = normalizeAttackPlan(attackPlan);
+  if (plan) await validateAttackPlan(db, attacker.id, plan);
+  const att = plan ? await committedCombatantOf(db, attacker, settings, plan) : await combatantOf(db, attacker, settings, 'attacker');
   const def = await combatantOf(db, target, settings, 'defender');
   const preview = previewBattle(att, def, settings.battle);
   const indemnity = Math.max(0, Math.min(indemnityOffered || 0, attacker.treasury));
@@ -203,9 +377,10 @@ export async function proposeWar(
 
   const war = await db.first<{ id: number }>(
     sql`INSERT INTO wars (attacker_nation_id, defender_nation_id, status, initiated_by, attacker_power, defender_power,
-                          attacker_win_chance, max_rounds, entry_cost, indemnity_offered, seed, proposed_at, ends_at)
+                          attacker_win_chance, max_rounds, entry_cost, indemnity_offered, seed, proposed_at, ends_at, attack_plan, attack_plan_remaining)
          VALUES (${attacker.id}, ${targetNationId}, 'proposed', 'attacker', ${att.attackPower}, ${def.defensePower},
-                 ${preview.attackerWinChance}, ${settings.battle.maxRounds}, ${preview.entryCost}, ${indemnity}, ${seed}, ${at}, ${at + settings.battle.minWarDurationSeconds * settings.battle.maxRounds})
+                 ${preview.attackerWinChance}, ${settings.battle.maxRounds}, ${preview.entryCost}, ${indemnity}, ${seed}, ${at}, ${at + settings.battle.minWarDurationSeconds * settings.battle.maxRounds},
+                 ${plan ? JSON.stringify(plan) : null}, ${plan ? JSON.stringify(plan) : null})
          RETURNING id`,
   );
   const warId = Number(war?.id ?? 0);
@@ -224,14 +399,7 @@ export async function proposeWar(
          ON CONFLICT (nation_id, other_nation_id) DO UPDATE SET status = 'enemy', updated_at = ${at}`,
   ]);
 
-  await notify(db, {
-    nationId: targetNationId,
-    kind: 'war_proposal',
-    title: '⚔️ درخواست جنگ دریافت کردید',
-    body: `${attacker.flag} ${attacker.name} به شما اعلام جنگ کرد. احتمال پیروزی مهاجم: ${Math.round(preview.attackerWinChance * 100)}٪`,
-    data: { warId },
-    telegram: botToken ? { botToken, chatId: target.owner_user_id, text: `⚔️ ${attacker.name} به ${target.name} اعلام جنگ داد!` } : null,
-  });
+  await sendWarWarning(db, target, botToken, attacker, `${Math.round(preview.attackerWinChance * 100)}`, warId, plan);
   await audit(db, { actor, action: 'war.propose', targetType: 'war', targetId: warId, after: { targetNationId, indemnity } });
   return { warId, preview: { ...preview, indemnity }, status: 'proposed' };
 }
@@ -244,7 +412,7 @@ export async function respondToWar(db: Db, warId: number, accept: boolean, natio
 
   if (!accept) {
     await db.batch([
-      sql`UPDATE wars SET status = 'cancelled', ended_at = ${at} WHERE id = ${warId}`,
+      sql`UPDATE wars SET status = 'cancelled', ended_at = ${at}, attack_plan_remaining = NULL WHERE id = ${warId}`,
       sql`UPDATE diplomatic_requests SET status = 'rejected', handled_at = ${at} WHERE kind = 'war' AND from_nation_id = ${war.defender_nation_id} AND to_nation_id = ${war.attacker_nation_id} AND status = 'pending'`,
       sql`INSERT INTO announcements (kind, title, body, audience, nation_id, created_at)
            VALUES ('war', 'رد درخواست جنگ', ${`${nation.flag} ${nation.name} درخواست جنگ را رد کرد.`}, 'global', ${nation.id}, ${at})`,
@@ -255,7 +423,8 @@ export async function respondToWar(db: Db, warId: number, accept: boolean, natio
 
   const attacker = await db.first<NationRow>(sql`SELECT * FROM nations WHERE id = ${war.attacker_nation_id}`);
   if (!attacker) throw ApiError.notFound('کشور مهاجم یافت نشد.');
-  const att = await combatantOf(db, attacker, settings, 'attacker');
+  const plan = parseAttackPlan(war.attack_plan);
+  const att = plan ? await committedCombatantOf(db, attacker, settings, plan) : await combatantOf(db, attacker, settings, 'attacker');
   const def = await combatantOf(db, nation, settings, 'defender');
   const preview = previewBattle(att, def, settings.battle);
   const entryCost = war.entry_cost || preview.entryCost;
@@ -288,18 +457,107 @@ export async function respondToWar(db: Db, warId: number, accept: boolean, natio
     body: 'دفاع از کشور درخواست جنگ را پذیرفت. نوبت‌های نبرد توسط زمان‌بند اجرا می‌شود.',
     data: { warId },
   });
+  await sendDefenseMobilized(db, nation, botToken, attacker.name, warId);
   return { status: 'active', preview };
 }
 
+
+/** telegram chat id of a nation's owner = their telegram id, never the internal users.id */
+async function ownerTelegramId(db: Db, nationId: number): Promise<number | null> {
+  const row = await db.first<{ telegram_user_id: number }>(
+    sql`SELECT u.telegram_user_id FROM nations n JOIN users u ON u.id = n.owner_user_id WHERE n.id = ${nationId}`,
+  );
+  return row ? Number(row.telegram_user_id) : null;
+}
+
+/** self-defense tally for the warning text: fighters / missiles / air-defense */
+async function defenseTally(db: Db, nationId: number): Promise<{ fighters: number; missiles: number; airDefense: number }> {
+  const rows = await db.all<{ key: string; qty: number }>(
+    sql`SELECT c.key AS key, COALESCE(SUM(i.quantity), 0) AS qty
+          FROM nation_inventory i
+          JOIN equipment_templates t ON t.id = i.template_id
+          JOIN equipment_categories c ON c.id = t.category_id
+         WHERE i.nation_id = ${nationId} AND c.key IN ('fighters', 'missiles', 'ground_air_defense', 'air_air_defense', 'naval_air_defense')
+         GROUP BY c.key`,
+  );
+  const get = (k: string) => Number(rows.find((r) => r.key === k)?.qty ?? 0);
+  return { fighters: get('fighters'), missiles: get('missiles'), airDefense: get('ground_air_defense') + get('air_air_defense') + get('naval_air_defense') };
+}
+
+/** the big red-alert message the defender sees when an attack is declared */
+async function sendWarWarning(
+  db: Db,
+  defender: NationRow,
+  botToken: string | undefined,
+  attacker: NationRow,
+  winChancePercent: string,
+  warId: number,
+  plan: AttackPlanEntry[] | null,
+) {
+  const tally = await defenseTally(db, defender.id);
+  const resolved = plan ? await resolveAttackPlan(db, plan) : [];
+  const commitLine = resolved.length ? `نیروهای اعزام‌شده مهاجم: ${resolved.map((r) => `${r.quantity}× ${r.nameFa}`).join('، ')}` : null;
+  const body = [
+    'هشدار وضعیت جنگی!',
+    'کشور شما مورد حمله نظامی قرار گرفت!',
+    '',
+    `کشور مهاجم: ${attacker.name}`,
+    `کشور مدافع: ${defender.name}`,
+    '',
+    'نیروهای دشمن در حال پیشروی هستند!',
+    'نیروهای دفاعی شما به حالت آماده‌باش درآمده‌اند.',
+    `جنگنده‌ها: ${tally.fighters}`,
+    `موشک‌ها: ${tally.missiles}`,
+    `پدافند: ${tally.airDefense}`,
+    ...(commitLine ? ['', commitLine] : []),
+    '',
+    'سرنوشت این نبرد به آرایش دفاعی شما بستگی دارد.',
+    'عملیات دفاع از کشور آغاز شد!',
+  ].join('\n');
+  const chatId = await ownerTelegramId(db, defender.id);
+  await notify(db, {
+    nationId: defender.id,
+    kind: 'war_warning',
+    title: '🚨 هشدار وضعیت جنگی!',
+    body,
+    data: { warId, attackerNationId: attacker.id },
+    telegram: botToken && chatId ? { botToken, chatId, text: body } : null,
+  });
+}
+
+/** the defence-phase alert sent when the defender accepts and the war goes active */
+async function sendDefenseMobilized(db: Db, defender: NationRow, botToken: string | undefined, attackerName: string, warId: number) {
+  const tally = await defenseTally(db, defender.id);
+  const body = [
+    '🛡️ عملیات دفاع از کشور آغاز شد!',
+    '',
+    `کشور مهاجم: ${attackerName}`,
+    `کشور مدافع: ${defender.name}`,
+    '',
+    `جنگنده‌ها: ${tally.fighters}`,
+    `موشک‌ها: ${tally.missiles}`,
+    `پدافند: ${tally.airDefense}`,
+  ].join('\n');
+  const chatId = await ownerTelegramId(db, defender.id);
+  await notify(db, {
+    nationId: defender.id,
+    kind: 'war_defense',
+    title: '🛡️ سپر کشور فعال شد',
+    body,
+    data: { warId },
+    telegram: botToken && chatId ? { botToken, chatId, text: body } : null,
+  });
+}
+
 async function notifyAttacker(db: Db, war: WarRow, title: string, body: string, botToken?: string) {
-  const attacker = await db.first<{ owner_user_id: number }>(sql`SELECT owner_user_id FROM nations WHERE id = ${war.attacker_nation_id}`);
+  const chatId = await ownerTelegramId(db, war.attacker_nation_id);
   await notify(db, {
     nationId: war.attacker_nation_id,
     kind: 'war',
     title,
     body,
     data: { warId: war.id },
-    telegram: botToken && attacker ? { botToken, chatId: attacker.owner_user_id, text: `${title}\n${body}` } : null,
+    telegram: botToken && chatId ? { botToken, chatId, text: `${title}\n${body}` } : null,
   });
 }
 
@@ -315,7 +573,8 @@ export async function resolveRound(db: Db, warId: number, settings: SettingsBund
   const defender = await db.first<NationRow>(sql`SELECT * FROM nations WHERE id = ${war.defender_nation_id}`);
   if (!attacker || !defender) throw ApiError.notFound('کشورهای درگیر یافت نشدند.');
 
-  const att = await combatantOf(db, attacker, settings, 'attacker');
+  const plan = parseAttackPlan(war.attack_plan_remaining ?? war.attack_plan);
+  const att = plan ? await committedCombatantOf(db, attacker, settings, plan) : await combatantOf(db, attacker, settings, 'attacker');
   const def = await combatantOf(db, defender, settings, 'defender');
   const roundsLeft = Math.max(1, settings.battle.maxRounds - war.rounds_played);
   const outcome = simulateBattle({
@@ -350,7 +609,12 @@ export async function resolveRound(db: Db, warId: number, settings: SettingsBund
            WHERE id = ${warId}`,
   ]);
 
-  await applyLosses(db, attacker.id, outcome.attackerLossesByCategory, at);
+  if (plan) {
+    const remaining = await applyCommittedLosses(db, attacker.id, plan, outcome.attackerLossesByCategory, at);
+    await db.run(sql`UPDATE wars SET attack_plan_remaining = ${remaining.length ? JSON.stringify(remaining) : '[]'} WHERE id = ${warId}`);
+  } else {
+    await applyLosses(db, attacker.id, outcome.attackerLossesByCategory, at);
+  }
   await applyLosses(db, defender.id, outcome.defenderLossesByCategory, at);
 
   if (finished) await finalizeWar(db, warId, settings, at);
@@ -408,7 +672,7 @@ export async function finalizeWar(db: Db, warId: number, settings: SettingsBundl
   await applyResidualLosses(db, attacker.id, defender.id, {
     attackerRatio: attStart > 0 ? Math.min(1, (attStart - attRemaining) / attStart) : 0,
     defenderRatio: defStart > 0 ? Math.min(1, (defStart - defRemaining) / defStart) : 0,
-  }, at);
+  }, at, war);
 
   const stmts: { sql: string; bindings: readonly unknown[] }[] = [
     sql`UPDATE wars SET status = 'ended', ended_at = ${at}, winner_nation_id = ${winnerSide === 'draw' ? null : winner.id},
@@ -470,22 +734,29 @@ async function applyResidualLosses(
   defenderId: number,
   ratios: { attackerRatio: number; defenderRatio: number },
   at: number,
+  war: WarRow,
 ) {
-  for (const [nationId, ratio] of [
-    [attackerId, ratios.attackerRatio],
-    [defenderId, ratios.defenderRatio],
+  const attackerPlan = parseAttackPlan(war.attack_plan_remaining ?? war.attack_plan);
+  for (const [nationId, ratio, plan] of [
+    [attackerId, ratios.attackerRatio, attackerPlan],
+    [defenderId, ratios.defenderRatio, null],
   ] as const) {
     if (ratio <= 0.05) continue;
     const effective = Math.min(0.5, ratio * 0.5);
     const inventory = await loadInventory(db, nationId);
-    const stmts = inventory
-      .filter((i) => i.categoryKey !== 'factories' && i.categoryKey !== 'mines' && i.quantity > 1)
+    let rows = inventory.filter((i) => i.categoryKey !== 'factories' && i.categoryKey !== 'mines' && i.quantity > 1);
+    if (plan) {
+      const remainingMap = new Map(plan.map((e) => [e.templateId, e.quantity]));
+      rows = rows.filter((r) => (remainingMap.get(r.templateId) ?? 0) > 0).map((r) => ({ ...r, quantity: Math.min(r.quantity, remainingMap.get(r.templateId) ?? 0) }));
+    }
+    const stmts = rows
       .map((row) => {
         const decrement = Math.floor(row.quantity * effective);
         return sql`UPDATE nation_inventory SET quantity = MAX(0, quantity - ${decrement}), updated_at = ${at} WHERE id = ${row.id} AND quantity >= ${decrement}`;
       })
       .filter((_, idx) => idx < 40);
     if (stmts.length) await db.batch(stmts);
+    if (plan) await db.run(sql`UPDATE wars SET attack_plan_remaining = NULL WHERE id = ${war.id}`);
   }
 }
 
@@ -625,8 +896,12 @@ export async function getWarDetail(db: Db, warId: number, viewerNationIds: numbe
           FROM battle_reports br JOIN battles b ON b.id = br.battle_id
          WHERE br.war_id = ${warId} ORDER BY b.round_no DESC LIMIT 30`,
   );
+  const plan = parseAttackPlan(war.attack_plan);
+  const remaining = parseAttackPlan(war.attack_plan_remaining ?? war.attack_plan);
   return {
     war: mapWar(war),
+    attackPlan: plan ? await resolveAttackPlan(db, plan) : null,
+    attackPlanRemaining: remaining ? await resolveAttackPlan(db, remaining) : null,
     reports: reports.map((r) => ({
       id: Number(r.id),
       roundNo: Number(r.round_no),

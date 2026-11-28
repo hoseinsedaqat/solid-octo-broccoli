@@ -3,8 +3,8 @@ import { api, type ApiError } from '../../api';
 import { useApi, useAuth } from '../../auth';
 import { useRouter } from '../../router';
 import { Badge, Btn, Card, Empty, ErrorBox, Grid, Loading, Row, Stat, fa, faDateTime, faDuration, faMoney, useToast } from '../../ui';
-import { NationSearchSelect } from '../../components/nations';
 import { NAV_TITLES, WAR_TONES } from './meta';
+import { AttackProposal } from './AttackProposal';
 
 /**
  * War room.
@@ -20,13 +20,10 @@ export function WarRoomPage({ params }: { params: { id?: string } }) {
   const warId = params.id ? Number(params.id) : null;
   const mine = me?.nationIds ?? [];
   const list = useApi<{ wars: any[] }>('/war/wars');
-  const detail = useApi<{ war: any; reports: any[] }>(warId ? `/war/wars/${warId}` : null, [warId]);
+  const detail = useApi<{ war: any; reports: any[]; attackPlan?: any[] | null; attackPlanRemaining?: any[] | null }>(warId ? `/war/wars/${warId}` : null, [warId]);
   const [tab, setTab] = useState<'list' | 'detail' | 'propose'>(warId ? 'detail' : 'list');
-  const [target, setTarget] = useState<{ id: number; name: string; flag: string } | null>(null);
-  const [preview, setPreview] = useState<any | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [indemnity, setIndemnity] = useState('');
 
   const wars = list.data?.wars ?? [];
   const active = wars.filter((w: any) => ['active', 'proposed', 'peace_requested'].includes(w.status));
@@ -113,96 +110,27 @@ export function WarRoomPage({ params }: { params: { id?: string } }) {
         ) : detail.error ? (
           <ErrorBox message={detail.error} onRetry={detail.reload} />
         ) : detail.data?.war ? (
-          <WarDetail war={detail.data.war} reports={detail.data.reports ?? []} mine={mine} busy={busy} onAct={act} error={error} />
+          <WarDetail
+            war={detail.data.war}
+            reports={detail.data.reports ?? []}
+            attackPlan={detail.data.attackPlan ?? null}
+            attackPlanRemaining={detail.data.attackPlanRemaining ?? null}
+            mine={mine}
+            busy={busy}
+            onAct={act}
+            error={error}
+          />
         ) : (
           <Empty text="پرونده‌ای برای نمایش نیست." />
         )
       ) : null}
 
       {tab === 'propose' ? (
-        <Card title="پیشنهاد جنگ" emoji="📩">
-          <p className="mb-2 text-[11px] leading-6 text-slate-400">
-            پیشنهاد جنگ فقط با پذیرش کشور حریف به جریان می‌افتد. رابطه دیپلماتیک باید روی «دشمنی» یا «مذاکره» باشد، مگر اینکه مدیران حمله به کشور خنثی را فعال کرده باشند.
-          </p>
-          {!target ? (
-            <NationSearchSelect excludeId={me?.activeNationId ?? null} onPick={(n) => setTarget({ id: n.id, name: n.name, flag: n.flag })} />
-          ) : (
-            <div className="space-y-3">
-              <Row active>
-                <span className="text-sm">
-                  {target.flag} {target.name}
-                </span>
-                <Btn variant="ghost" onClick={() => { setTarget(null); setPreview(null); }}>
-                  تغییر هدف
-                </Btn>
-              </Row>
-
-              <Btn
-                loading={busy}
-                onClick={async () => {
-                  setBusy(true);
-                  setError(null);
-                  try {
-                    setPreview(await api.post('/war/preview', { targetNationId: target.id }));
-                  } catch (e) {
-                    setError((e as ApiError).message ?? 'پیش‌نمایش ناموفق');
-                    setPreview(null);
-                  } finally {
-                    setBusy(false);
-                  }
-                }}
-              >
-                محاسبه پیش‌نمایش در سرور
-              </Btn>
-
-              {preview ? (
-                <div className="space-y-2">
-                  <Grid cols={4}>
-                    <Stat label="شانس برد شما" value={`${fa(Math.round(Number(preview.attackerWinChance) * 100))}٪`} tone={Number(preview.attackerWinChance) >= 0.5 ? 'ok' : 'warn'} />
-                    <Stat label="هزینه ورود" value={faMoney(preview.entryCost)} tone="bad" />
-                    <Stat label="قدرت شما" value={fa(preview.attackerPower)} />
-                    <Stat label="قدرت حریف" value={fa(preview.defenderPower)} />
-                  </Grid>
-                  <div className="grid grid-cols-2 gap-2">
-                    <Stat label="حداکثر راند" value={fa(preview.maxRounds)} />
-                    <Stat label="زیان مورد انتظار هر راند" value={`${fa(Math.round(Number(preview.expectedLossPercent ?? 0) * 100))}٪`} tone="warn" />
-                  </div>
-                  {Number(preview.attackerWinChance) < 0.35 ? (
-                    <p className="rounded-xl border border-danger/40 bg-danger/10 p-2 text-[11px] leading-5 text-danger">
-                      ⚠️ شانس برد شما پایین است؛ در این وضعیت خزانه و انبار هر دو در معرض زیان‌اند.
-                    </p>
-                  ) : null}
-                </div>
-              ) : null}
-
-              <div>
-                <label className="ww-label" htmlFor="ww-indemnity">
-                  غرامت پیشنهادی (اختیاری — سرور آن را بررسی و در صورت لزوم اصلاح می‌کند)
-                </label>
-                <input id="ww-indemnity" className="ww-input" inputMode="numeric" value={indemnity} onChange={(e) => setIndemnity(e.target.value.replace(/[^\d]/g, ''))} placeholder="۰" />
-              </div>
-
-              <Btn
-                variant="danger"
-                loading={busy}
-                disabled={!preview}
-                onClick={async () => {
-                  const ok = await act(async () => {
-                    const res = await api.post<{ warId: number }>('/war/propose', { targetNationId: target.id, indemnityOffered: Number(indemnity || 0) });
-                    setTarget(null);
-                    setPreview(null);
-                    setIndemnity('');
-                    navigate(`/app/war/${res.warId}`);
-                  }, 'پیشنهاد جنگ ثبت شد و برای حریف ارسال شد.');
-                  if (!ok) return;
-                }}
-              >
-                ارسال پیشنهاد جنگ
-              </Btn>
-              {error ? <p className="text-xs leading-5 text-danger">{error}</p> : null}
-            </div>
-          )}
-        </Card>
+        <AttackProposal
+          onProposed={() => {
+            void list.reload();
+          }}
+        />
       ) : null}
     </div>
   );
@@ -246,6 +174,8 @@ function WarRow({ w, mine, onOpen, compact = false }: { w: any; mine: number[]; 
 function WarDetail({
   war,
   reports,
+  attackPlan,
+  attackPlanRemaining,
   mine,
   busy,
   error,
@@ -253,6 +183,8 @@ function WarDetail({
 }: {
   war: any;
   reports: any[];
+  attackPlan?: { templateId: number; quantity: number; nameFa: string; emoji: string }[] | null;
+  attackPlanRemaining?: { templateId: number; quantity: number; nameFa: string; emoji: string }[] | null;
   mine: number[];
   busy: boolean;
   error: string | null;
@@ -306,6 +238,28 @@ function WarDetail({
           </p>
         ) : null}
       </Card>
+
+      {attackPlan && attackPlan.length ? (
+        <Card title={iAmAttacker ? 'آرایش حمله شما' : 'آرایش حمله دشمن'} emoji="🎯" right={<Badge tone="info">{fa(attackPlan.reduce((n, x) => n + x.quantity, 0))} واحد اعزامی</Badge>}>
+          <div className="space-y-1">
+            {attackPlan.map((entry) => {
+              const left = attackPlanRemaining?.find((r) => r.templateId === entry.templateId)?.quantity ?? (war.status === 'ended' || war.status === 'cancelled' ? 0 : entry.quantity);
+              return (
+                <Row key={entry.templateId}>
+                  <span className="flex min-w-0 items-center gap-2 text-xs">
+                    <span>{entry.emoji}</span>
+                    <span className="truncate">{entry.nameFa}</span>
+                  </span>
+                  <span className="shrink-0 text-[11px] text-slate-400">
+                    از {fa(entry.quantity)} — باقی‌مانده <b className="text-slate-100">{fa(left)}</b>
+                  </span>
+                </Row>
+              );
+            })}
+          </div>
+          <p className="mt-2 text-[10px] leading-5 text-slate-500">واحدهای آرایش‌داده‌شده، نیروی ضربتی همین جنگ‌اند؛ بقیهٔ نیروها در وطن می‌مانند.</p>
+        </Card>
+      ) : null}
 
       {['proposed', 'active', 'peace_requested'].includes(war.status) ? (
         <Card title="اقدام" emoji="🎮">

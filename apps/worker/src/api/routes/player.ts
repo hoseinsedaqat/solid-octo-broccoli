@@ -61,7 +61,9 @@ playerRoutes.get('/transactions', async (c) => {
   return c.json(res);
 });
 
-playerRoutes.get('/inventory', async (c) => {
+playerRoutes.get('/inventory', async (c) => inventoryHandler(c));
+playerRoutes.get('/military', async (c) => inventoryHandler(c));
+async function inventoryHandler(c: any) {
   const db = c.get('db');
   const settings = await settingsFor(c);
   const groups = await inventoryView(db, c.get('nation').id, settings);
@@ -75,7 +77,7 @@ playerRoutes.get('/inventory', async (c) => {
       .filter((g) => g.items.length > 0);
   }
   return c.json({ groups: out, totalCategories: groups.length });
-});
+}
 
 playerRoutes.get('/defense', async (c) => {
   const db = c.get('db');
@@ -119,8 +121,8 @@ playerRoutes.post('/settings/notifications', async (c) => {
 playerRoutes.post('/settings/active-nation', async (c) => {
   const user = c.get('user');
   const body = parse(z.object({ nationId: z.coerce.number().int().positive() }), await parseJson(c));
-  if (!user.nationIds.includes(body.nationId)) throw ApiError.forbidden('این کشور متعلق به شما نیست.');
-  return c.json({ activeNationId: body.nationId });
+  const { setActiveNation } = await import('../../services/authService');
+  return c.json(await setActiveNation(c.get('db'), user.userId, user.sessionId, body.nationId, user.nationIds));
 });
 
 export function mountPlayer(app: Hono<HonoEnv>) {
