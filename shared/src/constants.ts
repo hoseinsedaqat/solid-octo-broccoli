@@ -197,6 +197,19 @@ export type Role = (typeof ROLES)[number];
 export const NATIONALITY_STATUS = ['active', 'frozen', 'banned', 'at_war', 'in_alliance'] as const;
 export type NationStatus = (typeof NATIONALITY_STATUS)[number];
 
+/** وزارت ساخت‌وساز: سازه‌های یک‌بارساخت — ارقام و جوایز اینجا تغییر می‌کنند (عددها با پادگان/نیروی هوایی توازن داده می‌شوند؛ در صورت تغییر نظام، همین‌جا عوض کنید) */
+export const BUILDINGS = [
+  { key: 'barracks', emoji: '🪖', nameFa: 'پادگان نظامی', descFa: 'آموزش و جذب سرباز', cost: 10_000, grant: { kind: 'units', templateCode: 'rangers', quantity: 1000 } },
+  { key: 'airbase', emoji: '🛩️', nameFa: 'پایگاه هوایی', descFa: 'استقرار جنگنده‌ها', cost: 20_000, grant: { kind: 'units', templateCode: 'su57', quantity: 3 } },
+  { key: 'factory', emoji: '🏭', nameFa: 'کارخانه نظامی', descFa: 'تولید تجهیزات نظامی', cost: 30_000, grant: { kind: 'units', templateCode: 'leopard_2a7', quantity: 25 } },
+  { key: 'navalbase', emoji: '⚓', nameFa: 'پایگاه دریایی', descFa: 'استقرار ناوها و زیردریایی‌ها', cost: 25_000, grant: { kind: 'units', templateCode: 'nimitz', quantity: 1 } },
+  { key: 'shelter', emoji: '🛡️', nameFa: 'پناهگاه نظامی', descFa: 'افزایش مقاومت کشور', cost: 15_000, grant: { kind: 'fortification', quantity: 2 } },
+  { key: 'radar', emoji: '📡', nameFa: 'مرکز رادار', descFa: 'افزایش شناسایی تهدیدها', cost: 13_000, grant: { kind: 'units', templateCode: 'an_spy6', quantity: 3 } },
+] as const;
+export type BuildingKey = (typeof BUILDINGS)[number]['key'];
+
+export const BUILDING_KEYS: readonly string[] = BUILDINGS.map((b) => b.key);
+
 /** بانک مرکزی: وام بانکی — ارقام روی صفحه‌های ربات؛ تغییر فقط اینجا */
 export const BANK_LOAN = {
   options: [5000, 10000, 20000] as const,
@@ -443,7 +456,7 @@ export const ROUTES = {
 
 export const PLAYER_PAGES = [
   'dashboard', 'economy', 'military', 'marketplace', 'country', 'war',
-  'defense', 'diplomacy', 'statements', 'news', 'rankings', 'settings',
+  'defense', 'diplomacy', 'statements', 'rankings', 'settings',
 ] as const;
 export type PlayerPage = (typeof PLAYER_PAGES)[number];
 
@@ -457,7 +470,6 @@ export const PLAYER_PAGE_META: Record<PlayerPage, { labelFa: string; emoji: stri
   defense: { labelFa: 'دفاع', emoji: '🛡️' },
   diplomacy: { labelFa: 'دیپلماسی', emoji: '🌐' },
   statements: { labelFa: 'بیانیه‌ها', emoji: '📜' },
-  news: { labelFa: 'اخبار', emoji: '📰' },
   rankings: { labelFa: 'رتبه‌بندی', emoji: '📊' },
   settings: { labelFa: 'تنظیمات', emoji: '⚙️' },
 };

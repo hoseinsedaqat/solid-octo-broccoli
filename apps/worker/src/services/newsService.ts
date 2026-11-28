@@ -38,46 +38,6 @@ export async function publish(db: Db, input: NewsInput, isActive = true) {
   return Number(row?.id ?? 0);
 }
 
-export async function feed(db: Db, opts: { nationIds?: number[]; limit?: number; offset?: number; kind?: string | null } = {}) {
-  const limit = Math.min(60, Math.max(1, opts.limit ?? 25));
-  const offset = Math.max(0, opts.offset ?? 0);
-  const nationIds = opts.nationIds ?? [];
-  const clauses = ["a.is_active = 1"];
-  const bindings: unknown[] = [];
-  if (nationIds.length > 0) {
-    clauses.push(`(a.audience = 'global' OR a.nation_id IN (${nationIds.map(() => '?').join(',')}) OR a.target_nation_id IN (${nationIds.map(() => '?').join(',')}))`);
-    bindings.push(...nationIds, ...nationIds);
-  } else {
-    clauses.push("a.audience = 'global'");
-  }
-  if (opts.kind && opts.kind !== 'all') {
-    clauses.push('a.kind = ?');
-    bindings.push(opts.kind);
-  }
-  const rows = await db.all<Record<string, unknown>>({
-    sql: `SELECT a.*, n.name AS nation_name, n.flag AS flag
-            FROM announcements a LEFT JOIN nations n ON n.id = a.nation_id
-           WHERE ${clauses.join(' AND ')}
-           ORDER BY a.id DESC LIMIT ? OFFSET ?`,
-    bindings: [...bindings, limit + 1, offset],
-  });
-  const page = rows.slice(0, limit);
-  return {
-    items: page.map((r) => ({
-      id: Number(r.id),
-      kind: String(r.kind),
-      emoji: KIND_EMOJI[String(r.kind)] ?? '📌',
-      title: String(r.title),
-      body: String(r.body),
-      nationId: r.nation_id === null ? null : Number(r.nation_id),
-      flag: (r.flag as string) ?? null,
-      nationName: (r.nation_name as string) ?? null,
-      createdAt: toIso(Number(r.created_at)),
-    })),
-    nextOffset: rows.length > limit ? offset + limit : null,
-  };
-}
-
 export async function adminBroadcast(
   db: Db,
   input: { title: string; body: string; targetNationId?: number | null },
@@ -109,6 +69,38 @@ export async function listRankings(
   opts: { metric?: string; limit?: number } = {},
 ) {
   const limit = Math.min(100, Math.max(1, opts.limit ?? 20));
+  // «توسعه کشورها» بر اساس تعداد سازه‌های ساخته‌شده — یک مسیر جدا از امتیازهای وزنی
+  if (opts.metric === 'development') {
+    const devRows = await db.all<Record<string, unknown>>(
+      sql`SELECT n.id, n.name, n.flag, n.leader_name, n.treasury, n.military_power, n.economic_score,
+                 n.equipment_count, n.wins_count, COALESCE(e.net_income, 0) AS net_income,
+                 COALESCE(b.c, 0) AS development
+            FROM nations n
+            LEFT JOIN nation_economy e ON e.nation_id = n.id
+            LEFT JOIN (SELECT nation_id, COUNT(*) AS c FROM nation_buildings GROUP BY nation_id) b ON b.nation_id = n.id
+           WHERE n.status <> 'dissolved'
+           ORDER BY development DESC, n.total_score DESC
+           LIMIT 500`,
+    );
+    return devRows.map((r, i) => ({
+      rank: i + 1,
+      nationId: Number(r.id),
+      name: String(r.name),
+      flag: String(r.flag),
+      leaderName: String(r.leader_name),
+      score: Number(r.development),
+      metrics: { development: Number(r.development) },
+      raw: {
+        treasury: Number(r.treasury),
+        income: Number(r.net_income),
+        militaryPower: Number(r.military_power),
+        equipmentCount: Number(r.equipment_count),
+        warWins: Number(r.wins_count),
+        economicScore: Number(r.economic_score),
+        development: Number(r.development),
+      },
+    })).slice(0, limit);
+  }
   const rows = await db.all<Record<string, unknown>>(
     sql`SELECT n.id, n.name, n.flag, n.leader_name, n.treasury, n.military_power, n.economic_score,
                n.equipment_count, n.wins_count, COALESCE(e.net_income, 0) AS net_income

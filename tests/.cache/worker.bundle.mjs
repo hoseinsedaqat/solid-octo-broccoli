@@ -13,7 +13,7 @@ function starterUnitCount(category) {
   const list = STARTER_PACK[category];
   return (list ?? []).reduce((sum, item) => sum + item.quantity, 0);
 }
-var EQUIPMENT_CATEGORIES, STARTER_PACK, STARTER_ECONOMY, FACTORY_COUNT_IN_STARTER, MINE_COUNT_IN_STARTER, DERIVED_FACTORY_INCOME_PER_UNIT, DERIVED_MINE_INCOME_PER_UNIT, FLAG_CHOICES, RELATION_STATUSES, RELATION_LABELS_FA, ROLES, BANK_LOAN, TRANSACTION_TYPE_LABELS_FA, WAR_STATUS_LABELS_FA, DIPLOMACY_REQUEST_KINDS, STATEMENT_STATUS_LABELS_FA, RANKING_METRICS, DEFAULT_RANKING_WEIGHTS, DEFAULT_BATTLE_PARAMS, DEFAULT_PROFILE_RULES, DEFAULT_DIPLOMACY_RULES, DEFAULT_ECONOMY_RULES, FEATURE_FLAGS, GAME_SETTING_KEYS, DEFAULT_BRANDING, DEFAULT_QUOTA_GUARD, ROUTES, PLAYER_PAGES, PLAYER_PAGE_META, ADMIN_SECTIONS, MAX_STATEMENT_CHARS, MIN_STATEMENT_CHARS, DEFENSE_ARRANGEMENT, DEFENSE_ARRANGEMENT_KEYS, DEFENSE_FORTIFICATION_TOKEN, DAILY_PRIZES;
+var EQUIPMENT_CATEGORIES, STARTER_PACK, STARTER_ECONOMY, FACTORY_COUNT_IN_STARTER, MINE_COUNT_IN_STARTER, DERIVED_FACTORY_INCOME_PER_UNIT, DERIVED_MINE_INCOME_PER_UNIT, FLAG_CHOICES, RELATION_STATUSES, RELATION_LABELS_FA, ROLES, BUILDINGS, BUILDING_KEYS, BANK_LOAN, TRANSACTION_TYPE_LABELS_FA, WAR_STATUS_LABELS_FA, DIPLOMACY_REQUEST_KINDS, STATEMENT_STATUS_LABELS_FA, RANKING_METRICS, DEFAULT_RANKING_WEIGHTS, DEFAULT_BATTLE_PARAMS, DEFAULT_PROFILE_RULES, DEFAULT_DIPLOMACY_RULES, DEFAULT_ECONOMY_RULES, FEATURE_FLAGS, GAME_SETTING_KEYS, DEFAULT_BRANDING, DEFAULT_QUOTA_GUARD, ROUTES, PLAYER_PAGES, PLAYER_PAGE_META, ADMIN_SECTIONS, MAX_STATEMENT_CHARS, MIN_STATEMENT_CHARS, DEFENSE_ARRANGEMENT, DEFENSE_ARRANGEMENT_KEYS, DEFENSE_FORTIFICATION_TOKEN, DAILY_PRIZES;
 var init_constants = __esm({
   "shared/src/constants.ts"() {
     "use strict";
@@ -153,6 +153,15 @@ var init_constants = __esm({
       peace_treaty: "\u062F\u0627\u0631\u0627\u06CC \u067E\u06CC\u0645\u0627\u0646 \u0635\u0644\u062D"
     };
     ROLES = ["player", "admin", "super_admin"];
+    BUILDINGS = [
+      { key: "barracks", emoji: "\u{1FA96}", nameFa: "\u067E\u0627\u062F\u06AF\u0627\u0646 \u0646\u0638\u0627\u0645\u06CC", descFa: "\u0622\u0645\u0648\u0632\u0634 \u0648 \u062C\u0630\u0628 \u0633\u0631\u0628\u0627\u0632", cost: 1e4, grant: { kind: "units", templateCode: "rangers", quantity: 1e3 } },
+      { key: "airbase", emoji: "\u{1F6E9}\uFE0F", nameFa: "\u067E\u0627\u06CC\u06AF\u0627\u0647 \u0647\u0648\u0627\u06CC\u06CC", descFa: "\u0627\u0633\u062A\u0642\u0631\u0627\u0631 \u062C\u0646\u06AF\u0646\u062F\u0647\u200C\u0647\u0627", cost: 2e4, grant: { kind: "units", templateCode: "su57", quantity: 3 } },
+      { key: "factory", emoji: "\u{1F3ED}", nameFa: "\u06A9\u0627\u0631\u062E\u0627\u0646\u0647 \u0646\u0638\u0627\u0645\u06CC", descFa: "\u062A\u0648\u0644\u06CC\u062F \u062A\u062C\u0647\u06CC\u0632\u0627\u062A \u0646\u0638\u0627\u0645\u06CC", cost: 3e4, grant: { kind: "units", templateCode: "leopard_2a7", quantity: 25 } },
+      { key: "navalbase", emoji: "\u2693", nameFa: "\u067E\u0627\u06CC\u06AF\u0627\u0647 \u062F\u0631\u06CC\u0627\u06CC\u06CC", descFa: "\u0627\u0633\u062A\u0642\u0631\u0627\u0631 \u0646\u0627\u0648\u0647\u0627 \u0648 \u0632\u06CC\u0631\u062F\u0631\u06CC\u0627\u06CC\u06CC\u200C\u0647\u0627", cost: 25e3, grant: { kind: "units", templateCode: "nimitz", quantity: 1 } },
+      { key: "shelter", emoji: "\u{1F6E1}\uFE0F", nameFa: "\u067E\u0646\u0627\u0647\u06AF\u0627\u0647 \u0646\u0638\u0627\u0645\u06CC", descFa: "\u0627\u0641\u0632\u0627\u06CC\u0634 \u0645\u0642\u0627\u0648\u0645\u062A \u06A9\u0634\u0648\u0631", cost: 15e3, grant: { kind: "fortification", quantity: 2 } },
+      { key: "radar", emoji: "\u{1F4E1}", nameFa: "\u0645\u0631\u06A9\u0632 \u0631\u0627\u062F\u0627\u0631", descFa: "\u0627\u0641\u0632\u0627\u06CC\u0634 \u0634\u0646\u0627\u0633\u0627\u06CC\u06CC \u062A\u0647\u062F\u06CC\u062F\u0647\u0627", cost: 13e3, grant: { kind: "units", templateCode: "an_spy6", quantity: 3 } }
+    ];
+    BUILDING_KEYS = BUILDINGS.map((b) => b.key);
     BANK_LOAN = {
       options: [5e3, 1e4, 2e4],
       interestRate: 0.1,
@@ -314,7 +323,6 @@ var init_constants = __esm({
       "defense",
       "diplomacy",
       "statements",
-      "news",
       "rankings",
       "settings"
     ];
@@ -328,7 +336,6 @@ var init_constants = __esm({
       defense: { labelFa: "\u062F\u0641\u0627\u0639", emoji: "\u{1F6E1}\uFE0F" },
       diplomacy: { labelFa: "\u062F\u06CC\u067E\u0644\u0645\u0627\u0633\u06CC", emoji: "\u{1F310}" },
       statements: { labelFa: "\u0628\u06CC\u0627\u0646\u06CC\u0647\u200C\u0647\u0627", emoji: "\u{1F4DC}" },
-      news: { labelFa: "\u0627\u062E\u0628\u0627\u0631", emoji: "\u{1F4F0}" },
       rankings: { labelFa: "\u0631\u062A\u0628\u0647\u200C\u0628\u0646\u062F\u06CC", emoji: "\u{1F4CA}" },
       settings: { labelFa: "\u062A\u0646\u0638\u06CC\u0645\u0627\u062A", emoji: "\u2699\uFE0F" }
     };
@@ -6197,33 +6204,53 @@ async function proposeWar(db, attacker, targetNationId, indemnityOffered, settin
   const def = await defenseCombatantOf(db, target, settings);
   const preview = previewBattle(att, def, settings.battle);
   const indemnity = Math.max(0, Math.min(indemnityOffered || 0, attacker.treasury));
+  const entryCost = preview.entryCost;
+  if (entryCost > 0 && attacker.treasury < entryCost) {
+    throw ApiError.validation("\u0645\u0648\u062C\u0648\u062F\u06CC \u0646\u0627\u06A9\u0627\u0641\u06CC \u0627\u0633\u062A.");
+  }
   const at = nowSeconds();
   const seed = seedFromString(`war:${attacker.id}:${targetNationId}:${at}`);
   const war = await db.first(
     sql`INSERT INTO wars (attacker_nation_id, defender_nation_id, status, initiated_by, attacker_power, defender_power,
-                          attacker_win_chance, max_rounds, entry_cost, indemnity_offered, seed, proposed_at, ends_at, attack_plan, attack_plan_remaining)
-         VALUES (${attacker.id}, ${targetNationId}, 'proposed', 'attacker', ${att.attackPower}, ${def.defensePower},
-                 ${preview.attackerWinChance}, ${settings.battle.maxRounds}, ${preview.entryCost}, ${indemnity}, ${seed}, ${at}, ${at + settings.battle.minWarDurationSeconds * settings.battle.maxRounds},
+                          attacker_win_chance, max_rounds, entry_cost, indemnity_offered, seed, proposed_at, accepted_at, started_at, next_round_at, ends_at, attack_plan, attack_plan_remaining)
+         VALUES (${attacker.id}, ${targetNationId}, 'active', 'attacker', ${att.attackPower}, ${def.defensePower},
+                 ${preview.attackerWinChance}, ${settings.battle.maxRounds}, ${entryCost}, ${indemnity}, ${seed}, ${at}, ${at}, ${at}, ${at}, ${at + settings.battle.minWarDurationSeconds * settings.battle.maxRounds},
                  ${plan ? JSON.stringify(plan) : null}, ${plan ? JSON.stringify(plan) : null})
          RETURNING id`
   );
   const warId = Number(war?.id ?? 0);
   if (!warId) throw ApiError.conflict("\u062F\u0631\u062E\u0648\u0627\u0633\u062A \u062C\u0646\u06AF \u062A\u06A9\u0631\u0627\u0631\u06CC \u0627\u0633\u062A \u06CC\u0627 \u06A9\u0634\u0648\u0631 \u0647\u062F\u0641 \u062F\u0631\u06AF\u06CC\u0631 \u062C\u0646\u06AF \u0627\u0633\u062A.");
-  await db.batch([
-    sql`INSERT INTO diplomatic_requests (kind, status, from_nation_id, to_nation_id, message, expires_at, created_at)
-         VALUES ('war', 'pending', ${attacker.id}, ${targetNationId},
-                 ${`\u062F\u0631\u062E\u0648\u0627\u0633\u062A \u062C\u0646\u06AF \u0628\u0627 \u067E\u06CC\u0634\u0646\u0647\u0627\u062F \u063A\u0631\u0627\u0645\u062A ${indemnity.toLocaleString("en-US")} \u0633\u06A9\u0647`},
-                 ${at + settings.diplomacy.requestExpirySeconds}, ${at})
+  const kickoff = [
+    sql`INSERT INTO diplomatic_requests (kind, status, from_nation_id, to_nation_id, message, expires_at, created_at, handled_at)
+         VALUES ('war', 'accepted', ${attacker.id}, ${targetNationId},
+                 ${`\u062D\u0645\u0644\u0647 \u0628\u0627 \u067E\u06CC\u0634\u0646\u0647\u0627\u062F \u063A\u0631\u0627\u0645\u062A ${indemnity.toLocaleString("en-US")} \u0633\u06A9\u0647`},
+                 ${at + settings.diplomacy.requestExpirySeconds}, ${at}, ${at})
          ON CONFLICT DO NOTHING`,
     sql`UPDATE diplomatic_relations SET status = 'enemy', updated_at = ${at}
          WHERE nation_id = ${attacker.id} AND other_nation_id = ${targetNationId}`,
     sql`INSERT INTO diplomatic_relations (nation_id, other_nation_id, status, created_at, updated_at)
          VALUES (${targetNationId}, ${attacker.id}, 'enemy', ${at}, ${at})
-         ON CONFLICT (nation_id, other_nation_id) DO UPDATE SET status = 'enemy', updated_at = ${at}`
-  ]);
+         ON CONFLICT (nation_id, other_nation_id) DO UPDATE SET status = 'enemy', updated_at = ${at}`,
+    sql`UPDATE nations SET status = 'at_war' WHERE id IN (${attacker.id}, ${target.id})`
+  ];
+  if (entryCost > 0) {
+    kickoff.push(
+      sql`INSERT INTO transactions (uuid, nation_id, type, amount, balance_before, balance_after, currency, idempotency_key,
+                                    reference_type, reference_id, reason, created_at)
+           VALUES (${uuid()}, ${attacker.id}, 'war_cost', ${-entryCost}, ${attacker.treasury}, ${attacker.treasury - entryCost}, 'coin',
+                   ${warTxKey("entry", warId, "attacker")}, 'war', ${warId}, 'هزینه ورود به جنگ', ${at})`,
+      sql`UPDATE nations SET treasury = treasury - ${entryCost}, updated_at = ${at} WHERE id = ${attacker.id}`
+    );
+  }
+  kickoff.push(
+    sql`INSERT INTO announcements (kind, title, body, audience, nation_id, created_at)
+         VALUES ('war', 'جنگ آغاز شد', ${`\u2694\uFE0F ${attacker.flag} ${attacker.name} \u062F\u0631 \u0628\u0631\u0627\u0628\u0631 ${target.flag} ${target.name} \u2014 \u0627\u062D\u062A\u0645\u0627\u0644 \u067E\u06CC\u0631\u0648\u0632\u06CC \u0645\u0647\u0627\u062C\u0645 ${Math.round(preview.attackerWinChance * 100)}\u066A`}, 'global', ${attacker.id}, ${at})`
+  );
+  await db.batch(kickoff);
   await sendWarWarning(db, target, botToken, attacker, `${Math.round(preview.attackerWinChance * 100)}`, warId, plan);
-  await audit(db, { actor, action: "war.propose", targetType: "war", targetId: warId, after: { targetNationId, indemnity } });
-  return { warId, preview: { ...preview, indemnity }, status: "proposed" };
+  await sendDefenseMobilized(db, target, botToken, attacker.name, warId);
+  await audit(db, { actor, action: "war.propose", targetType: "war", targetId: warId, after: { targetNationId, indemnity, autoAccepted: true } });
+  return { warId, preview: { ...preview, indemnity }, status: "active" };
 }
 async function respondToWar(db, warId, accept, nation, settings, botToken) {
   const war = await loadWar(db, warId);
@@ -14749,6 +14776,105 @@ async function repayLoan(db, nation, now = nowSeconds()) {
   return { repayAmount, treasury: Number(after?.treasury ?? nation.treasury - repayAmount) };
 }
 
+// apps/worker/src/services/buildService.ts
+init_src();
+init_sql();
+init_errors2();
+init_format();
+init_ids();
+init_auditService();
+init_notificationService();
+async function buildState(db, nation) {
+  const rows = await db.all(
+    sql`SELECT building_key, built_at FROM nation_buildings WHERE nation_id = ${nation.id}`
+  );
+  const built = new Map(rows.map((r) => [String(r.building_key), Number(r.built_at)]));
+  const buildings = BUILDINGS.map((b) => ({
+    key: b.key,
+    emoji: b.emoji,
+    nameFa: b.nameFa,
+    descFa: b.descFa,
+    cost: b.cost,
+    built: built.has(b.key),
+    builtAt: built.has(b.key) ? toIso(built.get(b.key)) : null,
+    grant: b.grant.kind === "units" ? { kind: "units", quantity: b.grant.quantity, templateCode: b.grant.templateCode } : { kind: "fortification", quantity: b.grant.quantity }
+  }));
+  return {
+    treasury: nation.treasury,
+    buildings,
+    builtCount: buildings.filter((b) => b.built).length,
+    totalCount: buildings.length
+  };
+}
+async function construct(db, nation, key, now = nowSeconds()) {
+  const building = BUILDINGS.find((b) => b.key === key);
+  if (!building) throw ApiError.validation("\u0633\u0627\u0632\u0647\u0654 \u0627\u0646\u062A\u062E\u0627\u0628\u200C\u0634\u062F\u0647 \u0645\u0639\u062A\u0628\u0631 \u0646\u06CC\u0633\u062A.");
+  const existing = await db.first(
+    sql`SELECT id FROM nation_buildings WHERE nation_id = ${nation.id} AND building_key = ${building.key}`
+  );
+  if (existing) throw ApiError.conflict("\u0627\u06CC\u0646 \u0633\u0627\u0632\u0647 \u0642\u0628\u0644\u0627\u064B \u0633\u0627\u062E\u062A\u0647 \u0634\u062F\u0647 \u0627\u0633\u062A.");
+  if (nation.treasury < building.cost) throw ApiError.validation("\u0645\u0648\u062C\u0648\u062F\u06CC \u0646\u0627\u06A9\u0627\u0641\u06CC \u0627\u0633\u062A.");
+  const at = now;
+  const grant = building.grant;
+  const templateId = grant.kind === "units" ? Number(
+    (await db.first(
+      sql`SELECT id FROM equipment_templates WHERE code = ${grant.templateCode}`
+    ))?.id ?? 0
+  ) : 0;
+  if (grant.kind === "units" && !templateId) {
+    throw ApiError.internal(`\u0642\u0627\u0644\u0628 \u062A\u062C\u0647\u06CC\u0632\u0627\u062A \u0645\u0648\u062C\u0648\u062F \u0646\u06CC\u0633\u062A (${grant.templateCode}).`);
+  }
+  const statements = [
+    sql`INSERT INTO nation_buildings (nation_id, building_key, built_at) VALUES (${nation.id}, ${building.key}, ${at})`,
+    sql`UPDATE nations SET treasury = treasury - ${building.cost}, updated_at = ${at} WHERE id = ${nation.id}`,
+    sql`INSERT INTO transactions (uuid, nation_id, type, amount, balance_before, balance_after, currency,
+                                  idempotency_key, reference_type, reference_id, reason, meta, created_at)
+         VALUES (${uuid()}, ${nation.id}, 'purchase', ${-building.cost}, ${nation.treasury}, ${nation.treasury - building.cost}, 'coin',
+                 ${`build:${nation.id}:${building.key}`}, 'building', NULL,
+                 ${`\u{1F3D7}\uFE0F \u0633\u0627\u062E\u062A\u200C\u0648\u0633\u0627\u0632: ${building.nameFa}`},
+                 ${JSON.stringify({ buildingKey: building.key, grant })}, ${at})`,
+    sql`UPDATE nation_economy SET total_spent = total_spent + ${building.cost}, updated_at = ${at} WHERE nation_id = ${nation.id}`
+  ];
+  if (grant.kind === "units" && templateId) {
+    statements.push(
+      sql`INSERT INTO nation_inventory (nation_id, template_id, quantity, created_at, updated_at)
+           VALUES (${nation.id}, ${templateId}, ${grant.quantity}, ${at}, ${at})
+           ON CONFLICT (nation_id, template_id) DO UPDATE SET quantity = quantity + ${grant.quantity}, updated_at = ${at}`
+    );
+  } else if (grant.kind === "fortification") {
+    statements.push(
+      sql`UPDATE nation_settings SET fortification_level = MIN(20, COALESCE(fortification_level, 0) + ${grant.quantity}), updated_at = ${at} WHERE nation_id = ${nation.id}`
+    );
+  }
+  try {
+    await db.batch(statements);
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    if (/UNIQUE constraint failed/i.test(message)) throw ApiError.conflict("\u0627\u06CC\u0646 \u0633\u0627\u0632\u0647 \u0642\u0628\u0644\u0627\u064B \u0633\u0627\u062E\u062A\u0647 \u0634\u062F\u0647 \u0627\u0633\u062A.");
+    if (message.toLowerCase().includes("check constraint")) {
+      throw ApiError.validation("\u0645\u0648\u062C\u0648\u062F\u06CC \u0646\u0627\u06A9\u0627\u0641\u06CC \u0627\u0633\u062A.");
+    }
+    throw err;
+  }
+  const after = await db.first(sql`SELECT treasury FROM nations WHERE id = ${nation.id}`);
+  await audit(db, {
+    actor: null,
+    action: "build.construct",
+    targetType: "nation",
+    targetId: nation.id,
+    before: { treasury: nation.treasury },
+    after: { treasury: Number(after?.treasury ?? 0), building: building.key },
+    reason: `\u0633\u0627\u062E\u062A ${building.nameFa}`
+  });
+  await notify(db, {
+    nationId: nation.id,
+    kind: "build",
+    title: "\u{1F3D7}\uFE0F \u0633\u0627\u0632\u0647 \u0633\u0627\u062E\u062A\u0647 \u0634\u062F",
+    body: `${building.emoji} ${building.nameFa} \u0628\u0627 \u0647\u0632\u06CC\u0646\u0647 ${building.cost.toLocaleString("en-US")} \u0633\u06A9\u0647 \u0633\u0627\u062E\u062A\u0647 \u0634\u062F.`
+  });
+  return { building: { key: building.key, nameFa: building.nameFa, emoji: building.emoji }, cost: building.cost, treasury: Number(after?.treasury ?? nation.treasury - building.cost) };
+}
+
 // apps/worker/src/api/routes/player.ts
 var playerRoutes = new Hono3();
 playerRoutes.use(requireUser);
@@ -14875,6 +15001,16 @@ playerRoutes.post("/bank/loan", async (c) => {
 playerRoutes.post("/bank/loan/repay", async (c) => {
   const db = c.get("db");
   const result = await repayLoan(db, c.get("nation"));
+  return c.json(result);
+});
+playerRoutes.get("/buildings", async (c) => {
+  const db = c.get("db");
+  return c.json(await buildState(db, c.get("nation")));
+});
+playerRoutes.post("/buildings", async (c) => {
+  const db = c.get("db");
+  const body = parse(external_exports2.object({ buildingKey: external_exports2.string().min(1) }), await parseJson(c));
+  const result = await construct(db, c.get("nation"), body.buildingKey);
   return c.json(result);
 });
 playerRoutes.get("/notifications", async (c) => {
@@ -15374,14 +15510,6 @@ init_errors2();
 init_ranking();
 init_auditService();
 init_notificationService();
-var KIND_EMOJI = {
-  news: "\u{1F4F0}",
-  event: "\u{1F30D}",
-  war: "\u2694\uFE0F",
-  statement: "\u{1F4DC}",
-  admin: "\u{1F4E2}",
-  alliance: "\u{1F91D}"
-};
 async function publish(db, input, isActive = true) {
   const at = nowSeconds();
   const row = await db.first(
@@ -15392,45 +15520,6 @@ async function publish(db, input, isActive = true) {
          RETURNING id`
   );
   return Number(row?.id ?? 0);
-}
-async function feed(db, opts = {}) {
-  const limit = Math.min(60, Math.max(1, opts.limit ?? 25));
-  const offset = Math.max(0, opts.offset ?? 0);
-  const nationIds = opts.nationIds ?? [];
-  const clauses = ["a.is_active = 1"];
-  const bindings = [];
-  if (nationIds.length > 0) {
-    clauses.push(`(a.audience = 'global' OR a.nation_id IN (${nationIds.map(() => "?").join(",")}) OR a.target_nation_id IN (${nationIds.map(() => "?").join(",")}))`);
-    bindings.push(...nationIds, ...nationIds);
-  } else {
-    clauses.push("a.audience = 'global'");
-  }
-  if (opts.kind && opts.kind !== "all") {
-    clauses.push("a.kind = ?");
-    bindings.push(opts.kind);
-  }
-  const rows = await db.all({
-    sql: `SELECT a.*, n.name AS nation_name, n.flag AS flag
-            FROM announcements a LEFT JOIN nations n ON n.id = a.nation_id
-           WHERE ${clauses.join(" AND ")}
-           ORDER BY a.id DESC LIMIT ? OFFSET ?`,
-    bindings: [...bindings, limit + 1, offset]
-  });
-  const page = rows.slice(0, limit);
-  return {
-    items: page.map((r) => ({
-      id: Number(r.id),
-      kind: String(r.kind),
-      emoji: KIND_EMOJI[String(r.kind)] ?? "\u{1F4CC}",
-      title: String(r.title),
-      body: String(r.body),
-      nationId: r.nation_id === null ? null : Number(r.nation_id),
-      flag: r.flag ?? null,
-      nationName: r.nation_name ?? null,
-      createdAt: toIso(Number(r.created_at))
-    })),
-    nextOffset: rows.length > limit ? offset + limit : null
-  };
 }
 async function adminBroadcast(db, input, actor, botToken) {
   if (!input.title.trim() || !input.body.trim()) throw ApiError.validation("\u0639\u0646\u0648\u0627\u0646 \u0648 \u0645\u062A\u0646 \u0627\u0637\u0644\u0627\u0639\u06CC\u0647 \u0627\u0644\u0632\u0627\u0645\u06CC \u0627\u0633\u062A.");
@@ -15453,6 +15542,37 @@ async function adminBroadcast(db, input, actor, botToken) {
 }
 async function listRankings(db, settings, opts = {}) {
   const limit = Math.min(100, Math.max(1, opts.limit ?? 20));
+  if (opts.metric === "development") {
+    const devRows = await db.all(
+      sql`SELECT n.id, n.name, n.flag, n.leader_name, n.treasury, n.military_power, n.economic_score,
+                 n.equipment_count, n.wins_count, COALESCE(e.net_income, 0) AS net_income,
+                 COALESCE(b.c, 0) AS development
+            FROM nations n
+            LEFT JOIN nation_economy e ON e.nation_id = n.id
+            LEFT JOIN (SELECT nation_id, COUNT(*) AS c FROM nation_buildings GROUP BY nation_id) b ON b.nation_id = n.id
+           WHERE n.status <> 'dissolved'
+           ORDER BY development DESC, n.total_score DESC
+           LIMIT 500`
+    );
+    return devRows.map((r, i) => ({
+      rank: i + 1,
+      nationId: Number(r.id),
+      name: String(r.name),
+      flag: String(r.flag),
+      leaderName: String(r.leader_name),
+      score: Number(r.development),
+      metrics: { development: Number(r.development) },
+      raw: {
+        treasury: Number(r.treasury),
+        income: Number(r.net_income),
+        militaryPower: Number(r.military_power),
+        equipmentCount: Number(r.equipment_count),
+        warWins: Number(r.wins_count),
+        economicScore: Number(r.economic_score),
+        development: Number(r.development)
+      }
+    })).slice(0, limit);
+  }
   const rows = await db.all(
     sql`SELECT n.id, n.name, n.flag, n.leader_name, n.treasury, n.military_power, n.economic_score,
                n.equipment_count, n.wins_count, COALESCE(e.net_income, 0) AS net_income
@@ -15500,26 +15620,15 @@ init_warService();
 init_diplomacyService();
 var socialRoutes = new Hono3();
 socialRoutes.use(requireUser);
-socialRoutes.get("/news", async (c) => {
-  const db = c.get("db");
-  const user = c.get("user");
-  const res = await feed(db, {
-    nationIds: user.nationIds,
-    limit: Number(c.req.query("limit") ?? 20),
-    offset: Number(c.req.query("offset") ?? 0),
-    kind: c.req.query("kind") ?? null
-  });
-  return c.json(res);
-});
 socialRoutes.get("/rankings", async (c) => {
   const db = c.get("db");
   const settings = await settingsFor(c);
   const metric = c.req.query("metric") ?? "total";
-  const safeMetric = RANKING_METRICS.includes(metric) || metric === "total" ? metric : "total";
+  const safeMetric = RANKING_METRICS.includes(metric) || metric === "total" || metric === "development" ? metric : "total";
   return c.json({
     metric: safeMetric,
     weights: settings.rankingWeights,
-    available: ["total", ...RANKING_METRICS],
+    available: ["total", ...RANKING_METRICS, "development"],
     rows: await listRankings(db, settings, { metric: safeMetric === "total" ? void 0 : safeMetric, limit: Number(c.req.query("limit") ?? 20) })
   });
 });
@@ -16891,8 +17000,8 @@ var REPLY_MENU = [
   [{ text: "\u{1F6E1}\uFE0F \u0645\u062F\u06CC\u0631\u06CC\u062A \u06A9\u0634\u0648\u0631" }, { text: "\u{1F4B0} \u062F\u0627\u0631\u0627\u06CC\u06CC" }],
   [{ text: "\u{1F6D2} \u062E\u0631\u06CC\u062F \u062A\u062C\u0647\u06CC\u0632\u0627\u062A" }, { text: "\u2694\uFE0F \u062D\u0645\u0644\u0647" }],
   [{ text: "\u{1F6E1}\uFE0F \u062F\u0641\u0627\u0639" }, { text: "\u{1F381} \u062C\u0648\u0627\u06CC\u0632 \u0631\u0648\u0632\u0627\u0646\u0647" }],
-  [{ text: "\u{1F4DC} \u0628\u06CC\u0627\u0646\u06CC\u0647\u200C\u0647\u0627" }, { text: "\u{1F4CA} \u0622\u0645\u0627\u0631 \u0648 \u0627\u0637\u0644\u0627\u0639\u0627\u062A" }],
-  [{ text: "\u{1F3E6} \u0628\u0627\u0646\u06A9 \u0645\u0631\u06A9\u0632\u06CC" }, { text: "\u2699\uFE0F \u062A\u0646\u0638\u06CC\u0645\u0627\u062A" }]
+  [{ text: "\u{1F4DC} \u0628\u06CC\u0627\u0646\u06CC\u0647\u200C\u0647\u0627" }, { text: "\u{1F3D7}\uFE0F \u0633\u0627\u062E\u062A \u0648 \u0633\u0627\u0632" }],
+  [{ text: "\u{1F3E6} \u0628\u0627\u0646\u06A9 \u0645\u0631\u06A9\u0632\u06CC" }, { text: "\u{1F3C6} \u0631\u062A\u0628\u0647\u200C\u0628\u0646\u062F\u06CC \u06A9\u0634\u0648\u0631\u0647\u0627" }]
 ];
 var REPLY_TO_LABEL = {
   "\u{1F6E1}\uFE0F \u0645\u062F\u06CC\u0631\u06CC\u062A \u06A9\u0634\u0648\u0631": "country",
@@ -16901,9 +17010,7 @@ var REPLY_TO_LABEL = {
   "\u2694\uFE0F \u062D\u0645\u0644\u0647": "war",
   "\u{1F6E1}\uFE0F \u062F\u0641\u0627\u0639": "defense",
   "\u{1F310} \u062F\u06CC\u067E\u0644\u0645\u0627\u0633\u06CC": "diplomacy",
-  "\u{1F4DC} \u0628\u06CC\u0627\u0646\u06CC\u0647\u200C\u0647\u0627": "statements",
-  "\u{1F4CA} \u0622\u0645\u0627\u0631 \u0648 \u0627\u0637\u0644\u0627\u0639\u0627\u062A": "rankings",
-  "\u2699\uFE0F \u062A\u0646\u0638\u06CC\u0645\u0627\u062A": "settings"
+  "\u{1F4DC} \u0628\u06CC\u0627\u0646\u06CC\u0647\u200C\u0647\u0627": "statements"
 };
 function mainMenu(webAppUrl) {
   const rows = [];
@@ -17076,6 +17183,19 @@ async function handleUserMessage(ctx, message, updateId) {
     await sendBankHome(ctx, message.chat.id, identity.userId, nation);
     return { handled: "reply:bank" };
   }
+  if (text === "\u{1F3D7}\uFE0F \u0633\u0627\u062E\u062A \u0648 \u0633\u0627\u0632") {
+    const nation = await currentNation(ctx, identity.userId);
+    if (!nation) {
+      await ctx.tg.sendMessage(message.chat.id, "\u0627\u0628\u062A\u062F\u0627 \u06A9\u0634\u0648\u0631 \u0628\u0633\u0627\u0632\u06CC\u062F.", { inline: [[{ text: "\u{1F3F3}\uFE0F \u0633\u0627\u062E\u062A \u06A9\u0634\u0648\u0631", callback_data: "new" }]] });
+      return { handled: "reply:build:no_nation" };
+    }
+    await sendBuildingsHome(ctx, message.chat.id, nation);
+    return { handled: "reply:build" };
+  }
+  if (text === "\u{1F3C6} \u0631\u062A\u0628\u0647\u200C\u0628\u0646\u062F\u06CC \u0642\u062F\u0631\u062A\u200C\u0647\u0627\u06CC \u062C\u0647\u0627\u0646" || text === "\u{1F3C6} \u0631\u062A\u0628\u0647\u200C\u0628\u0646\u062F\u06CC \u06A9\u0634\u0648\u0631\u0647\u0627") {
+    await sendRankingsCard(ctx, message.chat.id, identity.userId, "global");
+    return { handled: "reply:rankings" };
+  }
   const catKey = CATEGORY_TO_KEY[text];
   if (catKey) {
     await sendShopCategoryCard(ctx, message.chat.id, identity.userId, catKey);
@@ -17167,12 +17287,21 @@ async function handleCommand(ctx, message, updateId) {
     case "/rank":
     case "/rankings":
       return renderPage(ctx, message.chat.id, identity.userId, "rankings", message.message_id);
-    case "/news":
-      return renderPage(ctx, message.chat.id, identity.userId, "news", message.message_id);
     case "/country":
       return renderPage(ctx, message.chat.id, identity.userId, "country", message.message_id);
     case "/defense":
       return renderPage(ctx, message.chat.id, identity.userId, "defense", message.message_id);
+    case "/build": {
+      const nation = await currentNation(ctx, identity.userId);
+      if (!nation) {
+        await ctx.tg.sendMessage(message.chat.id, "\u0627\u0628\u062A\u062F\u0627 \u06A9\u0634\u0648\u0631 \u0628\u0633\u0627\u0632\u06CC\u062F.", { inline: [[{ text: "\u{1F3F3}\uFE0F \u0633\u0627\u062E\u062A \u06A9\u0634\u0648\u0631", callback_data: "new" }]] });
+        return { handled: "reply:build:no_nation" };
+      }
+      await sendBuildingsHome(ctx, message.chat.id, nation);
+      return { handled: "reply:build" };
+    }
+    case "/ranking":
+      return renderPage(ctx, message.chat.id, identity.userId, "rankings", message.message_id);
     case "/bank": {
       const nation = await currentNation(ctx, identity.userId);
       if (!nation) {
@@ -17203,10 +17332,11 @@ function helpText() {
     "/war \u2014 \u062C\u0646\u06AF\u200C\u0647\u0627 \u0648 \u062D\u0645\u0644\u0627\u062A",
     "/defense \u2014 \u0648\u0636\u0639\u06CC\u062A \u062F\u0641\u0627\u0639\u06CC",
     "/bank \u2014 \u0628\u0627\u0646\u06A9 \u0645\u0631\u06A9\u0632\u06CC (\u062F\u0631\u06CC\u0627\u0641\u062A \u062F\u0631\u0622\u0645\u062F \u0648 \u0648\u0627\u0645)",
+    "/build \u2014 \u0648\u0632\u0627\u0631\u062A \u0633\u0627\u062E\u062A\u200C\u0648\u0633\u0627\u0632",
+    "/ranking \u2014 \u0631\u062A\u0628\u0647\u200C\u0628\u0646\u062F\u06CC \u06A9\u0634\u0648\u0631\u0647\u0627",
     "/diplomacy \u2014 \u062F\u06CC\u067E\u0644\u0645\u0627\u0633\u06CC \u0648 \u0627\u062A\u062D\u0627\u062F",
     "/statement \u2014 \u0635\u062F\u0648\u0631 \u0628\u06CC\u0627\u0646\u06CC\u0647 \u0631\u0633\u0645\u06CC",
     "/rankings \u2014 \u0631\u062A\u0628\u0647\u200C\u0628\u0646\u062F\u06CC \u062C\u0647\u0627\u0646\u06CC",
-    "/news \u2014 \u0627\u062E\u0628\u0627\u0631 \u0628\u0627\u0632\u06CC",
     "/settings \u2014 \u062A\u0646\u0638\u06CC\u0645\u0627\u062A",
     "",
     "\u0647\u0645\u0647 \u0639\u0645\u0644\u06CC\u0627\u062A \u0645\u0627\u0644\u06CC \u0648 \u0646\u0638\u0627\u0645\u06CC \u062F\u0631 \u0633\u0631\u0648\u0631 \u0627\u0646\u062C\u0627\u0645 \u0645\u06CC\u200C\u0634\u0648\u062F \u0648 \u0647\u06CC\u0686 \u0645\u0628\u0644\u063A\u06CC \u062F\u0631 \u06A9\u0644\u0627\u06CC\u0646\u062A \u0645\u062D\u0627\u0633\u0628\u0647 \u0646\u0645\u06CC\u200C\u0634\u0648\u062F."
@@ -17434,12 +17564,12 @@ async function handleCallback(ctx, cb, updateId) {
           await ctx.tg.editMessageText(
             chatId,
             messageId,
-            `\u2694\uFE0F \u062F\u0631\u062E\u0648\u0627\u0633\u062A \u062C\u0646\u06AF \u0627\u0631\u0633\u0627\u0644 \u0634\u062F.
+            `\u2694\uFE0F \u062D\u0645\u0644\u0647 \u0622\u063A\u0627\u0632 \u0634\u062F!
 \u0634\u0646\u0627\u0633\u0647 \u062C\u0646\u06AF: <b>${res.warId}</b>
 \u0646\u06CC\u0631\u0648\u0647\u0627\u06CC \u0645\u062A\u0639\u0647\u062F: <b>${committed.toLocaleString("en-US")} \u0648\u0627\u062D\u062F</b>
 \u0627\u062D\u062A\u0645\u0627\u0644 \u067E\u06CC\u0631\u0648\u0632\u06CC \u0645\u0647\u0627\u062C\u0645: ${percent(res.preview.attackerWinChance)}
 
-\u062D\u0627\u0644\u0627 \u0628\u0627\u06CC\u062F \u06A9\u0634\u0648\u0631 \u0645\u0642\u0627\u0628\u0644 \u067E\u0627\u0633\u062E \u062F\u0647\u062F.`,
+\u062E\u0628\u0631 \u0641\u0648\u0631\u06CC \u0628\u0631\u0627\u06CC \u062F\u0641\u0627\u0639 \u0627\u0631\u0633\u0627\u0644 \u0634\u062F. \u062C\u0646\u06AF \u0628\u0644\u0627\u0641\u0627\u0635\u0644\u0647 \u0634\u0631\u0648\u0639 \u0645\u06CC\u200C\u0634\u0648\u062F.`,
             [[{ text: "\u{1F4DC} \u062C\u0646\u06AF\u200C\u0647\u0627\u06CC \u0645\u0646", callback_data: "war:list" }, { text: "\u{1F3E0} \u0645\u0646\u0648", callback_data: "m" }]]
           );
           await answer();
@@ -17634,6 +17764,78 @@ async function handleCallback(ctx, cb, updateId) {
         await answer("\u062F\u0633\u062A\u0648\u0631 \u0646\u0627\u0634\u0646\u0627\u062E\u062A\u0647", true);
         return { handled: "bank:unknown" };
       }
+      case "build": {
+        const nation = await currentNation(ctx, identity.userId);
+        if (!nation) {
+          await answer("\u0627\u0628\u062A\u062F\u0627 \u06A9\u0634\u0648\u0631 \u0628\u0633\u0627\u0632\u06CC\u062F.", true);
+          return { handled: "build:no_nation" };
+        }
+        const sub = rest[0];
+        if (sub === "home") {
+          await editBuildingsHome(ctx, chatId, messageId, nation);
+          await answer();
+          return { handled: "build:home" };
+        }
+        if (sub === "ask") {
+          const b = BUILDINGS.find((x) => x.key === String(rest[1] ?? ""));
+          if (!b) {
+            await answer("\u0633\u0627\u0632\u0647 \u0646\u0627\u0645\u0639\u062A\u0628\u0631 \u0627\u0633\u062A.", true);
+            return { handled: "build:ask:bad" };
+          }
+          const state = await buildState(ctx.db, nation);
+          const built = Boolean(state.buildings.find((x) => x.key === b.key)?.built);
+          const text = built ? `${b.emoji} <b>${b.nameFa}</b>
+
+\u2705 \u0627\u06CC\u0646 \u0633\u0627\u0632\u0647 \u0642\u0628\u0644\u0627\u064B \u0633\u0627\u062E\u062A\u0647 \u0634\u062F\u0647 \u0627\u0633\u062A.` : [`${b.emoji} <b>${b.nameFa}</b>`, "", escapeHtml(b.descFa), "", `\u0647\u0632\u06CC\u0646\u0647: <b>${formatNumber(b.cost)} \u0633\u06A9\u0647</b>`, "", "\u0633\u0627\u062E\u062A\u0647 \u0634\u0648\u062F\u061F"].join("\n");
+          const rows = built ? [[{ text: "\u2B05\uFE0F \u0628\u0627\u0632\u06AF\u0634\u062A", callback_data: "build:home" }]] : [
+            [
+              { text: "\u2705 \u062A\u0623\u06CC\u06CC\u062F \u0648 \u0633\u0627\u062E\u062A", callback_data: `build:go:${b.key}` },
+              { text: "\u274C \u0627\u0646\u0635\u0631\u0627\u0641", callback_data: "build:home" }
+            ]
+          ];
+          await ctx.tg.editMessageText(chatId, messageId, text, rows);
+          await answer();
+          return { handled: "build:ask" };
+        }
+        if (sub === "go") {
+          const key = String(rest[1] ?? "");
+          try {
+            const res = await construct(ctx.db, nation, key);
+            await ctx.tg.editMessageText(
+              chatId,
+              messageId,
+              [
+                `\u{1F3D7}\uFE0F <b>${escapeHtml(res.building.nameFa)}</b> \u0633\u0627\u062E\u062A\u0647 \u0634\u062F!`,
+                "",
+                `\u0647\u0632\u06CC\u0646\u0647: <b>${formatNumber(res.cost)} \u0633\u06A9\u0647</b>`,
+                `\u0645\u0648\u062C\u0648\u062F\u06CC \u062E\u0632\u0627\u0646\u0647: <b>${formatNumber(res.treasury)} \u0633\u06A9\u0647</b>`
+              ].join("\n"),
+              [[{ text: "\u2B05\uFE0F \u0628\u0627\u0632\u06AF\u0634\u062A \u0628\u0647 \u0633\u0627\u062E\u062A\u200C\u0648\u0633\u0627\u0632", callback_data: "build:home" }]]
+            );
+            await answer("\u0633\u0627\u0632\u0647 \u0633\u0627\u062E\u062A\u0647 \u0634\u062F \u{1F3D7}\uFE0F");
+            return { handled: "build:go" };
+          } catch (err) {
+            const message = err instanceof Error ? err.message : "\u062E\u0637\u0627\u06CC\u06CC \u0631\u062E \u062F\u0627\u062F.";
+            await answer(message, true);
+            await editBuildingsHome(ctx, chatId, messageId, nation);
+            return { handled: "build:go:failed" };
+          }
+        }
+        await answer("\u062F\u0633\u062A\u0648\u0631 \u0646\u0627\u0634\u0646\u0627\u062E\u062A\u0647", true);
+        return { handled: "build:unknown" };
+      }
+      case "rank": {
+        const metric = ["military", "economic", "global", "development"].includes(String(rest[1] ?? "")) ? String(rest[1]) : "global";
+        if (rest[0] === "tab") {
+          const nation = await currentNation(ctx, identity.userId) ?? null;
+          const card = await rankingsCard(ctx, nation, metric);
+          await ctx.tg.editMessageText(chatId, messageId, card.text, card.inline);
+          await answer();
+          return { handled: `rank:tab:${metric}` };
+        }
+        await answer("\u062F\u0633\u062A\u0648\u0631 \u0646\u0627\u0634\u0646\u0627\u062E\u062A\u0647", true);
+        return { handled: "rank:unknown" };
+      }
       case "atk": {
         const nation = await currentNation(ctx, identity.userId);
         if (!nation) throw ApiError.forbidden("\u0627\u0628\u062A\u062F\u0627 \u06A9\u0634\u0648\u0631 \u0628\u0633\u0627\u0632\u06CC\u062F.");
@@ -17795,7 +17997,7 @@ async function handleCallback(ctx, cb, updateId) {
 \u0648\u0636\u0639\u06CC\u062A: <b>${result.statusLabelFa}</b>
 \u0634\u0646\u0627\u0633\u0647: ${result.statementId}
 
-${result.status === "published" ? "\u062F\u0631 \u0628\u062E\u0634 \u0627\u062E\u0628\u0627\u0631 \u062C\u0647\u0627\u0646\u06CC \u0645\u0646\u062A\u0634\u0631 \u0634\u062F." : "\u067E\u0633 \u0627\u0632 \u0628\u0631\u0631\u0633\u06CC \u0645\u062F\u06CC\u0631 \u0645\u0646\u062A\u0634\u0631 \u0645\u06CC\u200C\u0634\u0648\u062F."}`,
+${result.status === "published" ? "\u0628\u06CC\u0627\u0646\u06CC\u0647 \u0634\u0645\u0627 \u0645\u0646\u062A\u0634\u0631 \u0634\u062F." : "\u067E\u0633 \u0627\u0632 \u0628\u0631\u0631\u0633\u06CC \u0645\u062F\u06CC\u0631 \u0645\u0646\u062A\u0634\u0631 \u0645\u06CC\u200C\u0634\u0648\u062F."}`,
             [[{ text: "\u{1F4DC} \u0628\u06CC\u0627\u0646\u06CC\u0647\u200C\u0647\u0627\u06CC \u0645\u0646", callback_data: "st:list" }, { text: "\u{1F3E0} \u0645\u0646\u0648", callback_data: "m" }]]
           );
           await answer("\u062B\u0628\u062A \u0634\u062F");
@@ -18006,27 +18208,9 @@ async function renderFor(ctx, nation, page) {
     }
     case "statements":
       return renderStatementsBody(ctx, nation);
-    case "news": {
-      const items = await feed(ctx.db, { nationIds: [nation.id], limit: 8 });
-      return {
-        text: ["\u{1F4F0} <b>\u0627\u062E\u0628\u0627\u0631 \u062C\u0647\u0627\u0646\u06CC</b>", "", ...items.items.length ? items.items.map((n) => `${n.emoji} <b>${escapeHtml(n.title)}</b>
-${escapeHtml(n.body).slice(0, 160)}`) : ["\u062E\u0628\u0631\u06CC \u062B\u0628\u062A \u0646\u0634\u062F\u0647 \u0627\u0633\u062A."]].join("\n\n"),
-        inline: [[{ text: "\u{1F504} \u0628\u0647\u200C\u0631\u0648\u0632\u0631\u0633\u0627\u0646\u06CC", callback_data: "nav:news" }], ...backButton()]
-      };
-    }
     case "rankings": {
-      const rows = await listRankings(ctx.db, ctx.settings, { limit: 10 });
-      const mine = rows.find((r) => r.nationId === nation.id);
-      return {
-        text: [
-          "\u{1F4CA} <b>\u0631\u062A\u0628\u0647\u200C\u0628\u0646\u062F\u06CC \u062C\u0647\u0627\u0646\u06CC</b>",
-          "",
-          ...rows.map((r) => `${r.rank}. ${r.flag} ${escapeHtml(r.name)} \u2014 ${formatNumber(r.score)} (\u062E\u0632\u0627\u0646\u0647 ${formatNumber(r.raw.treasury)}\u060C \u0642\u062F\u0631\u062A ${formatNumber(r.raw.militaryPower)})`),
-          "",
-          mine ? `\u0631\u062A\u0628\u0647 \u0634\u0645\u0627: <b>#${mine.rank}</b>` : "\u0634\u0645\u0627 \u0647\u0646\u0648\u0632 \u062F\u0631 \u0641\u0647\u0631\u0633\u062A \u0646\u06CC\u0633\u062A\u06CC\u062F."
-        ].join("\n"),
-        inline: backButton()
-      };
+      const card = await rankingsCard(ctx, nation, "global");
+      return card;
     }
     case "settings": {
       const ns = await ctx.db.first(sql`SELECT notify_enabled FROM nation_settings WHERE nation_id = ${nation.id}`);
@@ -18645,6 +18829,76 @@ function bankLoanRows(state) {
 async function editBankLoan(ctx, chatId, messageId, nation) {
   const state = await freshBankState(ctx, nation);
   await ctx.tg.editMessageText(chatId, messageId, bankLoanLines(state), bankLoanRows(state));
+}
+function buildingsScreenText(state) {
+  return [
+    "\u{1F3D7}\uFE0F <b>\u0648\u0632\u0627\u0631\u062A \u0633\u0627\u062E\u062A\u200C\u0648\u0633\u0627\u0632</b>",
+    "",
+    "\u0641\u0631\u0645\u0627\u0646\u062F\u0647\u060C \u0628\u0631\u0627\u06CC \u062A\u0648\u0633\u0639\u0647 \u06A9\u0634\u0648\u0631 \u062E\u0648\u062F \u0633\u0627\u0632\u0647\u200C\u0647\u0627\u06CC \u062C\u062F\u06CC\u062F \u0628\u0633\u0627\u0632.",
+    "",
+    `\u{1F4B0} \u0645\u0648\u062C\u0648\u062F\u06CC \u062E\u0632\u0627\u0646\u0647: <b>${formatNumber(state.treasury)} \u0633\u06A9\u0647</b>`,
+    `\u0633\u0627\u0632\u0647\u200C\u0647\u0627\u06CC \u0633\u0627\u062E\u062A\u0647\u200C\u0634\u062F\u0647: <b>${state.builtCount}</b> \u0627\u0632 ${state.totalCount}`,
+    "",
+    "\u0628\u0631\u0627\u06CC \u0633\u0627\u062E\u062A \u06CC\u06A9 \u0633\u0627\u0632\u0647\u060C \u062F\u06A9\u0645\u0647\u0654 \u0622\u0646 \u0631\u0627 \u0628\u0632\u0646\u06CC\u062F:"
+  ].join("\n");
+}
+function buildingsRows(state) {
+  const rows = state.buildings.map((b) => [
+    {
+      text: b.built ? `${b.emoji} ${b.nameFa} \u2705 \u0633\u0627\u062E\u062A\u0647 \u0634\u062F` : `${b.emoji} ${b.nameFa} \u2014 ${formatNumber(b.cost)} \u0633\u06A9\u0647`,
+      callback_data: b.built ? "noop" : `build:ask:${b.key}`
+    }
+  ]);
+  rows.push([{ text: "\u0628\u0627\u0632\u06AF\u0634\u062A \u0628\u0647 \u0645\u0646\u0648\u06CC \u0627\u0635\u0644\u06CC \u2B05 BACK", callback_data: "m" }]);
+  return rows;
+}
+async function sendBuildingsHome(ctx, chatId, nation) {
+  const state = await buildState(ctx.db, nation);
+  await ctx.tg.sendMessage(chatId, buildingsScreenText(state), { inline: buildingsRows(state) });
+}
+async function editBuildingsHome(ctx, chatId, messageId, nation) {
+  const fresh = await loadNationOwnedBy(ctx.db, Number(nation.owner_user_id), nation.id);
+  const state = await buildState(ctx.db, fresh ?? nation);
+  await ctx.tg.editMessageText(chatId, messageId, buildingsScreenText(state), buildingsRows(state));
+}
+var RANKING_TABS = [
+  { key: "military", label: "\u2694\uFE0F \u0631\u062A\u0628\u0647\u200C\u0628\u0646\u062F\u06CC \u0642\u062F\u0631\u062A \u0646\u0638\u0627\u0645\u06CC", scoreLabel: "\u0642\u062F\u0631\u062A \u0646\u0638\u0627\u0645\u06CC" },
+  { key: "economic", label: "\u{1F4B0} \u0631\u062A\u0628\u0647\u200C\u0628\u0646\u062F\u06CC \u0627\u0642\u062A\u0635\u0627\u062F\u06CC", scoreLabel: "\u0627\u0645\u062A\u06CC\u0627\u0632 \u0627\u0642\u062A\u0635\u0627\u062F\u06CC" },
+  { key: "global", label: "\u{1F30D} \u0631\u062A\u0628\u0647\u200C\u0628\u0646\u062F\u06CC \u0642\u062F\u0631\u062A \u062C\u0647\u0627\u0646\u06CC", scoreLabel: "\u0627\u0645\u062A\u06CC\u0627\u0632 \u06A9\u0644" },
+  { key: "development", label: "\u{1F3ED} \u0631\u062A\u0628\u0647\u200C\u0628\u0646\u062F\u06CC \u062A\u0648\u0633\u0639\u0647 \u06A9\u0634\u0648\u0631\u0647\u0627", scoreLabel: "\u0633\u0627\u0632\u0647\u200C\u0647\u0627\u06CC \u0633\u0627\u062E\u062A\u0647\u200C\u0634\u062F\u0647" }
+];
+var RANK_WORDS = ["\u0627\u0648\u0644", "\u062F\u0648\u0645", "\u0633\u0648\u0645", "\u0686\u0647\u0627\u0631\u0645", "\u067E\u0646\u062C\u0645"];
+var RANK_MEDALS = ["\u{1F947}", "\u{1F948}", "\u{1F949}", "4\uFE0F\u20E3", "5\uFE0F\u20E3"];
+async function rankingsCard(ctx, nation, metric) {
+  const apiMetric = metric === "military" ? "military_power" : metric === "economic" ? "economic_score" : metric === "development" ? "development" : void 0;
+  const rows = await listRankings(ctx.db, ctx.settings, { metric: apiMetric, limit: 5 });
+  const tab = RANKING_TABS.find((t) => t.key === metric) ?? RANKING_TABS[2];
+  const lines = ["\u{1F3C6} <b>\u0631\u062A\u0628\u0647\u200C\u0628\u0646\u062F\u06CC \u0642\u062F\u0631\u062A\u200C\u0647\u0627\u06CC \u062C\u0647\u0627\u0646</b>", "", "\u0628\u0631\u062A\u0631\u06CC\u0646 \u06A9\u0634\u0648\u0631\u0647\u0627\u06CC \u062C\u0647\u0627\u0646 \u0628\u0631 \u0627\u0633\u0627\u0633 \u0639\u0645\u0644\u06A9\u0631\u062F \u0648 \u0642\u062F\u0631\u062A", ""];
+  const top = rows[0];
+  if (top) {
+    lines.push(`\u{1F947} \u0631\u062A\u0628\u0647 \u0627\u0648\u0644 \u{1F396}\uFE0F \u0627\u0628\u0631\u0642\u062F\u0631\u062A`);
+    lines.push(`${top.flag} <b>${escapeHtml(top.name)}</b>`);
+    lines.push(`${tab.scoreLabel}: <b>${formatNumber(top.score)}</b>`);
+    lines.push("");
+  }
+  for (let i = 1; i < Math.min(5, rows.length); i++) {
+    const r = rows[i];
+    lines.push(`${RANK_MEDALS[i]} \u0631\u062A\u0628\u0647 ${RANK_WORDS[i]} ${r.flag} ${escapeHtml(r.name)} \u2014 ${formatNumber(r.score)}`);
+  }
+  if (rows.length === 0) lines.push("\u0647\u0646\u0648\u0632 \u0647\u06CC\u0686 \u06A9\u0634\u0648\u0631\u06CC \u062F\u0631 \u0641\u0647\u0631\u0633\u062A \u0646\u06CC\u0633\u062A.");
+  const mine = nation ? rows.find((r) => r.nationId === nation.id) : void 0;
+  lines.push("");
+  lines.push(mine ? `\u0631\u062A\u0628\u0647 \u0634\u0645\u0627: <b>#${mine.rank}</b> \u0627\u0632 ${RANK_WORDS[Math.min(4, mine.rank - 1)] ?? mine.rank}` : "\u0634\u0645\u0627 \u0647\u0646\u0648\u0632 \u062F\u0631 \u0641\u0647\u0631\u0633\u062A \u0628\u0631\u062A\u0631 \u0646\u06CC\u0633\u062A\u06CC\u062F.");
+  const inline = RANKING_TABS.map((t) => [
+    { text: `${t.label}${metric === t.key ? " \u2705" : ""}`, callback_data: `rank:tab:${t.key}` }
+  ]);
+  inline.push([{ text: "\u0628\u0627\u0632\u06AF\u0634\u062A \u2B05 BACK", callback_data: "m" }]);
+  return { text: lines.join("\n"), inline };
+}
+async function sendRankingsCard(ctx, chatId, userId, metric) {
+  const nation = await currentNation(ctx, userId) ?? null;
+  const card = await rankingsCard(ctx, nation, metric);
+  await ctx.tg.sendMessage(chatId, card.text, { inline: card.inline });
 }
 
 // apps/worker/src/app.ts

@@ -17,6 +17,7 @@ import {
   DIPLOMACY_KIND_LABELS_FA,
   DAILY_PRIZES,
   DEFENSE_ARRANGEMENT,
+  BUILDINGS,
 } from '@ww/shared';
 
 export {
@@ -33,6 +34,7 @@ export {
   DIPLOMACY_KIND_LABELS_FA,
   DAILY_PRIZES,
   DEFENSE_ARRANGEMENT,
+  BUILDINGS,
 };
 
 const CATEGORY_MAP = new Map(EQUIPMENT_CATEGORIES.map((c) => [c.key, c]));

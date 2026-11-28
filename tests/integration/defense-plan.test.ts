@@ -80,8 +80,9 @@ describe('defense plan in war math', () => {
     const prop = await world.api('POST', '/api/war/propose', { token: tokenA, body: { targetNationId: nationB } });
     expect(prop.status).toBe(200);
     const warId = Number(prop.json.warId);
-    const accept = await world.api('POST', `/api/war/${warId}/respond`, { token: tokenB, body: { accept: true } });
-    expect(accept.status).toBe(200);
+    // حمله خودکار پذیرفته می‌شود
+    const alreadyActive = await first<{ status: string }>(world.db, `SELECT status FROM wars WHERE id = ?`, warId);
+    expect(alreadyActive!.status).toBe('active');
     await run(world.db, `UPDATE wars SET next_round_at = 1, started_at = 1, ends_at = 1 WHERE id = ?`, warId);
     const round = await world.api('POST', `/api/war/${warId}/round`, { token: tokenA });
     expect(round.status).toBe(200);

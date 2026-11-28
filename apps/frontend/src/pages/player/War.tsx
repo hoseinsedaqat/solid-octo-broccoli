@@ -26,8 +26,8 @@ export function WarRoomPage({ params }: { params: { id?: string } }) {
   const [error, setError] = useState<string | null>(null);
 
   const wars = list.data?.wars ?? [];
-  const active = wars.filter((w: any) => ['active', 'proposed', 'peace_requested'].includes(w.status));
-  const history = wars.filter((w: any) => !['active', 'proposed', 'peace_requested'].includes(w.status));
+  const active = wars.filter((w: any) => ['active', 'peace_requested'].includes(w.status));
+  const history = wars.filter((w: any) => !['active', 'peace_requested'].includes(w.status));
 
   async function act(fn: () => Promise<unknown>, ok: string) {
     setBusy(true);
@@ -261,20 +261,9 @@ function WarDetail({
         </Card>
       ) : null}
 
-      {['proposed', 'active', 'peace_requested'].includes(war.status) ? (
+      {['active', 'peace_requested'].includes(war.status) ? (
         <Card title="اقدام" emoji="🎮">
           <div className="flex flex-wrap items-center gap-2">
-            {war.status === 'proposed' && iAmDefender ? (
-              <>
-                <Btn variant="primary" loading={busy} onClick={() => onAct(() => api.post(`/war/${war.id}/respond`, { accept: true }), 'جنگ آغاز شد؛ از این پس راندها اجرا می‌شوند.')}>
-                  پذیرش دفاع
-                </Btn>
-                <Btn variant="danger" loading={busy} onClick={() => onAct(() => api.post(`/war/${war.id}/respond`, { accept: false }), 'پیشنهاد رد شد.')}>
-                  رد پیشنهاد
-                </Btn>
-              </>
-            ) : null}
-            {war.status === 'proposed' && iAmAttacker ? <p className="text-xs leading-6 text-slate-400">در انتظار پاسخ {opponent.name} — تا آن لحظه هیچ مبلغی کسر نشده است.</p> : null}
             {war.status === 'active' ? (
               <>
                 <Btn loading={busy} disabled={nextIn > 0} onClick={() => onAct(() => api.post(`/war/${war.id}/round`), 'راند اجرا شد.')}>

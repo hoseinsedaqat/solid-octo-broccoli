@@ -78,7 +78,7 @@ describe('bot attack wizard (آرایش حمله, step by step)', () => {
     // confirm → war proposed with the committed plan persisted
     world.sent.length = 0;
     await botCallback(world, TID_A, `war:go:${nationB}`);
-    expect(sentTexts().some((t) => t.includes('درخواست جنگ ارسال شد'))).toBe(true);
+    expect(sentTexts().some((t) => t.includes('حمله آغاز شد'))).toBe(true);
 
     const war = await first<any>(world.db, `SELECT * FROM wars WHERE attacker_nation_id = ? AND defender_nation_id = ?`, nationA, nationB);
     expect(war).toBeTruthy();

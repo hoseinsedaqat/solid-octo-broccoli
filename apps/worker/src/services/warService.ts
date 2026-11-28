@@ -458,36 +458,58 @@ export async function proposeWar(
   const def = await defenseCombatantOf(db, target, settings);
   const preview = previewBattle(att, def, settings.battle);
   const indemnity = Math.max(0, Math.min(indemnityOffered || 0, attacker.treasury));
+  const entryCost = preview.entryCost;
+  // attacks are auto-accepted: the only way to fail here is insufficient funds/assets
+  if (entryCost > 0 && attacker.treasury < entryCost) {
+    throw ApiError.validation('موجودی ناکافی است.');
+  }
   const at = nowSeconds();
   const seed = seedFromString(`war:${attacker.id}:${targetNationId}:${at}`);
 
+  // the war is created ACTIVE — the defender no longer confirms (گیم‌پلی: حمله = جنگ فی‌الحال)
   const war = await db.first<{ id: number }>(
     sql`INSERT INTO wars (attacker_nation_id, defender_nation_id, status, initiated_by, attacker_power, defender_power,
-                          attacker_win_chance, max_rounds, entry_cost, indemnity_offered, seed, proposed_at, ends_at, attack_plan, attack_plan_remaining)
-         VALUES (${attacker.id}, ${targetNationId}, 'proposed', 'attacker', ${att.attackPower}, ${def.defensePower},
-                 ${preview.attackerWinChance}, ${settings.battle.maxRounds}, ${preview.entryCost}, ${indemnity}, ${seed}, ${at}, ${at + settings.battle.minWarDurationSeconds * settings.battle.maxRounds},
+                          attacker_win_chance, max_rounds, entry_cost, indemnity_offered, seed, proposed_at, accepted_at, started_at, next_round_at, ends_at, attack_plan, attack_plan_remaining)
+         VALUES (${attacker.id}, ${targetNationId}, 'active', 'attacker', ${att.attackPower}, ${def.defensePower},
+                 ${preview.attackerWinChance}, ${settings.battle.maxRounds}, ${entryCost}, ${indemnity}, ${seed}, ${at}, ${at}, ${at}, ${at}, ${at + settings.battle.minWarDurationSeconds * settings.battle.maxRounds},
                  ${plan ? JSON.stringify(plan) : null}, ${plan ? JSON.stringify(plan) : null})
          RETURNING id`,
   );
   const warId = Number(war?.id ?? 0);
   if (!warId) throw ApiError.conflict('درخواست جنگ تکراری است یا کشور هدف درگیر جنگ است.');
 
-  await db.batch([
-    sql`INSERT INTO diplomatic_requests (kind, status, from_nation_id, to_nation_id, message, expires_at, created_at)
-         VALUES ('war', 'pending', ${attacker.id}, ${targetNationId},
-                 ${`درخواست جنگ با پیشنهاد غرامت ${indemnity.toLocaleString('en-US')} سکه`},
-                 ${at + settings.diplomacy.requestExpirySeconds}, ${at})
+  const kickoff = [
+    sql`INSERT INTO diplomatic_requests (kind, status, from_nation_id, to_nation_id, message, expires_at, created_at, handled_at)
+         VALUES ('war', 'accepted', ${attacker.id}, ${targetNationId},
+                 ${`حمله با پیشنهاد غرامت ${indemnity.toLocaleString('en-US')} سکه`},
+                 ${at + settings.diplomacy.requestExpirySeconds}, ${at}, ${at})
          ON CONFLICT DO NOTHING`,
     sql`UPDATE diplomatic_relations SET status = 'enemy', updated_at = ${at}
          WHERE nation_id = ${attacker.id} AND other_nation_id = ${targetNationId}`,
     sql`INSERT INTO diplomatic_relations (nation_id, other_nation_id, status, created_at, updated_at)
          VALUES (${targetNationId}, ${attacker.id}, 'enemy', ${at}, ${at})
          ON CONFLICT (nation_id, other_nation_id) DO UPDATE SET status = 'enemy', updated_at = ${at}`,
-  ]);
+    sql`UPDATE nations SET status = 'at_war' WHERE id IN (${attacker.id}, ${target.id})`,
+  ];
+  if (entryCost > 0) {
+    kickoff.push(
+      sql`INSERT INTO transactions (uuid, nation_id, type, amount, balance_before, balance_after, currency, idempotency_key,
+                                    reference_type, reference_id, reason, created_at)
+           VALUES (${uuid()}, ${attacker.id}, 'war_cost', ${-entryCost}, ${attacker.treasury}, ${attacker.treasury - entryCost}, 'coin',
+                   ${warTxKey('entry', warId, 'attacker')}, 'war', ${warId}, 'هزینه ورود به جنگ', ${at})`,
+      sql`UPDATE nations SET treasury = treasury - ${entryCost}, updated_at = ${at} WHERE id = ${attacker.id}`,
+    );
+  }
+  kickoff.push(
+    sql`INSERT INTO announcements (kind, title, body, audience, nation_id, created_at)
+         VALUES ('war', 'جنگ آغاز شد', ${`⚔️ ${attacker.flag} ${attacker.name} در برابر ${target.flag} ${target.name} — احتمال پیروزی مهاجم ${Math.round(preview.attackerWinChance * 100)}٪`}, 'global', ${attacker.id}, ${at})`,
+  );
+  await db.batch(kickoff);
 
   await sendWarWarning(db, target, botToken, attacker, `${Math.round(preview.attackerWinChance * 100)}`, warId, plan);
-  await audit(db, { actor, action: 'war.propose', targetType: 'war', targetId: warId, after: { targetNationId, indemnity } });
-  return { warId, preview: { ...preview, indemnity }, status: 'proposed' };
+  await sendDefenseMobilized(db, target, botToken, attacker.name, warId);
+  await audit(db, { actor, action: 'war.propose', targetType: 'war', targetId: warId, after: { targetNationId, indemnity, autoAccepted: true } });
+  return { warId, preview: { ...preview, indemnity }, status: 'active' };
 }
 
 export async function respondToWar(db: Db, warId: number, accept: boolean, nation: NationRow, settings: SettingsBundle, botToken?: string) {

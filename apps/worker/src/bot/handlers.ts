@@ -1,4 +1,4 @@
-import { FLAG_CHOICES, DAILY_PRIZES, DEFENSE_ARRANGEMENT, DEFENSE_FORTIFICATION_TOKEN, BANK_LOAN, type PlayerPage } from '@ww/shared';
+import { FLAG_CHOICES, DAILY_PRIZES, DEFENSE_ARRANGEMENT, DEFENSE_FORTIFICATION_TOKEN, BANK_LOAN, BUILDINGS, type PlayerPage } from '@ww/shared';
 import type { Db } from '../core/db';
 import { sql } from '../core/sql';
 import { nowSeconds } from '../core/format';
@@ -20,7 +20,8 @@ import { listIncoming, decideRequest, listRelations } from '../services/diplomac
 import { createStatement, listMyStatements } from '../services/statementService';
 import { prizeState, claimDailyPrize } from '../services/dailyPrizeService';
 import { bankState, claimIncome, takeLoan, repayLoan } from '../services/bankService';
-import { feed as newsFeed, listRankings } from '../services/newsService';
+import { buildState, construct } from '../services/buildService';
+import { listRankings } from '../services/newsService';
 import { configureTelegramApiBase, TelegramApi, escapeHtml, coins, type TgCallbackQuery, type TgMessage, type TgUpdate, type InlineKeyboardButton, type KeyboardRow } from './telegram';
 import { backButton, CATEGORY_BACK_TEXT, CATEGORY_ENTRY_TEXT, CATEGORY_KEYPAD, CATEGORY_TO_KEY, flagKeyboard, formatNumber, formatNumber as fmt, mainMenu, moreMenu, pager, percent, REPLY_MENU, REPLY_TO_LABEL, statLine, yesNoRows } from './ui';
 
@@ -141,6 +142,19 @@ async function handleUserMessage(ctx: BotCtx, message: TgMessage, updateId: numb
     await sendBankHome(ctx, message.chat.id, identity.userId, nation);
     return { handled: 'reply:bank' };
   }
+  if (text === '🏗️ ساخت و ساز') {
+    const nation = await currentNation(ctx, identity.userId);
+    if (!nation) {
+      await ctx.tg.sendMessage(message.chat.id, 'ابتدا کشور بسازید.', { inline: [[{ text: '🏳️ ساخت کشور', callback_data: 'new' }]] });
+      return { handled: 'reply:build:no_nation' };
+    }
+    await sendBuildingsHome(ctx, message.chat.id, nation);
+    return { handled: 'reply:build' };
+  }
+  if (text === '🏆 رتبه‌بندی قدرت‌های جهان' || text === '🏆 رتبه‌بندی کشورها') {
+    await sendRankingsCard(ctx, message.chat.id, identity.userId, 'global');
+    return { handled: 'reply:rankings' };
+  }
 
   // the 18 category buttons of the purchase keypad (installed by «مدیریت کشور»)
   const catKey = CATEGORY_TO_KEY[text];
@@ -242,12 +256,21 @@ async function handleCommand(ctx: BotCtx, message: TgMessage, updateId: number):
     case '/rank':
     case '/rankings':
       return renderPage(ctx, message.chat.id, identity.userId, 'rankings', message.message_id);
-    case '/news':
-      return renderPage(ctx, message.chat.id, identity.userId, 'news', message.message_id);
     case '/country':
       return renderPage(ctx, message.chat.id, identity.userId, 'country', message.message_id);
     case '/defense':
       return renderPage(ctx, message.chat.id, identity.userId, 'defense', message.message_id);
+    case '/build': {
+      const nation = await currentNation(ctx, identity.userId);
+      if (!nation) {
+        await ctx.tg.sendMessage(message.chat.id, 'ابتدا کشور بسازید.', { inline: [[{ text: '🏳️ ساخت کشور', callback_data: 'new' }]] });
+        return { handled: 'reply:build:no_nation' };
+      }
+      await sendBuildingsHome(ctx, message.chat.id, nation);
+      return { handled: 'reply:build' };
+    }
+    case '/ranking':
+      return renderPage(ctx, message.chat.id, identity.userId, 'rankings', message.message_id);
     case '/bank': {
       const nation = await currentNation(ctx, identity.userId);
       if (!nation) {
@@ -280,10 +303,11 @@ export function helpText(): string {
     '/war — جنگ‌ها و حملات',
     '/defense — وضعیت دفاعی',
     '/bank — بانک مرکزی (دریافت درآمد و وام)',
+    '/build — وزارت ساخت‌وساز',
+    '/ranking — رتبه‌بندی کشورها',
     '/diplomacy — دیپلماسی و اتحاد',
     '/statement — صدور بیانیه رسمی',
     '/rankings — رتبه‌بندی جهانی',
-    '/news — اخبار بازی',
     '/settings — تنظیمات',
     '',
     'همه عملیات مالی و نظامی در سرور انجام می‌شود و هیچ مبلغی در کلاینت محاسبه نمی‌شود.',
@@ -529,7 +553,7 @@ async function handleCallback(ctx: BotCtx, cb: TgCallbackQuery, updateId: number
           await ctx.tg.editMessageText(
             chatId,
             messageId,
-            `⚔️ درخواست جنگ ارسال شد.\nشناسه جنگ: <b>${res.warId}</b>\nنیروهای متعهد: <b>${committed.toLocaleString('en-US')} واحد</b>\nاحتمال پیروزی مهاجم: ${percent(res.preview.attackerWinChance)}\n\nحالا باید کشور مقابل پاسخ دهد.`,
+            `⚔️ حمله آغاز شد!\nشناسه جنگ: <b>${res.warId}</b>\nنیروهای متعهد: <b>${committed.toLocaleString('en-US')} واحد</b>\nاحتمال پیروزی مهاجم: ${percent(res.preview.attackerWinChance)}\n\nخبر فوری برای دفاع ارسال شد. جنگ بلافاصله شروع می‌شود.`,
             [[{ text: '📜 جنگ‌های من', callback_data: 'war:list' }, { text: '🏠 منو', callback_data: 'm' }]],
           );
           await answer();
@@ -724,6 +748,80 @@ async function handleCallback(ctx: BotCtx, cb: TgCallbackQuery, updateId: number
         await answer('دستور ناشناخته', true);
         return { handled: 'bank:unknown' };
       }
+      case 'build': {
+        const nation = await currentNation(ctx, identity.userId);
+        if (!nation) {
+          await answer('ابتدا کشور بسازید.', true);
+          return { handled: 'build:no_nation' };
+        }
+        const sub = rest[0];
+        if (sub === 'home') {
+          await editBuildingsHome(ctx, chatId, messageId, nation);
+          await answer();
+          return { handled: 'build:home' };
+        }
+        if (sub === 'ask') {
+          const b = BUILDINGS.find((x) => x.key === String(rest[1] ?? ''));
+          if (!b) {
+            await answer('سازه نامعتبر است.', true);
+            return { handled: 'build:ask:bad' };
+          }
+          const state = await buildState(ctx.db, nation);
+          const built = Boolean(state.buildings.find((x) => x.key === b.key)?.built);
+          const text = built
+            ? `${b.emoji} <b>${b.nameFa}</b>\n\n✅ این سازه قبلاً ساخته شده است.`
+            : [`${b.emoji} <b>${b.nameFa}</b>`, '', escapeHtml(b.descFa), '', `هزینه: <b>${fmt(b.cost)} سکه</b>`, '', 'ساخته شود؟'].join('\n');
+          const rows: KeyboardRow<InlineKeyboardButton>[] = built
+            ? [[{ text: '⬅️ بازگشت', callback_data: 'build:home' }]]
+            : [
+                [
+                  { text: '✅ تأیید و ساخت', callback_data: `build:go:${b.key}` },
+                  { text: '❌ انصراف', callback_data: 'build:home' },
+                ],
+              ];
+          await ctx.tg.editMessageText(chatId, messageId, text, rows);
+          await answer();
+          return { handled: 'build:ask' };
+        }
+        if (sub === 'go') {
+          const key = String(rest[1] ?? '');
+          try {
+            const res = await construct(ctx.db, nation, key);
+            await ctx.tg.editMessageText(
+              chatId,
+              messageId,
+              [
+                `🏗️ <b>${escapeHtml(res.building.nameFa)}</b> ساخته شد!`,
+                '',
+                `هزینه: <b>${fmt(res.cost)} سکه</b>`,
+                `موجودی خزانه: <b>${fmt(res.treasury)} سکه</b>`,
+              ].join('\n'),
+              [[{ text: '⬅️ بازگشت به ساخت‌وساز', callback_data: 'build:home' }]],
+            );
+            await answer('سازه ساخته شد 🏗️');
+            return { handled: 'build:go' };
+          } catch (err) {
+            const message = err instanceof Error ? err.message : 'خطایی رخ داد.';
+            await answer(message, true);
+            await editBuildingsHome(ctx, chatId, messageId, nation);
+            return { handled: 'build:go:failed' };
+          }
+        }
+        await answer('دستور ناشناخته', true);
+        return { handled: 'build:unknown' };
+      }
+      case 'rank': {
+        const metric = (['military', 'economic', 'global', 'development'].includes(String(rest[1] ?? '')) ? String(rest[1]) : 'global') as 'military' | 'economic' | 'global' | 'development';
+        if (rest[0] === 'tab') {
+          const nation = (await currentNation(ctx, identity.userId)) ?? null;
+          const card = await rankingsCard(ctx, nation, metric);
+          await ctx.tg.editMessageText(chatId, messageId, card.text, card.inline);
+          await answer();
+          return { handled: `rank:tab:${metric}` };
+        }
+        await answer('دستور ناشناخته', true);
+        return { handled: 'rank:unknown' };
+      }
       case 'atk': {
         const nation = await currentNation(ctx, identity.userId);
         if (!nation) throw ApiError.forbidden('ابتدا کشور بسازید.');
@@ -880,7 +978,7 @@ async function handleCallback(ctx: BotCtx, cb: TgCallbackQuery, updateId: number
           await ctx.tg.editMessageText(
             chatId,
             messageId,
-            `📜 بیانیه ثبت شد.\nوضعیت: <b>${result.statusLabelFa}</b>\nشناسه: ${result.statementId}\n\n${result.status === 'published' ? 'در بخش اخبار جهانی منتشر شد.' : 'پس از بررسی مدیر منتشر می‌شود.'}`,
+            `📜 بیانیه ثبت شد.\nوضعیت: <b>${result.statusLabelFa}</b>\nشناسه: ${result.statementId}\n\n${result.status === 'published' ? 'بیانیه شما منتشر شد.' : 'پس از بررسی مدیر منتشر می‌شود.'}`,
             [[{ text: '📜 بیانیه‌های من', callback_data: 'st:list' }, { text: '🏠 منو', callback_data: 'm' }]],
           );
           await answer('ثبت شد');
@@ -1097,26 +1195,9 @@ async function renderFor(ctx: BotCtx, nation: NationRow, page: PlayerPage): Prom
     }
     case 'statements':
       return renderStatementsBody(ctx, nation);
-    case 'news': {
-      const items = await newsFeed(ctx.db, { nationIds: [nation.id], limit: 8 });
-      return {
-        text: ['📰 <b>اخبار جهانی</b>', '', ...(items.items.length ? items.items.map((n) => `${n.emoji} <b>${escapeHtml(n.title)}</b>\n${escapeHtml(n.body).slice(0, 160)}`) : ['خبری ثبت نشده است.'])].join('\n\n'),
-        inline: [[{ text: '🔄 به‌روزرسانی', callback_data: 'nav:news' }], ...backButton()],
-      };
-    }
     case 'rankings': {
-      const rows = await listRankings(ctx.db, ctx.settings, { limit: 10 });
-      const mine = rows.find((r) => r.nationId === nation.id);
-      return {
-        text: [
-          '📊 <b>رتبه‌بندی جهانی</b>',
-          '',
-          ...rows.map((r) => `${r.rank}. ${r.flag} ${escapeHtml(r.name)} — ${fmt(r.score)} (خزانه ${formatNumber(r.raw.treasury)}، قدرت ${fmt(r.raw.militaryPower)})`),
-          '',
-          mine ? `رتبه شما: <b>#${mine.rank}</b>` : 'شما هنوز در فهرست نیستید.',
-        ].join('\n'),
-        inline: backButton(),
-      };
+      const card = await rankingsCard(ctx, nation, 'global');
+      return card;
     }
     case 'settings': {
       const ns = await ctx.db.first<{ notify_enabled: number }>(sql`SELECT notify_enabled FROM nation_settings WHERE nation_id = ${nation.id}`);
@@ -1816,4 +1897,90 @@ function bankLoanRows(state: Awaited<ReturnType<typeof bankState>>): KeyboardRow
 async function editBankLoan(ctx: BotCtx, chatId: number, messageId: number, nation: NationRow) {
   const state = await freshBankState(ctx, nation);
   await ctx.tg.editMessageText(chatId, messageId, bankLoanLines(state), bankLoanRows(state));
+}
+
+/* --------------------------- 🏗️ وزارت ساخت‌وساز --------------------------- */
+
+function buildingsScreenText(state: Awaited<ReturnType<typeof buildState>>): string {
+  return [
+    '🏗️ <b>وزارت ساخت‌وساز</b>',
+    '',
+    'فرمانده، برای توسعه کشور خود سازه‌های جدید بساز.',
+    '',
+    `💰 موجودی خزانه: <b>${fmt(state.treasury)} سکه</b>`,
+    `سازه‌های ساخته‌شده: <b>${state.builtCount}</b> از ${state.totalCount}`,
+    '',
+    'برای ساخت یک سازه، دکمهٔ آن را بزنید:',
+  ].join('\n');
+}
+
+function buildingsRows(state: Awaited<ReturnType<typeof buildState>>): KeyboardRow<InlineKeyboardButton>[] {
+  const rows: KeyboardRow<InlineKeyboardButton>[] = state.buildings.map((b) => [
+    {
+      text: b.built ? `${b.emoji} ${b.nameFa} ✅ ساخته شد` : `${b.emoji} ${b.nameFa} — ${fmt(b.cost)} سکه`,
+      callback_data: b.built ? 'noop' : `build:ask:${b.key}`,
+    },
+  ]);
+  rows.push([{ text: 'بازگشت به منوی اصلی ⬅ BACK', callback_data: 'm' }]);
+  return rows;
+}
+
+async function sendBuildingsHome(ctx: BotCtx, chatId: number, nation: NationRow) {
+  const state = await buildState(ctx.db, nation);
+  await ctx.tg.sendMessage(chatId, buildingsScreenText(state), { inline: buildingsRows(state) });
+}
+
+async function editBuildingsHome(ctx: BotCtx, chatId: number, messageId: number, nation: NationRow) {
+  const fresh = await loadNationOwnedBy(ctx.db, Number(nation.owner_user_id), nation.id);
+  const state = await buildState(ctx.db, fresh ?? nation);
+  await ctx.tg.editMessageText(chatId, messageId, buildingsScreenText(state), buildingsRows(state));
+}
+
+/* --------------------------- 🏆 رتبه‌بندی قدرت‌های جهان --------------------------- */
+
+type RankingTab = 'military' | 'economic' | 'global' | 'development';
+
+const RANKING_TABS: { key: RankingTab; label: string; scoreLabel: string }[] = [
+  { key: 'military', label: '⚔️ رتبه‌بندی قدرت نظامی', scoreLabel: 'قدرت نظامی' },
+  { key: 'economic', label: '💰 رتبه‌بندی اقتصادی', scoreLabel: 'امتیاز اقتصادی' },
+  { key: 'global', label: '🌍 رتبه‌بندی قدرت جهانی', scoreLabel: 'امتیاز کل' },
+  { key: 'development', label: '🏭 رتبه‌بندی توسعه کشورها', scoreLabel: 'سازه‌های ساخته‌شده' },
+];
+const RANK_WORDS = ['اول', 'دوم', 'سوم', 'چهارم', 'پنجم'];
+const RANK_MEDALS = ['🥇', '🥈', '🥉', '4️⃣', '5️⃣'];
+
+async function rankingsCard(ctx: BotCtx, nation: NationRow | null, metric: RankingTab): Promise<{ text: string; inline: KeyboardRow<InlineKeyboardButton>[] }> {
+  const apiMetric =
+    metric === 'military' ? 'military_power' : metric === 'economic' ? 'economic_score' : metric === 'development' ? 'development' : undefined;
+  const rows = await listRankings(ctx.db, ctx.settings, { metric: apiMetric, limit: 5 });
+  const tab = RANKING_TABS.find((t) => t.key === metric) ?? RANKING_TABS[2]!;
+
+  const lines = ['🏆 <b>رتبه‌بندی قدرت‌های جهان</b>', '', 'برترین کشورهای جهان بر اساس عملکرد و قدرت', ''];
+  const top = rows[0];
+  if (top) {
+    lines.push(`🥇 رتبه اول 🎖️ ابرقدرت`);
+    lines.push(`${top.flag} <b>${escapeHtml(top.name)}</b>`);
+    lines.push(`${tab.scoreLabel}: <b>${fmt(top.score)}</b>`);
+    lines.push('');
+  }
+  for (let i = 1; i < Math.min(5, rows.length); i++) {
+    const r = rows[i]!;
+    lines.push(`${RANK_MEDALS[i]} رتبه ${RANK_WORDS[i]} ${r.flag} ${escapeHtml(r.name)} — ${fmt(r.score)}`);
+  }
+  if (rows.length === 0) lines.push('هنوز هیچ کشوری در فهرست نیست.');
+  const mine = nation ? rows.find((r) => r.nationId === nation.id) : undefined;
+  lines.push('');
+  lines.push(mine ? `رتبه شما: <b>#${mine.rank}</b> از ${RANK_WORDS[Math.min(4, mine.rank - 1)] ?? mine.rank}` : 'شما هنوز در فهرست برتر نیستید.');
+
+  const inline: KeyboardRow<InlineKeyboardButton>[] = RANKING_TABS.map((t) => [
+    { text: `${t.label}${metric === t.key ? ' ✅' : ''}`, callback_data: `rank:tab:${t.key}` },
+  ]);
+  inline.push([{ text: 'بازگشت ⬅ BACK', callback_data: 'm' }]);
+  return { text: lines.join('\n'), inline };
+}
+
+async function sendRankingsCard(ctx: BotCtx, chatId: number, userId: number, metric: RankingTab) {
+  const nation = (await currentNation(ctx, userId)) ?? null;
+  const card = await rankingsCard(ctx, nation, metric);
+  await ctx.tg.sendMessage(chatId, card.text, { inline: card.inline });
 }

@@ -99,8 +99,9 @@ describe('committing an attack plan', () => {
   });
 
   it('mobilizes the defender with the «دفاع آغاز شد» alert on accept', async () => {
-    const accept = await world.api('POST', `/api/war/${warId}/respond`, { token: tokenB, body: { accept: true } });
-    expect(accept.status).toBe(200);
+    // حمله خودکار پذیرفته می‌شود — دیگر نیازی به پذیرش مدافع نیست
+    const alreadyActive = await first<{ status: string }>(world.db, `SELECT status FROM wars WHERE id = ?`, warId);
+    expect(alreadyActive!.status).toBe('active');
     const mobilized = await all<any>(world.db, `SELECT * FROM notifications WHERE nation_id = ? AND kind = 'war_defense'`, nationB);
     expect(mobilized).toHaveLength(1);
     expect(mobilized[0]!.body).toContain('عملیات دفاع از کشور آغاز شد');

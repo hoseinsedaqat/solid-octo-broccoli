@@ -468,7 +468,7 @@ function BroadcastForm() {
             <input className="ww-input" dir="ltr" inputMode="numeric" value={target} onChange={(e) => setTarget(e.target.value.replace(/[^\d]/g, ''))} />
           </label>
           <p className="text-[11px] leading-6 text-slate-400">
-            اطلاعیه در جدول announcements ذخیره می‌شود، در صفحه اخبار بازیکنان و در فید /api/social/news ظاهر می‌گردد و اگر BOT_TOKEN تنظیم شده باشد برای هدف‌ها ارسال
+            اطلاعیه در جدول announcements ذخیره می‌شود و اگر BOT_TOKEN تنظیم شده باشد برای هدف‌ها ارسال
             تلگرامی می‌شود (اگر ارسال ناموفق باشد، اطلاعیه بازم منتشر می‌شود و خطای ارسال در پاسخ می‌آید).
           </p>
           {error ? <p className="text-[11px] text-danger">{error}</p> : null}

@@ -12,6 +12,7 @@ import { listNotifications, markRead, unreadCount } from '../../services/notific
 import { DEFENSE_ARRANGEMENT_KEYS, DEFENSE_ARRANGEMENT } from '@ww/shared';
 import { claimDailyPrize, prizeState, publicPrizes } from '../../services/dailyPrizeService';
 import { bankState, claimIncome, repayLoan, takeLoan } from '../../services/bankService';
+import { buildState, construct } from '../../services/buildService';
 import type { HonoEnv } from '../../types';
 
 export const playerRoutes = new Hono<HonoEnv>();
@@ -166,6 +167,21 @@ playerRoutes.post('/bank/loan', async (c) => {
 playerRoutes.post('/bank/loan/repay', async (c) => {
   const db = c.get('db');
   const result = await repayLoan(db, c.get('nation'));
+  return c.json(result);
+});
+
+/* --------------------------- وزارت ساخت‌وساز --------------------------- */
+
+playerRoutes.get('/buildings', async (c) => {
+  const db = c.get('db');
+  return c.json(await buildState(db, c.get('nation')));
+});
+
+/** ساخت یک سازه — هزینه از خزانه و جایزهٔ آن در همان تراکنش */
+playerRoutes.post('/buildings', async (c) => {
+  const db = c.get('db');
+  const body = parse(z.object({ buildingKey: z.string().min(1) }), await parseJson(c));
+  const result = await construct(db, c.get('nation'), body.buildingKey);
   return c.json(result);
 });
 

@@ -24,25 +24,25 @@ afterAll(async () => {
 const treasury = async (nationId: number) => Number((await first<{ treasury: number }>(world.db, `SELECT treasury FROM nations WHERE id = ?`, nationId))!.treasury);
 const warRow = async (id: number) => first<any>(world.db, `SELECT * FROM wars WHERE id = ?`, id);
 
-describe('war proposals (backend decides, both sides confirm)', () => {
-  it('creates a proposal that only the defender can accept', async () => {
+describe('war proposals (auto-accepted)', () => {
+  it('starts the war immediately on attack, no defender confirmation', async () => {
     const res = await world.api('POST', '/api/war/propose', { token: tokenA, body: { targetNationId: nationB, indemnityOffered: 5000 } });
     expect(res.status).toBe(200);
     const warId = Number(res.json.warId);
-    expect(res.json.status).toBe('proposed');
+    expect(res.json.status).toBe('active'); // حمله خودکار پذیرفته می‌شود
     expect(res.json.preview.attackerWinChance).toBeGreaterThan(0);
     expect(res.json.preview.entryCost).toBe(0); // warEntryTaxRate default
-    expect(await treasury(nationA)).toBe(1_000_000); // nothing is charged before acceptance
+    expect(await treasury(nationA)).toBe(1_000_000); // nothing to charge at the default tax rate
 
-    // the attacker cannot accept its own proposal
-    const self = await world.api('POST', `/api/war/${warId}/respond`, { token: tokenA, body: { accept: true } });
-    expect(self.status).toBeGreaterThanOrEqual(400);
+    // the old respond endpoint no longer applies to new wars
+    const respond = await world.api('POST', `/api/war/${warId}/respond`, { token: tokenB, body: { accept: true } });
+    expect(respond.status).toBeGreaterThanOrEqual(400);
 
-    const accept = await world.api('POST', `/api/war/${warId}/respond`, { token: tokenB, body: { accept: true } });
-    expect(accept.status).toBe(200);
     const war = await warRow(warId);
-    expect(['active', 'accepted']).toContain(war!.status);
+    expect(war!.status).toBe('active');
     expect(Number(war!.rounds_played)).toBe(0);
+    expect(Number(war!.accepted_at)).toBeGreaterThan(0);
+    expect(Number(war!.next_round_at)).toBeGreaterThan(0);
   });
 
   it('blocks a second simultaneous war on the same pair and on the same nation', async () => {
@@ -143,7 +143,6 @@ describe('admin control over wars', () => {
     const propose = await world.api('POST', '/api/war/propose', { token: tokenOther, body: { targetNationId: nationB } });
     expect(propose.status).toBe(200);
     const warId = Number(propose.json.warId);
-    await world.api('POST', `/api/war/${warId}/respond`, { token: tokenB, body: { accept: true } });
     await run(world.db, `UPDATE wars SET status = 'active', started_at = ?, next_round_at = 1 WHERE id = ?`, Math.floor(Date.now() / 1000), warId);
 
     const player = await world.api('POST', `/api/admin/wars/${warId}/stop`, { token: tokenA, body: { reason: 'تست' } });
@@ -178,7 +177,6 @@ describe('peace, diplomacy and statements', () => {
     const real = await world.api('POST', '/api/war/propose', { token: tokenA2, body: { targetNationId: b } });
     expect(real.status).toBe(200);
     const warId = Number(real.json.warId);
-    await world.api('POST', `/api/war/${warId}/respond`, { token: tokenB2, body: { accept: true } });
     await run(world.db, `UPDATE wars SET status = 'active', started_at = 1, next_round_at = 1 WHERE id = ?`, warId);
 
     const ask = await world.api('POST', `/api/war/${warId}/peace`, { token: tokenA2 });
@@ -261,8 +259,6 @@ describe('peace, diplomacy and statements', () => {
     const short = await world.api('POST', '/api/statements', { token: tokenA, body: { text: 'کوتاه' } });
     expect([400, 422]).toContain(short.status);
 
-    const feed = await world.api('GET', '/api/social/news', { token: tokenB });
-    expect(feed.status).toBe(200);
     const published = await world.api('GET', `/api/statements/published/${nationA}`, { token: tokenB });
     expect(published.status).toBe(200);
 
@@ -276,7 +272,7 @@ describe('peace, diplomacy and statements', () => {
     }
   });
 
-  it('rankings and news are computed by the backend, not the client', async () => {
+  it('rankings are computed by the backend, not the client', async () => {
     await runCron(world, adminToken, ['ranking']);
     const res = await world.api('GET', '/api/social/rankings', { token: tokenA });
     expect(res.status).toBe(200);
