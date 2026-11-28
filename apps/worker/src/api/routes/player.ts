@@ -12,7 +12,12 @@ import { listNotifications, markRead, unreadCount } from '../../services/notific
 import { DEFENSE_ARRANGEMENT_KEYS, DEFENSE_ARRANGEMENT } from '@ww/shared';
 import { claimDailyPrize, prizeState, publicPrizes } from '../../services/dailyPrizeService';
 import { bankState, claimIncome, listLoans, repayLoan, takeLoan } from '../../services/bankService';
-import { buildState, construct } from '../../services/buildService';
+import { buildState, buildSpeed, construct } from '../../services/buildService';
+import { industryState, startProduction, claimProduction, upgradeFactory } from '../../services/industryService';
+import { arsenalState, deployUnits, recallUnits } from '../../services/arsenalService';
+import { armyState, repairEquipment, supply } from '../../services/armyService';
+import { securityState, hirePolice, upgradeBorder, upgradeInfra, toggleProtectedAsset } from '../../services/securityService';
+import { populationState, upgradePopulation } from '../../services/populationService';
 import { resourceState, extract as extractResource, sellResource, importResource, startRefinery, createContract, cancelContract, listContracts, tradeHistory, budgetAllocate, budgetWithdraw } from '../../services/resourceService';
 import type { HonoEnv } from '../../types';
 
@@ -280,8 +285,102 @@ playerRoutes.get('/buildings', async (c) => {
 playerRoutes.post('/buildings', async (c) => {
   const db = c.get('db');
   const body = parse(z.object({ buildingKey: z.string().min(1) }), await parseJson(c));
-  const result = await construct(db, c.get('nation'), body.buildingKey);
+  const result = await construct(db, c.get('nation'), body.buildingKey, nowSeconds(), buildSpeed(c.env));
   return c.json(result);
+});
+
+/* --------------------------- 🏭 صنایع و تولید --------------------------- */
+
+playerRoutes.get('/industries', async (c) => {
+  return c.json(await industryState(c.get('db'), c.get('nation')));
+});
+
+playerRoutes.post('/industries/start', async (c) => {
+  const body = parse(z.object({ templateId: z.coerce.number().int().positive(), quantity: z.coerce.number().int().min(1).max(10000) }), await parseJson(c));
+  return c.json(await startProduction(c.get('db'), c.get('nation'), body));
+});
+
+playerRoutes.post('/industries/claim', async (c) => {
+  const body = parse(z.object({ orderId: z.string().min(1) }), await parseJson(c));
+  return c.json(await claimProduction(c.get('db'), c.get('nation'), body.orderId));
+});
+
+playerRoutes.post('/industries/upgrade-factory', async (c) => {
+  const body = parse(z.object({ templateId: z.coerce.number().int().positive() }), await parseJson(c));
+  return c.json(await upgradeFactory(c.get('db'), c.get('nation'), body.templateId));
+});
+
+/* --------------------------- 📦 انبار تجهیزات --------------------------- */
+
+playerRoutes.get('/arsenal', async (c) => {
+  return c.json(await arsenalState(c.get('db'), c.get('nation')));
+});
+
+playerRoutes.post('/arsenal/deploy', async (c) => {
+  const body = parse(z.object({ templateId: z.coerce.number().int().positive(), quantity: z.coerce.number().int().min(1).max(1_000_000) }), await parseJson(c));
+  return c.json(await deployUnits(c.get('db'), c.get('nation'), body.templateId, body.quantity));
+});
+
+playerRoutes.post('/arsenal/recall', async (c) => {
+  const body = parse(z.object({ templateId: z.coerce.number().int().positive(), quantity: z.coerce.number().int().min(1).max(1_000_000) }), await parseJson(c));
+  return c.json(await recallUnits(c.get('db'), c.get('nation'), body.templateId, body.quantity));
+});
+
+/* --------------------------- 🪖 مدیریت ارتش --------------------------- */
+
+playerRoutes.get('/army', async (c) => {
+  return c.json(await armyState(c.get('db'), c.get('nation')));
+});
+
+playerRoutes.post('/army/repair', async (c) => {
+  return c.json(await repairEquipment(c.get('db'), c.get('nation')));
+});
+
+playerRoutes.post('/army/supply', async (c) => {
+  const body = parse(z.object({ kind: z.enum(['fuel', 'ammo']) }), await parseJson(c));
+  return c.json(await supply(c.get('db'), c.get('nation'), body.kind));
+});
+
+/* --------------------------- 🛡️ امنیت کشور --------------------------- */
+
+playerRoutes.get('/security', async (c) => {
+  return c.json(await securityState(c.get('db'), c.get('nation')));
+});
+
+playerRoutes.post('/security/police', async (c) => {
+  const body = parse(z.object({ quantity: z.coerce.number().int().min(1).max(500) }), await parseJson(c));
+  return c.json(await hirePolice(c.get('db'), c.get('nation'), body.quantity));
+});
+
+playerRoutes.post('/security/border', async (c) => {
+  return c.json(await upgradeBorder(c.get('db'), c.get('nation')));
+});
+
+playerRoutes.post('/security/infra', async (c) => {
+  return c.json(await upgradeInfra(c.get('db'), c.get('nation')));
+});
+
+playerRoutes.post('/security/protect', async (c) => {
+  const body = parse(
+    z.object({
+      assetType: z.enum(['factory', 'mine', 'building']),
+      assetRef: z.string().min(1).max(64),
+      assetName: z.string().min(1).max(120),
+    }),
+    await parseJson(c),
+  );
+  return c.json(await toggleProtectedAsset(c.get('db'), c.get('nation'), body));
+});
+
+/* --------------------------- 👥 مدیریت جمعیت --------------------------- */
+
+playerRoutes.get('/population', async (c) => {
+  return c.json(await populationState(c.get('db'), c.get('nation')));
+});
+
+playerRoutes.post('/population/upgrade', async (c) => {
+  const body = parse(z.object({ kind: z.enum(['hospital', 'school', 'housing']) }), await parseJson(c));
+  return c.json(await upgradePopulation(c.get('db'), c.get('nation'), body.kind));
 });
 
 playerRoutes.get('/notifications', async (c) => {

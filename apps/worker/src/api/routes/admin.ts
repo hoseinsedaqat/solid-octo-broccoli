@@ -60,6 +60,7 @@ import { snapshotQuota } from '../../services/quotaService';
 import { loadNation, refreshNationStats, recomputeRankings } from '../../db/queries';
 import { triggerJobsManually } from '../../scheduled/cron';
 import { adminStopWar, mapWar } from '../../services/warService';
+import { determineCountry } from '../../services/assignCountryService';
 import type { HonoEnv } from '../../types';
 
 export const adminRoutes = new Hono<HonoEnv>();
@@ -132,6 +133,19 @@ adminRoutes.get('/users/:id', requireAdmin('users'), async (c) => {
     transactions: tx.rows,
     permissions: await getPermissions(db, id),
   });
+});
+
+/* --------------------------- 🚩 تعیین کشور بازیکن --------------------------- */
+
+/** ادمین آیدی عددی + نام کشور را می‌دهد؛ کشور در پروفایل بازیکن ثبت می‌شود (یا همان‌جا ساخته می‌شود) */
+adminRoutes.post('/determine-country', write('users'), async (c) => {
+  const body = parse(
+    z.object({ telegramId: z.coerce.number().int().positive(), countryName: z.string().trim().min(3).max(30) }),
+    await parseJson(c),
+  );
+  const settings = await settingsFor(c);
+  const result = await determineCountry(c.get('db'), adminActorOf(c.get('user')), body, settings);
+  return c.json(result);
 });
 
 adminRoutes.post('/users/:id/status', write('users'), async (c) => {
